@@ -1,3 +1,7 @@
+WORK IN PROGRESS
+
+Mostly IGNORE for now
+
 # OGC Connected Systems API - Part 1: Feature Resources
 
 Go implementation of the OGC API - Connected Systems Standard (Part 1).
