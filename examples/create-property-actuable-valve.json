@@ -1,0 +1,19 @@
+{
+  "uid": "urn:example:property:valve-position",
+  "name": "Valve Position",
+  "description": "Open/close position of the control valve",
+  "definition": "http://example.org/def/actuableProperty/valvePosition",
+  "propertyType": "http://www.w3.org/ns/sosa/ActuableProperty",
+  "objectType": "http://example.org/def/equipment/Valve",
+  "uom": "%",
+  "properties": {
+    "units": "percent",
+    "symbol": "V_pos",
+    "range": {
+      "min": 0,
+      "max": 100
+    },
+    "discreteValues": false
+  },
+  "links": []
+}

@@ -1,0 +1,22 @@
+{
+  "uid": "urn:example:property:air-temperature",
+  "name": "Air Temperature",
+  "description": "Temperature of the ambient air",
+  "definition": "http://vocab.nerc.ac.uk/collection/P07/current/CFSN0023/",
+  "propertyType": "http://www.w3.org/ns/sosa/ObservableProperty",
+  "objectType": "http://example.org/def/observableProperty/Atmosphere",
+  "uom": "Cel",
+  "properties": {
+    "standardName": "air_temperature",
+    "units": "degree_Celsius",
+    "symbol": "T_air"
+  },
+  "links": [
+    {
+      "href": "http://vocab.nerc.ac.uk/collection/P07/current/CFSN0023/",
+      "rel": "related",
+      "type": "text/html",
+      "title": "CF Standard Name: air_temperature"
+    }
+  ]
+}

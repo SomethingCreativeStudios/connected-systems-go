@@ -1,0 +1,36 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:deployment:weather-deployment-2024",
+    "name": "Central Park Weather Station Deployment 2024",
+    "description": "Annual deployment of weather monitoring equipment at Central Park",
+    "featureType": "http://www.w3.org/ns/ssn/Deployment",
+    "validTime": {
+      "start": "2024-01-01T00:00:00Z",
+      "end": "2024-12-31T23:59:59Z"
+    },
+    "deployedSystems@link": [
+      {
+        "href": "urn:example:system:weather-station-001",
+        "title": "Weather Station #001"
+      }
+    ],
+    "platform@link": {
+      "href": "http://example.org/features/central-park-tower",
+      "type": "application/geo+json",
+      "title": "Central Park Observation Tower"
+    }
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [-117.1625, 32.715, 125.0]
+  },
+  "links": [
+    {
+      "href": "http://localhost:8080/deployments/weather-deployment-2024/deployedSystems",
+      "rel": "ogc-rel:deployedSystems",
+      "type": "application/geo+json",
+      "title": "Deployed Systems"
+    }
+  ]
+}

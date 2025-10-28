@@ -1,0 +1,26 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:platform:uav-001",
+    "name": "DJI Matrice 300 RTK UAV #001",
+    "description": "Quadcopter UAV platform with RTK GPS and multiple sensor payloads",
+    "featureType": "http://www.w3.org/ns/sosa/Platform",
+    "assetType": "Platform",
+    "validTime": {
+      "start": "2023-06-15T00:00:00Z",
+      "end": null
+    }
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [-122.4194, 37.7749, 450.5]
+  },
+  "links": [
+    {
+      "href": "http://example.org/procedures/dji-matrice-300",
+      "rel": "http://www.w3.org/ns/sosa/implements",
+      "type": "application/geo+json",
+      "title": "DJI Matrice 300 RTK Specifications"
+    }
+  ]
+}

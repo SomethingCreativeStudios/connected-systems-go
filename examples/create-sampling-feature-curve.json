@@ -1,0 +1,27 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:sf:river-sampling-transect-001",
+    "name": "Colorado River Cross-Section Transect A",
+    "description": "Sampling line across river for flow velocity and depth measurements",
+    "featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingCurve",
+    "validTime": {
+      "start": "2024-05-01T00:00:00Z",
+      "end": null
+    },
+    "sampledFeature@link": {
+      "href": "http://example.org/features/colorado-river",
+      "type": "application/geo+json",
+      "title": "Colorado River"
+    }
+  },
+  "geometry": {
+    "type": "LineString",
+    "coordinates": [
+      [-114.5678, 36.1234, 320.5],
+      [-114.5672, 36.1238, 318.2],
+      [-114.5666, 36.1242, 319.8]
+    ]
+  },
+  "links": []
+}

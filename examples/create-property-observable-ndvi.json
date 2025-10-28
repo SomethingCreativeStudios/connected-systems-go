@@ -1,0 +1,27 @@
+{
+  "uid": "urn:example:property:ndvi",
+  "name": "Normalized Difference Vegetation Index",
+  "description": "Spectral index indicating vegetation health and density",
+  "definition": "http://example.org/def/observableProperty/NDVI",
+  "propertyType": "http://www.w3.org/ns/sosa/ObservableProperty",
+  "objectType": "http://example.org/def/observableProperty/Vegetation",
+  "uom": "1",
+  "properties": {
+    "standardName": "normalized_difference_vegetation_index",
+    "units": "dimensionless",
+    "symbol": "NDVI",
+    "formula": "(NIR - Red) / (NIR + Red)",
+    "range": {
+      "min": -1.0,
+      "max": 1.0
+    }
+  },
+  "links": [
+    {
+      "href": "https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index",
+      "rel": "related",
+      "type": "text/html",
+      "title": "NDVI Wikipedia"
+    }
+  ]
+}

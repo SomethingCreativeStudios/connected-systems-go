@@ -1,0 +1,34 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:deployment:uav-mission-2024-10-18",
+    "name": "Agricultural Survey Mission - Field 7A",
+    "description": "UAV deployment for crop health monitoring and NDVI imaging",
+    "featureType": "http://www.w3.org/ns/ssn/Deployment",
+    "validTime": {
+      "start": "2024-10-18T08:00:00Z",
+      "end": "2024-10-18T11:30:00Z"
+    },
+    "deployedSystems@link": [
+      {
+        "href": "urn:example:platform:uav-001",
+        "title": "DJI Matrice 300 RTK UAV #001"
+      },
+      {
+        "href": "urn:example:sensor:multispectral-cam-001",
+        "title": "Multispectral Camera Payload"
+      }
+    ]
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[
+      [-122.420, 37.774],
+      [-122.420, 37.776],
+      [-122.418, 37.776],
+      [-122.418, 37.774],
+      [-122.420, 37.774]
+    ]]
+  },
+  "links": []
+}

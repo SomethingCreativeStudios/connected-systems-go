@@ -1,0 +1,19 @@
+{
+  "uid": "urn:example:property:relative-humidity",
+  "name": "Relative Humidity",
+  "description": "Ratio of actual water vapor pressure to saturation water vapor pressure",
+  "definition": "http://vocab.nerc.ac.uk/collection/P07/current/CFSN0413/",
+  "propertyType": "http://www.w3.org/ns/sosa/ObservableProperty",
+  "objectType": "http://example.org/def/observableProperty/Atmosphere",
+  "uom": "%",
+  "properties": {
+    "standardName": "relative_humidity",
+    "units": "percent",
+    "symbol": "RH",
+    "range": {
+      "min": 0,
+      "max": 100
+    }
+  },
+  "links": []
+}

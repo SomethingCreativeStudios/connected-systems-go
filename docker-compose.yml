@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  db:
+    image: imresamu/postgis:18-3.6.0-alpine3.22
+    environment:
+      POSTGRES_DB: connected_systems
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+  # api:
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     DATABASE_HOST: db
+  #     DATABASE_PORT: 5432
+  #     DATABASE_NAME: connected_systems
+  #     DATABASE_USER: postgres
+  #     DATABASE_PASSWORD: postgres
+  #   depends_on:
+  #     - db
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:

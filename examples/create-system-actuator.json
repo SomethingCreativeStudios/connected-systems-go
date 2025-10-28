@@ -1,0 +1,19 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:actuator:valve-001",
+    "name": "Irrigation Control Valve #1",
+    "description": "Electronically controlled water valve for precision irrigation",
+    "featureType": "http://www.w3.org/ns/sosa/Actuator",
+    "assetType": "Equipment",
+    "validTime": {
+      "start": "2024-03-01T00:00:00Z",
+      "end": null
+    }
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [-121.8863, 37.3382]
+  },
+  "links": []
+}

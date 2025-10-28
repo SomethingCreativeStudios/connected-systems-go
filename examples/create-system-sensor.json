@@ -1,0 +1,26 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:sensor:temp-001",
+    "name": "Weather Station Temperature Sensor",
+    "description": "High-precision temperature sensor deployed at central park weather station",
+    "featureType": "http://www.w3.org/ns/sosa/Sensor",
+    "assetType": "Equipment",
+    "validTime": {
+      "start": "2024-01-01T00:00:00Z",
+      "end": null
+    }
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [-117.1625, 32.715]
+  },
+  "links": [
+    {
+      "href": "http://example.org/procedures/thermometer-datasheet-v2",
+      "rel": "http://www.w3.org/ns/sosa/implements",
+      "type": "application/geo+json",
+      "title": "Thermometer Datasheet"
+    }
+  ]
+}

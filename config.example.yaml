@@ -1,0 +1,16 @@
+server:
+  host: localhost
+  port: 8080
+
+database:
+  host: localhost
+  port: 5432
+  name: connected_systems
+  user: postgres
+  password: postgres
+
+api:
+  base_url: http://localhost:8080
+  title: "OGC Connected Systems API"
+  description: "OGC API - Connected Systems - Part 1: Feature Resources"
+  version: "1.0.0"

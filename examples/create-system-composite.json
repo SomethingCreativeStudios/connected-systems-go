@@ -1,0 +1,26 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:system:weather-station-001",
+    "name": "Central Park Multi-Sensor Weather Station",
+    "description": "Complete weather monitoring station with multiple environmental sensors",
+    "featureType": "http://www.w3.org/ns/ssn/System",
+    "assetType": "Equipment",
+    "validTime": {
+      "start": "2024-01-01T00:00:00Z",
+      "end": null
+    }
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [-117.1625, 32.715, 125.0]
+  },
+  "links": [
+    {
+      "href": "http://localhost:8080/systems/weather-station-001/subsystems",
+      "rel": "ogc-rel:subsystems",
+      "type": "application/geo+json",
+      "title": "Weather Station Subsystems"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:procedure:thermometer-ds18b20",
+    "name": "DS18B20 Digital Thermometer Datasheet",
+    "description": "Technical specifications and operating characteristics for DS18B20 1-Wire digital temperature sensor",
+    "featureType": "http://www.w3.org/ns/sosa/Procedure",
+    "validTime": {
+      "start": "2020-01-01T00:00:00Z",
+      "end": null
+    }
+  },
+  "geometry": null,
+  "links": [
+    {
+      "href": "https://datasheets.maximintegrated.com/en/ds/DS18B20.pdf",
+      "rel": "related",
+      "type": "application/pdf",
+      "title": "Manufacturer Datasheet"
+    },
+    {
+      "href": "http://localhost:8080/systems?procedure=urn:example:procedure:thermometer-ds18b20",
+      "rel": "ogc-rel:implementingSystems",
+      "type": "application/geo+json",
+      "title": "Systems using this procedure"
+    }
+  ]
+}

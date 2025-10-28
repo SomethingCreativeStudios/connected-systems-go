@@ -1,0 +1,22 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:procedure:water-sampling-epa-method-120.1",
+    "name": "EPA Method 120.1 - Conductance Measurement",
+    "description": "Standard procedure for measuring electrical conductivity in water samples",
+    "featureType": "http://www.w3.org/ns/sosa/Procedure",
+    "validTime": {
+      "start": "1997-01-01T00:00:00Z",
+      "end": null
+    }
+  },
+  "geometry": null,
+  "links": [
+    {
+      "href": "https://www.epa.gov/sites/default/files/2015-08/documents/method_120-1_1997.pdf",
+      "rel": "related",
+      "type": "application/pdf",
+      "title": "EPA Method 120.1 Document"
+    }
+  ]
+}

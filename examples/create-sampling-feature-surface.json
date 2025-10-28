@@ -1,0 +1,29 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:sf:satellite-image-footprint-001",
+    "name": "Landsat 8 Scene LC08_L1TP_042034",
+    "description": "Satellite image footprint representing the sampled surface area",
+    "featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingSurface",
+    "validTime": {
+      "start": "2024-10-18T10:30:00Z",
+      "end": "2024-10-18T10:30:15Z"
+    },
+    "sampledFeature@link": {
+      "href": "http://example.org/features/agricultural-region-7a",
+      "type": "application/geo+json",
+      "title": "Agricultural Region 7A"
+    }
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[
+      [-122.5, 37.7],
+      [-122.5, 37.9],
+      [-122.3, 37.9],
+      [-122.3, 37.7],
+      [-122.5, 37.7]
+    ]]
+  },
+  "links": []
+}

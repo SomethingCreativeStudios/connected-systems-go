@@ -1,0 +1,23 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:sf:weather-station-001-location",
+    "name": "Weather Station Primary Sampling Point",
+    "description": "Primary measurement location at weather station tower top",
+    "featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
+    "validTime": {
+      "start": "2024-01-01T00:00:00Z",
+      "end": null
+    },
+    "sampledFeature@link": {
+      "href": "http://example.org/features/central-park",
+      "type": "application/geo+json",
+      "title": "Central Park Feature of Interest"
+    }
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [-117.1625, 32.715, 125.0]
+  },
+  "links": []
+}
