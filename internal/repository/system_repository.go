@@ -1,7 +1,9 @@
 package repository
 
 import (
-	"github.com/yourusername/connected-systems-go/internal/model"
+	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -16,12 +18,12 @@ func NewSystemRepository(db *gorm.DB) *SystemRepository {
 }
 
 // Build all necessary associations for a system
-func (r *SystemRepository) BuildSystemAssociations(systemID string) model.Links {
+func (r *SystemRepository) BuildSystemAssociations(systemID string) common_shared.Links {
 
-	links := model.Links{}
+	links := common_shared.Links{}
 
 	if has, err := r.HasSubsystems(systemID); err == nil && has {
-		links = append(links, model.Link{
+		links = append(links, common_shared.Link{
 			Rel:  "subsystems",
 			Href: "/systems/" + systemID + "/subsystems",
 		})
@@ -31,13 +33,13 @@ func (r *SystemRepository) BuildSystemAssociations(systemID string) model.Links 
 }
 
 // Create creates a new system
-func (r *SystemRepository) Create(system *model.System) error {
+func (r *SystemRepository) Create(system *domains.System) error {
 	return r.db.Create(system).Error
 }
 
 // GetByID retrieves a system by ID
-func (r *SystemRepository) GetByID(id string) (*model.System, error) {
-	var system model.System
+func (r *SystemRepository) GetByID(id string) (*domains.System, error) {
+	var system domains.System
 	err := r.db.Where("id = ?", id).First(&system).Error
 	if err != nil {
 		return nil, err
@@ -46,8 +48,8 @@ func (r *SystemRepository) GetByID(id string) (*model.System, error) {
 }
 
 // GetByUID retrieves a system by unique identifier
-func (r *SystemRepository) GetByUID(uid string) (*model.System, error) {
-	var system model.System
+func (r *SystemRepository) GetByUID(uid string) (*domains.System, error) {
+	var system domains.System
 	err := r.db.Where("unique_identifier = ?", uid).First(&system).Error
 	if err != nil {
 		return nil, err
@@ -56,11 +58,11 @@ func (r *SystemRepository) GetByUID(uid string) (*model.System, error) {
 }
 
 // List retrieves systems with filtering
-func (r *SystemRepository) List(params *QueryParams) ([]*model.System, int64, error) {
-	var systems []*model.System
+func (r *SystemRepository) List(params *queryparams.SystemQueryParams) ([]*domains.System, int64, error) {
+	var systems []*domains.System
 	var total int64
 
-	query := r.db.Model(&model.System{})
+	query := r.db.Model(&domains.System{})
 
 	// Apply filters
 	query = r.applyFilters(query, params)
@@ -83,8 +85,8 @@ func (r *SystemRepository) List(params *QueryParams) ([]*model.System, int64, er
 }
 
 // GetSubsystems retrieves subsystems of a parent system
-func (r *SystemRepository) GetSubsystems(parentID string, recursive bool) ([]*model.System, error) {
-	var systems []*model.System
+func (r *SystemRepository) GetSubsystems(parentID string, recursive bool) ([]*domains.System, error) {
+	var systems []*domains.System
 
 	query := r.db.Where("parent_system_id = ?", parentID)
 
@@ -94,7 +96,7 @@ func (r *SystemRepository) GetSubsystems(parentID string, recursive bool) ([]*mo
 
 	// If recursive, get subsystems of subsystems
 	if recursive {
-		var allSystems []*model.System
+		var allSystems []*domains.System
 		allSystems = append(allSystems, systems...)
 
 		for _, sys := range systems {
@@ -111,7 +113,7 @@ func (r *SystemRepository) GetSubsystems(parentID string, recursive bool) ([]*mo
 }
 
 // Update updates a system
-func (r *SystemRepository) Update(system *model.System) error {
+func (r *SystemRepository) Update(system *domains.System) error {
 	return r.db.Save(system).Error
 }
 
@@ -119,15 +121,15 @@ func (r *SystemRepository) Update(system *model.System) error {
 func (r *SystemRepository) Delete(id string, cascade bool) error {
 	if cascade {
 		// Delete subsystems first
-		if err := r.db.Where("parent_system_id = ?", id).Delete(&model.System{}).Error; err != nil {
+		if err := r.db.Where("parent_system_id = ?", id).Delete(&domains.System{}).Error; err != nil {
 			return err
 		}
 	}
-	return r.db.Delete(&model.System{}, "id = ?", id).Error
+	return r.db.Delete(&domains.System{}, "id = ?", id).Error
 }
 
 // applyFilters applies query filters
-func (r *SystemRepository) applyFilters(query *gorm.DB, params *QueryParams) *gorm.DB {
+func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.SystemQueryParams) *gorm.DB {
 	if len(params.IDs) > 0 {
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
@@ -149,7 +151,7 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *QueryParams) *go
 func (r *SystemRepository) HasSubsystems(systemID string) (bool, error) {
 	var count int64
 
-	err := r.db.Model(&model.System{}).Where("parent_system_id = ?", systemID).Count(&count).Error
+	err := r.db.Model(&domains.System{}).Where("parent_system_id = ?", systemID).Count(&count).Error
 
 	if err != nil {
 		return false, err

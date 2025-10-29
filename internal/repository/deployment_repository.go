@@ -1,7 +1,8 @@
 package repository
 
 import (
-	"github.com/yourusername/connected-systems-go/internal/model"
+	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -16,13 +17,13 @@ func NewDeploymentRepository(db *gorm.DB) *DeploymentRepository {
 }
 
 // Create creates a new deployment
-func (r *DeploymentRepository) Create(deployment *model.Deployment) error {
+func (r *DeploymentRepository) Create(deployment *domains.Deployment) error {
 	return r.db.Create(deployment).Error
 }
 
 // GetByID retrieves a deployment by ID
-func (r *DeploymentRepository) GetByID(id string) (*model.Deployment, error) {
-	var deployment model.Deployment
+func (r *DeploymentRepository) GetByID(id string) (*domains.Deployment, error) {
+	var deployment domains.Deployment
 	err := r.db.Where("id = ?", id).First(&deployment).Error
 	if err != nil {
 		return nil, err
@@ -31,11 +32,11 @@ func (r *DeploymentRepository) GetByID(id string) (*model.Deployment, error) {
 }
 
 // List retrieves deployments with filtering
-func (r *DeploymentRepository) List(params *QueryParams) ([]*model.Deployment, int64, error) {
-	var deployments []*model.Deployment
+func (r *DeploymentRepository) List(params *queryparams.DeploymentsQueryParams) ([]*domains.Deployment, int64, error) {
+	var deployments []*domains.Deployment
 	var total int64
 
-	query := r.db.Model(&model.Deployment{})
+	query := r.db.Model(&domains.Deployment{})
 	query = r.applyFilters(query, params)
 
 	if err := query.Count(&total).Error; err != nil {
@@ -54,16 +55,16 @@ func (r *DeploymentRepository) List(params *QueryParams) ([]*model.Deployment, i
 }
 
 // Update updates a deployment
-func (r *DeploymentRepository) Update(deployment *model.Deployment) error {
+func (r *DeploymentRepository) Update(deployment *domains.Deployment) error {
 	return r.db.Save(deployment).Error
 }
 
 // Delete deletes a deployment
 func (r *DeploymentRepository) Delete(id string) error {
-	return r.db.Delete(&model.Deployment{}, "id = ?", id).Error
+	return r.db.Delete(&domains.Deployment{}, "id = ?", id).Error
 }
 
-func (r *DeploymentRepository) applyFilters(query *gorm.DB, params *QueryParams) *gorm.DB {
+func (r *DeploymentRepository) applyFilters(query *gorm.DB, params *queryparams.DeploymentsQueryParams) *gorm.DB {
 	if len(params.IDs) > 0 {
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}

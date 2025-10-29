@@ -4,6 +4,7 @@ bin/
 *.dll
 *.so
 *.dylib
+__debug*
 
 # Test binary
 *.test

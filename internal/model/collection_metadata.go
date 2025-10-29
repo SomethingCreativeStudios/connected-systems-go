@@ -1,15 +1,17 @@
 package model
 
+import "github.com/yourusername/connected-systems-go/internal/model/common_shared"
+
 // CollectionMetadata represents OGC API Collections metadata
 type CollectionMetadata struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Links       Links    `json:"links"`
-	Extent      *Extent  `json:"extent,omitempty"`
-	ItemType    string   `json:"itemType,omitempty"`    // e.g., "feature"
-	FeatureType string   `json:"featureType,omitempty"` // e.g., "sosa:System"
-	CRS         []string `json:"crs,omitempty"`
+	ID          string              `json:"id"`
+	Title       string              `json:"title,omitempty"`
+	Description string              `json:"description,omitempty"`
+	Links       common_shared.Links `json:"links"`
+	Extent      *Extent             `json:"extent,omitempty"`
+	ItemType    string              `json:"itemType,omitempty"`    // e.g., "feature"
+	FeatureType string              `json:"featureType,omitempty"` // e.g., "sosa:System"
+	CRS         []string            `json:"crs,omitempty"`
 }
 
 // Extent represents spatial and temporal extent
@@ -32,9 +34,9 @@ type TemporalExtent struct {
 
 // LandingPage represents the API landing page
 type LandingPage struct {
-	Title       string `json:"title"`
-	Description string `json:"description,omitempty"`
-	Links       Links  `json:"links"`
+	Title       string              `json:"title"`
+	Description string              `json:"description,omitempty"`
+	Links       common_shared.Links `json:"links"`
 }
 
 // ConformanceDeclaration represents conformance classes

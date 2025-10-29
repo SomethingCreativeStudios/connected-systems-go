@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model"
+	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"go.uber.org/zap"
 )
 
@@ -28,10 +29,10 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 	baseURL := h.cfg.API.BaseURL
 
 	collections := struct {
-		Links       model.Links                `json:"links"`
+		Links       common_shared.Links        `json:"links"`
 		Collections []model.CollectionMetadata `json:"collections"`
 	}{
-		Links: model.Links{
+		Links: common_shared.Links{
 			{Href: baseURL + "/collections", Rel: "self", Type: "application/json"},
 		},
 		Collections: []model.CollectionMetadata{
@@ -41,7 +42,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				Description: "All system instances (sensors, actuators, platforms, etc.)",
 				ItemType:    "feature",
 				FeatureType: "sosa:System",
-				Links: model.Links{
+				Links: common_shared.Links{
 					{Href: baseURL + "/collections/systems", Rel: "self"},
 					{Href: baseURL + "/systems", Rel: "items", Type: "application/geo+json"},
 				},
@@ -52,7 +53,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				Description: "System deployment descriptions",
 				ItemType:    "feature",
 				FeatureType: "sosa:Deployment",
-				Links: model.Links{
+				Links: common_shared.Links{
 					{Href: baseURL + "/collections/deployments", Rel: "self"},
 					{Href: baseURL + "/deployments", Rel: "items", Type: "application/geo+json"},
 				},
@@ -63,7 +64,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				Description: "System datasheets and methodologies",
 				ItemType:    "feature",
 				FeatureType: "sosa:Procedure",
-				Links: model.Links{
+				Links: common_shared.Links{
 					{Href: baseURL + "/collections/procedures", Rel: "self"},
 					{Href: baseURL + "/procedures", Rel: "items", Type: "application/geo+json"},
 				},
@@ -74,7 +75,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				Description: "Sampling strategies and geometries",
 				ItemType:    "feature",
 				FeatureType: "sosa:Sample",
-				Links: model.Links{
+				Links: common_shared.Links{
 					{Href: baseURL + "/collections/samplingFeatures", Rel: "self"},
 					{Href: baseURL + "/samplingFeatures", Rel: "items", Type: "application/geo+json"},
 				},
@@ -84,7 +85,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				Title:       "Properties",
 				Description: "Observable and controllable property definitions",
 				ItemType:    "sosa:Property",
-				Links: model.Links{
+				Links: common_shared.Links{
 					{Href: baseURL + "/collections/properties", Rel: "self"},
 					{Href: baseURL + "/properties", Rel: "items", Type: "application/json"},
 				},

@@ -1,7 +1,8 @@
 package repository
 
 import (
-	"github.com/yourusername/connected-systems-go/internal/model"
+	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -16,13 +17,13 @@ func NewPropertyRepository(db *gorm.DB) *PropertyRepository {
 }
 
 // Create creates a new property
-func (r *PropertyRepository) Create(property *model.Property) error {
+func (r *PropertyRepository) Create(property *domains.Property) error {
 	return r.db.Create(property).Error
 }
 
 // GetByID retrieves a property by ID
-func (r *PropertyRepository) GetByID(id string) (*model.Property, error) {
-	var property model.Property
+func (r *PropertyRepository) GetByID(id string) (*domains.Property, error) {
+	var property domains.Property
 	err := r.db.Where("id = ?", id).First(&property).Error
 	if err != nil {
 		return nil, err
@@ -31,11 +32,11 @@ func (r *PropertyRepository) GetByID(id string) (*model.Property, error) {
 }
 
 // List retrieves properties with filtering
-func (r *PropertyRepository) List(params *PropertiesQueryParams) ([]*model.Property, int64, error) {
-	var properties []*model.Property
+func (r *PropertyRepository) List(params *queryparams.PropertiesQueryParams) ([]*domains.Property, int64, error) {
+	var properties []*domains.Property
 	var total int64
 
-	query := r.db.Model(&model.Property{})
+	query := r.db.Model(&domains.Property{})
 	query = r.applyFilters(query, params)
 
 	if err := query.Count(&total).Error; err != nil {
@@ -54,16 +55,16 @@ func (r *PropertyRepository) List(params *PropertiesQueryParams) ([]*model.Prope
 }
 
 // Update updates a property
-func (r *PropertyRepository) Update(property *model.Property) error {
+func (r *PropertyRepository) Update(property *domains.Property) error {
 	return r.db.Save(property).Error
 }
 
 // Delete deletes a property
 func (r *PropertyRepository) Delete(id string) error {
-	return r.db.Delete(&model.Property{}, "id = ?", id).Error
+	return r.db.Delete(&domains.Property{}, "id = ?", id).Error
 }
 
-func (r *PropertyRepository) applyFilters(query *gorm.DB, params *PropertiesQueryParams) *gorm.DB {
+func (r *PropertyRepository) applyFilters(query *gorm.DB, params *queryparams.PropertiesQueryParams) *gorm.DB {
 	if len(params.IDs) > 0 {
 		query = query.Where("unique_identifier IN ?", params.IDs, params.IDs)
 	}

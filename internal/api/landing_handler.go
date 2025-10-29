@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model"
+	"github.com/yourusername/connected-systems-go/internal/model/shared"
 	"go.uber.org/zap"
 )
 
@@ -30,7 +31,7 @@ func (h *LandingHandler) GetLandingPage(w http.ResponseWriter, r *http.Request) 
 	landingPage := model.LandingPage{
 		Title:       h.cfg.API.Title,
 		Description: h.cfg.API.Description,
-		Links: model.Links{
+		Links: common - shared.Links{
 			{
 				Href:  baseURL + "/",
 				Rel:   "self",

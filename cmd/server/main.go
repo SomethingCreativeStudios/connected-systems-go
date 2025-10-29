@@ -11,7 +11,6 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/api"
 	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -51,8 +50,6 @@ func main() {
 	if err := repository.AutoMigrate(db); err != nil {
 		logger.Fatal("Failed to migrate database", zap.Error(err))
 	}
-
-	db.AutoMigrate(&model.System{})
 
 	// Initialize repositories
 	repos := repository.NewRepositories(db)
