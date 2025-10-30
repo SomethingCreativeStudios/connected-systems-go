@@ -9,6 +9,9 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
+	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/serializers/geojson_serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -38,11 +41,19 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	landingHandler := NewLandingHandler(cfg, logger)
 	conformanceHandler := NewConformanceHandler(cfg, logger)
 	collectionsHandler := NewCollectionsHandler(cfg, logger)
-	systemHandler := NewSystemHandler(cfg, logger, repos.System)
-	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment)
-	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure)
-	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature)
-	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property)
+
+	// Create serializer and inject lightweight repository readers
+	systemSerializerCollection := buildSystemSerializerCollection(repos)
+	deploymentSerializerCollection := buildDeploymentSerializerCollection(repos)
+	procedureSerializerCollection := buildProcedureSerializerCollection(repos)
+	samplingFeatureSerializerCollection := buildSamplingFeatureSerializerCollection(repos)
+	propertySerializerCollection := buildPropertySerializerCollection(repos)
+
+	systemHandler := NewSystemHandler(cfg, logger, repos.System, systemSerializerCollection)
+	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentSerializerCollection)
+	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureSerializerCollection)
+	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, samplingFeatureSerializerCollection)
+	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertySerializerCollection)
 
 	// Routes
 
@@ -65,7 +76,6 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 		r.Route("/{id}", func(r chi.Router) {
 			r.Get("/", systemHandler.GetSystem)
 			r.Put("/", systemHandler.UpdateSystem)
-			r.Patch("/", systemHandler.PatchSystem)
 			r.Delete("/", systemHandler.DeleteSystem)
 
 			// Nested endpoints
@@ -83,7 +93,6 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 		r.Route("/{id}", func(r chi.Router) {
 			r.Get("/", deploymentHandler.GetDeployment)
 			r.Put("/", deploymentHandler.UpdateDeployment)
-			r.Patch("/", deploymentHandler.PatchDeployment)
 			r.Delete("/", deploymentHandler.DeleteDeployment)
 		})
 	})
@@ -96,7 +105,6 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 		r.Route("/{id}", func(r chi.Router) {
 			r.Get("/", procedureHandler.GetProcedure)
 			r.Put("/", procedureHandler.UpdateProcedure)
-			r.Patch("/", procedureHandler.PatchProcedure)
 			r.Delete("/", procedureHandler.DeleteProcedure)
 		})
 	})
@@ -109,7 +117,6 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 		r.Route("/{id}", func(r chi.Router) {
 			r.Get("/", samplingFeatureHandler.GetSamplingFeature)
 			r.Put("/", samplingFeatureHandler.UpdateSamplingFeature)
-			r.Patch("/", samplingFeatureHandler.PatchSamplingFeature)
 			r.Delete("/", samplingFeatureHandler.DeleteSamplingFeature)
 		})
 	})
@@ -122,7 +129,6 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 		r.Route("/{id}", func(r chi.Router) {
 			r.Get("/", propertyHandler.GetProperty)
 			r.Put("/", propertyHandler.UpdateProperty)
-			r.Patch("/", propertyHandler.PatchProperty)
 			r.Delete("/", propertyHandler.DeleteProperty)
 		})
 	})
@@ -139,4 +145,57 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 func getOpenAPISpec(cfg *config.Config) string {
 	// TODO: Implement OpenAPI 3.0 spec generation
 	return `{"openapi": "3.0.0", "info": {"title": "` + cfg.API.Title + `", "version": "` + cfg.API.Version + `"}}`
+}
+
+// Serializers
+// TODO: Maybe move to a different area?
+
+func buildSystemSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.SystemGeoJSONFeature, *domains.System] {
+	// create concrete serializers and register them by content type
+	serMap := map[string]serializers.Serializer[domains.SystemGeoJSONFeature, *domains.System]{
+		"application/geo+json": geojson_serializers.NewSystemGeoJSONSerializer(repos),
+		"default":              geojson_serializers.NewSystemGeoJSONSerializer(repos),
+	}
+
+	return serializers.NewSerializerCollection[domains.SystemGeoJSONFeature, *domains.System](serMap)
+}
+
+func buildDeploymentSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment] {
+	// create concrete serializers and register them by content type
+	serMap := map[string]serializers.Serializer[domains.DeploymentGeoJSONFeature, *domains.Deployment]{
+		"application/geo+json": geojson_serializers.NewDeploymentGeoJSONSerializer(repos),
+		"default":              geojson_serializers.NewDeploymentGeoJSONSerializer(repos),
+	}
+
+	return serializers.NewSerializerCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment](serMap)
+}
+
+func buildProcedureSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure] {
+	// create concrete serializers and register them by content type
+	serMap := map[string]serializers.Serializer[domains.ProcedureGeoJSONFeature, *domains.Procedure]{
+		"application/geo+json": geojson_serializers.NewProcedureGeoJSONSerializer(repos),
+		"default":              geojson_serializers.NewProcedureGeoJSONSerializer(repos),
+	}
+
+	return serializers.NewSerializerCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure](serMap)
+}
+
+func buildSamplingFeatureSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature] {
+	// create concrete serializers and register them by content type
+	serMap := map[string]serializers.Serializer[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature]{
+		"application/geo+json": geojson_serializers.NewSamplingFeatureGeoJSONSerializer(repos),
+		"default":              geojson_serializers.NewSamplingFeatureGeoJSONSerializer(repos),
+	}
+
+	return serializers.NewSerializerCollection[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature](serMap)
+}
+
+func buildPropertySerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.PropertyGeoJSONFeature, *domains.Property] {
+	// create concrete serializers and register them by content type
+	serMap := map[string]serializers.Serializer[domains.PropertyGeoJSONFeature, *domains.Property]{
+		"application/geo+json": geojson_serializers.NewPropertyGeoJSONSerializer(repos),
+		"default":              geojson_serializers.NewPropertyGeoJSONSerializer(repos),
+	}
+
+	return serializers.NewSerializerCollection[domains.PropertyGeoJSONFeature, *domains.Property](serMap)
 }

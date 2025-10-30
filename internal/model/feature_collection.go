@@ -1,32 +1,33 @@
 package model
 
 import (
+	"context"
 	"net/url"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/model/seriallizers"
+	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 )
 
-type FeatureCollection[T any, S seriallizers.GeoJsonSeriallizable[T]] struct {
+type FeatureCollection[T any, S any] struct {
 	Type           string              `json:"type"`
-	Features       []S                 `json:"features"`
+	Features       []T                 `json:"features"`
 	NumberMatched  *int                `json:"numberMatched,omitempty"`
 	NumberReturned int                 `json:"numberReturned"`
 	Links          common_shared.Links `json:"links"`
 }
 
-func (FeatureCollection[T, S]) BuildCollection(items []S, basePath string, total int, requestParams url.Values, queryParams queryparams.QueryParams) FeatureCollection[T, S] {
-	features := make([]T, len(items))
+func (FeatureCollection[T, S]) BuildCollection(items []S, serializer serializers.Serializer[T, S], basePath string, total int, requestParams url.Values, queryParams queryparams.QueryParams) FeatureCollection[T, S] {
+	features, err := serializer.SerializeAll(context.Background(), items)
 
-	for i, item := range items {
-		features[i] = item.ToGeoJSON()
+	if err != nil {
+		features = []T{}
 	}
 
 	totalInt := int(total)
 	return FeatureCollection[T, S]{
 		Type:           "FeatureCollection",
-		Features:       items,
+		Features:       features,
 		NumberMatched:  &totalInt,
 		NumberReturned: len(items),
 		Links:          queryParams.BuildPagintationLinks(basePath, requestParams, &totalInt, len(items)),

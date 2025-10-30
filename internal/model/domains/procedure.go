@@ -5,14 +5,12 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/seriallizers"
 )
 
 // Procedure represents a sosa:Procedure feature (datasheet, methodology)
 type Procedure struct {
 	Base
 	CommonSSN
-	seriallizers.GeoJsonSeriallizable[SystemGeoJSONFeature] `gorm:"-"` // <-- Ignore for GORM
 
 	FeatureType string `gorm:"type:varchar(255)" json:"featureType,omitempty"`
 
@@ -51,22 +49,6 @@ type ProcedureGeoJSONProperties struct {
 	Description string                   `json:"description,omitempty"`
 	FeatureType string                   `json:"featureType,omitempty"`
 	ValidTime   *common_shared.TimeRange `json:"validTime,omitempty"`
-}
-
-// ToGeoJSON converts Procedure model to GeoJSON Feature
-func (p *Procedure) ToGeoJSON() ProcedureGeoJSONFeature {
-	return ProcedureGeoJSONFeature{
-		Type:     "Feature",
-		ID:       p.ID,
-		Geometry: nil, // Procedures don't have geometry
-		Properties: ProcedureGeoJSONProperties{
-			UID:         p.UniqueIdentifier,
-			Name:        p.Name,
-			Description: p.Description,
-			FeatureType: p.FeatureType,
-		},
-		Links: p.Links,
-	}
 }
 
 func (Procedure) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Procedure, error) {

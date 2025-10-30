@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
@@ -83,3 +86,55 @@ func (r *PropertyRepository) applyFilters(query *gorm.DB, params *queryparams.Pr
 
 	return query
 }
+
+// GetBySystemIDs returns properties grouped by system ID by inspecting JSON properties
+func (r *PropertyRepository) GetBySystemIDs(ctx context.Context, systemIDs []string) (map[string][]*domains.Property, error) {
+	result := make(map[string][]*domains.Property)
+	if len(systemIDs) == 0 {
+		return result, nil
+	}
+
+	query := r.db.WithContext(ctx).Model(&domains.Property{})
+	first := true
+	for _, id := range systemIDs {
+		like := "%" + id + "%"
+		if first {
+			query = query.Where("properties::text ILIKE ?", like)
+			first = false
+		} else {
+			query = query.Or("properties::text ILIKE ?", like)
+		}
+	}
+
+	var props []*domains.Property
+	if err := query.Find(&props).Error; err != nil {
+		return nil, err
+	}
+
+	for _, p := range props {
+		if p == nil || p.Properties == nil {
+			continue
+		}
+		// attempt to find linking hrefs in properties
+		for _, rawVal := range p.Properties {
+			b, _ := json.Marshal(rawVal)
+			var arr []map[string]interface{}
+			if err := json.Unmarshal(b, &arr); err != nil {
+				continue
+			}
+			for _, el := range arr {
+				if hrefVal, ok := el["href"].(string); ok {
+					for _, sid := range systemIDs {
+						if hrefVal == sid || stringIndex(hrefVal, sid) >= 0 {
+							result[sid] = append(result[sid], p)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// stringIndex is provided in deployment_repository.go; reuse the package-level helper.

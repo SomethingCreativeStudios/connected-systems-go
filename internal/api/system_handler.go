@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -10,23 +11,26 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
 // SystemHandler handles System resource requests
 type SystemHandler struct {
-	cfg    *config.Config
-	logger *zap.Logger
-	repo   *repository.SystemRepository
+	cfg                  *config.Config
+	logger               *zap.Logger
+	repo                 *repository.SystemRepository
+	serializerCollection *serializers.SerializerCollection[domains.SystemGeoJSONFeature, *domains.System]
 }
 
 // NewSystemHandler creates a new SystemHandler
-func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository) *SystemHandler {
+func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, s *serializers.SerializerCollection[domains.SystemGeoJSONFeature, *domains.System]) *SystemHandler {
 	return &SystemHandler{
-		cfg:    cfg,
-		logger: logger,
-		repo:   repo,
+		cfg:                  cfg,
+		logger:               logger,
+		repo:                 repo,
+		serializerCollection: s,
 	}
 }
 
@@ -42,7 +46,10 @@ func (h *SystemHandler) ListSystems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.JSON(w, r, model.FeatureCollection[domains.SystemGeoJSONFeature, *domains.System]{}.BuildCollection(systems, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
+	// Fallback: use the domain objects' ToGeoJSON conversion
+	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
+
+	render.JSON(w, r, model.FeatureCollection[domains.SystemGeoJSONFeature, *domains.System]{}.BuildCollection(systems, serializer, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
 }
 
 // GetSystem retrieves a single system by ID
@@ -57,7 +64,13 @@ func (h *SystemHandler) GetSystem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.JSON(w, r, system.ToGeoJSON())
+	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
+	json, err := serializer.Serialize(context.Background(), system)
+	if err != nil {
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize system"})
+		return
+	}
+	render.JSON(w, r, json)
 }
 
 // CreateSystem creates a new system
@@ -77,10 +90,9 @@ func (h *SystemHandler) CreateSystem(w http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusCreated)
 
-	// Add associations links
-	system.Links = append(system.Links, h.repo.BuildSystemAssociations(system.ID)...)
-
-	render.JSON(w, r, system.ToGeoJSON())
+	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
+	json, _ := serializer.Serialize(context.Background(), &system)
+	render.JSON(w, r, json)
 }
 
 // UpdateSystem updates a system (PUT)
@@ -102,14 +114,13 @@ func (h *SystemHandler) UpdateSystem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.JSON(w, r, system.ToGeoJSON())
-}
-
-// PatchSystem patches a system (PATCH)
-func (h *SystemHandler) PatchSystem(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement PATCH support
-	render.Status(r, http.StatusNotImplemented)
-	render.JSON(w, r, map[string]string{"error": "PATCH not implemented"})
+	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
+	json, err := serializer.Serialize(context.Background(), &system)
+	if err != nil {
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize system"})
+		return
+	}
+	render.JSON(w, r, json)
 }
 
 // DeleteSystem deletes a system
@@ -141,7 +152,8 @@ func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.JSON(w, r, model.FeatureCollection[domains.SystemGeoJSONFeature, *domains.System]{}.BuildCollection(systems, h.cfg.API.BaseURL+r.URL.Path, len(systems), r.URL.Query(), params.QueryParams))
+	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
+	render.JSON(w, r, model.FeatureCollection[domains.SystemGeoJSONFeature, *domains.System]{}.BuildCollection(systems, serializer, h.cfg.API.BaseURL+r.URL.Path, len(systems), r.URL.Query(), params.QueryParams))
 }
 
 // Add subsystem to a system
@@ -168,5 +180,12 @@ func (h *SystemHandler) AddSubsystem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, system.ToGeoJSON())
+
+	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
+	json, err := serializer.Serialize(context.Background(), &system)
+	if err != nil {
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize system"})
+		return
+	}
+	render.JSON(w, r, json)
 }

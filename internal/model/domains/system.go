@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/seriallizers"
 )
 
 // System represents a sosa:System feature
@@ -14,7 +13,6 @@ import (
 type System struct {
 	Base
 	CommonSSN
-	seriallizers.GeoJsonSeriallizable[SystemGeoJSONFeature] `gorm:"-"` // <-- Ignore for GORM
 
 	SystemType string  `gorm:"type:varchar(255);not null" json:"featureType"` // sosa:Sensor, sosa:Actuator, sosa:Platform, etc.
 	AssetType  *string `gorm:"type:varchar(100)" json:"assetType,omitempty"`  // Equipment, Human, Platform, etc.
@@ -76,37 +74,6 @@ type SystemGeoJSONProperties struct {
 	AssetType   *string                  `json:"assetType,omitempty"`
 	ValidTime   *common_shared.TimeRange `json:"validTime,omitempty"`
 	SystemKind  *common_shared.Link      `json:"systemKind@link,omitempty"`
-}
-
-// ToGeoJSON converts System model to GeoJSON Feature
-func (s System) ToGeoJSON() SystemGeoJSONFeature {
-	extraLinks := common_shared.Links{}
-
-	// Add parent system link if applicable
-	if s.ParentSystemID != nil {
-		extraLinks = append(extraLinks, common_shared.Link{
-			Rel:  "parentSystem",
-			Href: "/systems/" + *s.ParentSystemID,
-		})
-	}
-
-	// Combine existing links with extra links
-	s.Links = append(s.Links, extraLinks...)
-
-	return SystemGeoJSONFeature{
-		Type:     "Feature",
-		ID:       s.ID,
-		Geometry: s.Geometry,
-		Properties: SystemGeoJSONProperties{
-			UID:         s.UniqueIdentifier,
-			Name:        s.Name,
-			Description: s.Description,
-			FeatureType: s.SystemType,
-			AssetType:   s.AssetType,
-			ValidTime:   s.ValidTime,
-		},
-		Links: s.Links,
-	}
 }
 
 func (System) BuildFromRequest(r *http.Request, w http.ResponseWriter) (System, error) {

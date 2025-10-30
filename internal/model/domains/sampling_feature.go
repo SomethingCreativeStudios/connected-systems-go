@@ -7,14 +7,12 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/seriallizers"
 )
 
 // SamplingFeature represents a sosa:Sample feature
 type SamplingFeature struct {
 	Base
 	CommonSSN
-	seriallizers.GeoJsonSeriallizable[SystemGeoJSONFeature] `gorm:"-"` // <-- Ignore for GORM
 
 	FeatureType string `gorm:"type:varchar(255)" json:"featureType"`
 
@@ -64,28 +62,6 @@ type SamplingFeatureGeoJSONProperties struct {
 	FeatureType        string             `json:"featureType"`
 	ValidTime          string             `json:"validTime,omitempty"`
 	SampledFeatureLink common_shared.Link `json:"sampledFeature@Link,omitempty"`
-}
-
-// ToGeoJSON converts SamplingFeature model to GeoJSON Feature
-func (sf *SamplingFeature) ToGeoJSON() SamplingFeatureGeoJSONFeature {
-	return SamplingFeatureGeoJSONFeature{
-		Type:     "Feature",
-		ID:       sf.ID,
-		Geometry: sf.Geometry,
-		Properties: SamplingFeatureGeoJSONProperties{
-			UID:         sf.UniqueIdentifier,
-			Name:        sf.Name,
-			Description: sf.Description,
-			FeatureType: sf.FeatureType,
-			ValidTime:   sf.ValidTime.String(),
-			SampledFeatureLink: common_shared.Link{
-				Href:  "features/" + *sf.SampledFeatureID,
-				Type:  "application/geo+json",
-				Title: "Sampled Feature",
-			},
-		},
-		Links: sf.Links,
-	}
 }
 
 func (SamplingFeature) BuildFromRequest(r *http.Request, w http.ResponseWriter) (SamplingFeature, error) {

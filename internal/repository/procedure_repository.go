@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
@@ -85,4 +87,29 @@ func (r *ProcedureRepository) applyFilters(query *gorm.DB, params *queryparams.P
 	}
 
 	return query
+}
+
+// GetByIDs returns procedures keyed by ID or unique identifier
+func (r *ProcedureRepository) GetByIDs(ctx context.Context, ids []string) (map[string]*domains.Procedure, error) {
+	result := make(map[string]*domains.Procedure)
+	if len(ids) == 0 {
+		return result, nil
+	}
+
+	var procedures []*domains.Procedure
+	if err := r.db.WithContext(ctx).Where("id IN ? OR unique_identifier IN ?", ids, ids).Find(&procedures).Error; err != nil {
+		return nil, err
+	}
+
+	for _, p := range procedures {
+		if p == nil {
+			continue
+		}
+		result[p.ID] = p
+		if string(p.UniqueIdentifier) != "" {
+			result[string(p.UniqueIdentifier)] = p
+		}
+	}
+
+	return result, nil
 }

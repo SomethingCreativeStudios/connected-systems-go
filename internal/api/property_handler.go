@@ -9,6 +9,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -18,11 +19,13 @@ type PropertyHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	repo   *repository.PropertyRepository
+	sc     *serializers.SerializerCollection[domains.PropertyGeoJSONFeature, *domains.Property]
+	fc     model.FeatureCollection[domains.PropertyGeoJSONFeature, *domains.Property]
 }
 
 // NewPropertyHandler creates a new PropertyHandler
-func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository.PropertyRepository) *PropertyHandler {
-	return &PropertyHandler{cfg: cfg, logger: logger, repo: repo}
+func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository.PropertyRepository, s *serializers.SerializerCollection[domains.PropertyGeoJSONFeature, *domains.Property]) *PropertyHandler {
+	return &PropertyHandler{cfg: cfg, logger: logger, repo: repo, sc: s, fc: model.FeatureCollection[domains.PropertyGeoJSONFeature, *domains.Property]{}}
 }
 
 func (h *PropertyHandler) ListProperties(w http.ResponseWriter, r *http.Request) {
@@ -36,8 +39,8 @@ func (h *PropertyHandler) ListProperties(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	render.JSON(w, r, model.FeatureCollection[domains.PropertyGeoJSONFeature, *domains.Property]{}.BuildCollection(properties, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
-
+	serializer := h.sc.GetSerializer(r.Header.Get("content-type"))
+	render.JSON(w, r, h.fc.BuildCollection(properties, serializer, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
 }
 
 func (h *PropertyHandler) GetProperty(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +55,17 @@ func (h *PropertyHandler) GetProperty(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.JSON(w, r, property.ToGeoJSON())
+	propertyGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), property)
+
+	if err != nil {
+		h.logger.Error("Failed to serialize property", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize propety"})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, propertyGeoJSON)
 }
 
 func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request) {
@@ -69,9 +82,17 @@ func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
+	propertyGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), &property)
 
-	render.JSON(w, r, property.ToGeoJSON())
+	if err != nil {
+		h.logger.Error("Failed to serialize property", zap.String("id", property.ID), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize propety"})
+		return
+	}
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(w, r, propertyGeoJSON)
 }
 
 func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request) {
@@ -92,12 +113,17 @@ func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	render.JSON(w, r, property.ToGeoJSON())
-}
+	propertyGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), &property)
 
-func (h *PropertyHandler) PatchProperty(w http.ResponseWriter, r *http.Request) {
-	render.Status(r, http.StatusNotImplemented)
-	render.JSON(w, r, map[string]string{"message": "Not implemented"})
+	if err != nil {
+		h.logger.Error("Failed to serialize property", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize propety"})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, propertyGeoJSON)
 }
 
 func (h *PropertyHandler) DeleteProperty(w http.ResponseWriter, r *http.Request) {

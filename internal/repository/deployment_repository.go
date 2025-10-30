@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
@@ -72,4 +75,79 @@ func (r *DeploymentRepository) applyFilters(query *gorm.DB, params *queryparams.
 		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+params.Q+"%", "%"+params.Q+"%")
 	}
 	return query
+}
+
+// GetBySystemIDs returns deployments grouped by system UID/ID by inspecting the
+// properties JSON for deployed system links. This is a best-effort implementation
+// to avoid adding hard foreign-key constraints; it performs a text search on the
+// JSONB properties and then inspects the JSON to map deployments to system IDs.
+func (r *DeploymentRepository) GetBySystemIDs(ctx context.Context, systemIDs []string) (map[string][]*domains.Deployment, error) {
+	result := make(map[string][]*domains.Deployment)
+	if len(systemIDs) == 0 {
+		return result, nil
+	}
+
+	// Build a WHERE clause that checks properties as text for any of the system IDs
+	// e.g. properties::text ILIKE '%urn:example:system:...%'
+	query := r.db.WithContext(ctx).Model(&domains.Deployment{})
+	first := true
+	for _, id := range systemIDs {
+		like := "%" + id + "%"
+		if first {
+			query = query.Where("properties::text ILIKE ?", like)
+			first = false
+		} else {
+			query = query.Or("properties::text ILIKE ?", like)
+		}
+	}
+
+	var deployments []*domains.Deployment
+	if err := query.Find(&deployments).Error; err != nil {
+		return nil, err
+	}
+
+	// Inspect each deployment.Properties to find deployedSystems@link hrefs
+	for _, d := range deployments {
+		if d == nil {
+			continue
+		}
+		if d.Properties == nil {
+			continue
+		}
+
+		// Look for deployedSystems@link which should be an array of objects with href
+		if raw, ok := d.Properties["deployedSystems@link"]; ok {
+			// marshal/unmarshal to normalize types
+			b, _ := json.Marshal(raw)
+			var arr []map[string]interface{}
+			if err := json.Unmarshal(b, &arr); err == nil {
+				for _, el := range arr {
+					if hrefVal, ok := el["href"].(string); ok {
+						for _, sid := range systemIDs {
+							if hrefVal == sid || contains(hrefVal, sid) {
+								result[sid] = append(result[sid], d)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// contains is a helper to check substring (case-sensitive)
+func contains(href, sub string) bool {
+	return len(href) >= len(sub) && (href == sub || (len(sub) > 0 && (stringIndex(href, sub) >= 0)))
+}
+
+// stringIndex returns the index of substr in s or -1
+func stringIndex(s, substr string) int {
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
 }

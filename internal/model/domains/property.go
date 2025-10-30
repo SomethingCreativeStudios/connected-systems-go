@@ -5,14 +5,12 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/seriallizers"
 )
 
 // Property represents a sosa:ObservableProperty or sosa:ActuableProperty
 type Property struct {
 	Base
 	CommonSSN
-	seriallizers.GeoJsonSeriallizable[SystemGeoJSONFeature] `gorm:"-"` // <-- Ignore for GORM
 
 	Definition string `gorm:"type:varchar(500)" json:"definition,omitempty"` // URI to property definition
 
@@ -62,26 +60,6 @@ type PropertyGeoJSONProperties struct {
 	Definition        string   `json:"definition,omitempty"`
 	ObjectType        *string  `json:"objectType,omitempty"`
 	UnitOfMeasurement *string  `json:"uom,omitempty"`
-}
-
-// ToGeoJSON converts Deployment model to GeoJSON Feature
-func (d *Property) ToGeoJSON() PropertyGeoJSONFeature {
-	return PropertyGeoJSONFeature{
-		Type:     "Feature",
-		ID:       d.ID,
-		Geometry: nil, // Properties don't have geometry
-		Properties: PropertyGeoJSONProperties{
-			UID:               d.UniqueIdentifier,
-			Name:              d.Name,
-			Description:       d.Description,
-			FeatureType:       "sosa:Property",
-			PropertyType:      d.PropertyType,
-			ObjectType:        d.ObjectType,
-			Definition:        d.Definition,
-			UnitOfMeasurement: d.UnitOfMeasurement,
-		},
-		Links: d.Links,
-	}
 }
 
 func (Property) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Property, error) {

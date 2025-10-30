@@ -5,14 +5,12 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/seriallizers"
 )
 
 // Deployment represents a sosa:Deployment feature
 type Deployment struct {
 	Base
 	CommonSSN
-	seriallizers.GeoJsonSeriallizable[SystemGeoJSONFeature] `gorm:"-"` // <-- Ignore for GORM
 
 	DeploymentType string `gorm:"type:varchar(255)" json:"featureType,omitempty"`
 
@@ -58,23 +56,6 @@ type DeploymentGeoJSONProperties struct {
 	Description string                   `json:"description,omitempty"`
 	FeatureType string                   `json:"featureType,omitempty"`
 	ValidTime   *common_shared.TimeRange `json:"validTime,omitempty"`
-}
-
-// ToGeoJSON converts Deployment model to GeoJSON Feature
-func (d *Deployment) ToGeoJSON() DeploymentGeoJSONFeature {
-	return DeploymentGeoJSONFeature{
-		Type:     "Feature",
-		ID:       d.ID,
-		Geometry: d.Geometry,
-		Properties: DeploymentGeoJSONProperties{
-			UID:         d.UniqueIdentifier,
-			Name:        d.Name,
-			Description: d.Description,
-			FeatureType: d.DeploymentType,
-			ValidTime:   d.ValidTime,
-		},
-		Links: d.Links,
-	}
 }
 
 func (Deployment) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Deployment, error) {

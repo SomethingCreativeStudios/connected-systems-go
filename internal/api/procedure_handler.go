@@ -9,6 +9,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -18,11 +19,13 @@ type ProcedureHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	repo   *repository.ProcedureRepository
+	sc     *serializers.SerializerCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure]
+	fc     model.FeatureCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure]
 }
 
 // NewProcedureHandler creates a new ProcedureHandler
-func NewProcedureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ProcedureRepository) *ProcedureHandler {
-	return &ProcedureHandler{cfg: cfg, logger: logger, repo: repo}
+func NewProcedureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ProcedureRepository, s *serializers.SerializerCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure]) *ProcedureHandler {
+	return &ProcedureHandler{cfg: cfg, logger: logger, repo: repo, sc: s, fc: model.FeatureCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure]{}}
 }
 
 func (h *ProcedureHandler) ListProcedures(w http.ResponseWriter, r *http.Request) {
@@ -36,8 +39,8 @@ func (h *ProcedureHandler) ListProcedures(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	render.JSON(w, r, model.FeatureCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure]{}.BuildCollection(procedures, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
-
+	serializer := h.sc.GetSerializer(r.Header.Get("content-type"))
+	render.JSON(w, r, h.fc.BuildCollection(procedures, serializer, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
 }
 
 func (h *ProcedureHandler) GetProcedure(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +54,17 @@ func (h *ProcedureHandler) GetProcedure(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	render.JSON(w, r, procedure.ToGeoJSON())
+	procedureGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), procedure)
+
+	if err != nil {
+		h.logger.Error("Failed to serialize procedure", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize propety"})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, procedureGeoJSON)
 }
 
 func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Request) {
@@ -68,8 +81,17 @@ func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	procedureGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), &procedure)
+
+	if err != nil {
+		h.logger.Error("Failed to serialize procedure", zap.String("id", procedure.ID), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize propety"})
+		return
+	}
+
 	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, procedure.ToGeoJSON())
+	render.JSON(w, r, procedureGeoJSON)
 }
 
 func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Request) {
@@ -90,12 +112,17 @@ func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	render.JSON(w, r, procedure.ToGeoJSON())
-}
+	procedureGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), &procedure)
 
-func (h *ProcedureHandler) PatchProcedure(w http.ResponseWriter, r *http.Request) {
-	render.Status(r, http.StatusNotImplemented)
-	render.JSON(w, r, map[string]string{"message": "Not implemented"})
+	if err != nil {
+		h.logger.Error("Failed to serialize procedure", zap.String("id", procedure.ID), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize propety"})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, procedureGeoJSON)
 }
 
 func (h *ProcedureHandler) DeleteProcedure(w http.ResponseWriter, r *http.Request) {
