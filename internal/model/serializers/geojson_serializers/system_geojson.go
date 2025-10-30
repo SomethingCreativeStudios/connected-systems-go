@@ -46,9 +46,10 @@ func (s *SystemGeoJSONSerializer) SerializeAll(ctx context.Context, systems []*d
 	}
 
 	var (
-		deployMap map[string][]*domains.Deployment
-		propMap   map[string][]*domains.Property
-		err       error
+		deployMap    map[string][]*domains.Deployment
+		propMap      map[string][]*domains.Property
+		subSystemMap map[string]*bool
+		err          error
 	)
 
 	if s.repos.Deployment != nil {
@@ -69,6 +70,20 @@ func (s *SystemGeoJSONSerializer) SerializeAll(ctx context.Context, systems []*d
 		propMap = map[string][]*domains.Property{}
 	}
 
+	if s.repos.System != nil {
+		subSystemMap = make(map[string]*bool)
+
+		for _, id := range ids {
+			hasSubsystems, err := s.repos.System.HasSubsystems(id)
+			if err != nil {
+				return nil, err
+			}
+			subSystemMap[id] = &hasSubsystems
+		}
+	} else {
+		subSystemMap = map[string]*bool{}
+	}
+
 	features := make([]domains.SystemGeoJSONFeature, 0, len(systems))
 	for _, sys := range systems {
 		if sys == nil {
@@ -83,6 +98,13 @@ func (s *SystemGeoJSONSerializer) SerializeAll(ctx context.Context, systems []*d
 			// add a link to indicate deployments existence
 			f.Links = append(f.Links, common_shared.Link{
 				Href: "/deployments/" + sys.ID,
+			})
+		}
+
+		if subSys := subSystemMap[sys.ID]; subSys != nil && *subSys {
+			f.Links = append(f.Links, common_shared.Link{
+				Rel:  "subsystems",
+				Href: "/systems/" + sys.ID + "/subsystems",
 			})
 		}
 
