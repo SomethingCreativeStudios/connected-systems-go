@@ -1,9 +1,7 @@
 package domains
 
 import (
-	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -19,7 +17,7 @@ type System struct {
 	AssetType  *string `gorm:"type:varchar(100)" json:"assetType,omitempty"`  // Equipment, Human, Platform, etc.
 
 	// Temporal
-	ValidTime *common_shared.TimeRange `gorm:"type:jsonb" json:"validTime,omitempty"`
+	ValidTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:valid_time_" json:"validTime,omitempty"`
 
 	// Spatial
 	// Use GoGeom wrapper which stores as PostGIS WKB/EWKB when possible
@@ -83,8 +81,8 @@ func (System) BuildFromRequest(r *http.Request, w http.ResponseWriter) (System, 
 	var geoJSON struct {
 		Type       string                  `json:"type"`
 		ID         string                  `json:"id,omitempty"`
-		Properties map[string]interface{}  `json:"properties"`
-		Geometry   *common_shared.Geometry `json:"geometry,omitempty"`
+		Properties SystemGeoJSONProperties `json:"properties"`
+		Geometry   *common_shared.GoGeom   `json:"geometry,omitempty"`
 		Links      common_shared.Links     `json:"links,omitempty"`
 	}
 
@@ -99,45 +97,23 @@ func (System) BuildFromRequest(r *http.Request, w http.ResponseWriter) (System, 
 		Links: geoJSON.Links,
 	}
 
-	// convert geometry (GeoJSON) into GoGeom wrapper
+	// assign geometry (decoded directly into GoGeom)
 	if geoJSON.Geometry != nil {
-		gg := &common_shared.GoGeom{}
-		// marshal the incoming geoJSON Geometry and unmarshal into GoGeom (uses toGeom)
-		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
-			_ = gg.UnmarshalJSON(b)
-			system.Geometry = gg
-		}
+		system.Geometry = geoJSON.Geometry
 	}
 
 	// Extract properties from the properties object
-	if uid, ok := geoJSON.Properties["uid"].(string); ok {
-		system.UniqueIdentifier = UniqueID(uid)
-	}
-	if name, ok := geoJSON.Properties["name"].(string); ok {
-		system.Name = name
-	}
-	if desc, ok := geoJSON.Properties["description"].(string); ok {
-		system.Description = desc
-	}
-	if featureType, ok := geoJSON.Properties["featureType"].(string); ok {
-		system.SystemType = featureType
-	}
-	if assetType, ok := geoJSON.Properties["assetType"].(string); ok {
-		system.AssetType = &assetType
-	}
+	system.UniqueIdentifier = UniqueID(geoJSON.Properties.UID)
+	system.Name = geoJSON.Properties.Name
+	system.Description = geoJSON.Properties.Description
+	system.SystemType = geoJSON.Properties.FeatureType
+	system.AssetType = geoJSON.Properties.AssetType
+	system.ValidTime = geoJSON.Properties.ValidTime
 
-	// Handle validTime if present
-	if validTimeMap, ok := geoJSON.Properties["validTime"].(map[string]interface{}); ok {
-		system.ValidTime = &common_shared.TimeRange{}
-		if startStr, ok := validTimeMap["start"].(string); ok && startStr != "" {
-			startTime, _ := time.Parse(time.RFC3339, startStr)
-			system.ValidTime.Start = &startTime
-		}
-		if endStr, ok := validTimeMap["end"].(string); ok && endStr != "" {
-			endTime, _ := time.Parse(time.RFC3339, endStr)
-			system.ValidTime.End = &endTime
-		}
-	}
+	// if vt, ok := geoJSON.Properties["validTime"]; ok {
+	// 	tr := common_shared.ParseTimeRange(vt)
+	// 	system.ValidTime = &tr
+	// }
 
 	return system, nil
 }

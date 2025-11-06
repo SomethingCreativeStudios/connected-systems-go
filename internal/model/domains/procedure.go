@@ -1,7 +1,6 @@
 package domains
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -22,6 +21,8 @@ type Procedure struct {
 
 	// Additional properties
 	Properties common_shared.Properties `gorm:"type:jsonb" json:"properties,omitempty"`
+
+	ValidTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:valid_time_" json:"validTime,omitempty"`
 }
 
 // TableName specifies the table name
@@ -58,7 +59,7 @@ func (Procedure) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Proce
 		Type       string                     `json:"type"`
 		ID         string                     `json:"id,omitempty"`
 		Properties ProcedureGeoJSONProperties `json:"properties"`
-		Geometry   *common_shared.Geometry    `json:"geometry,omitempty"`
+		Geometry   *common_shared.GoGeom      `json:"geometry,omitempty"`
 		Links      common_shared.Links        `json:"links,omitempty"`
 	}
 
@@ -75,10 +76,7 @@ func (Procedure) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Proce
 
 	// Validate/convert geometry if provided (procedures usually don't have geometry)
 	if geoJSON.Geometry != nil {
-		gg := &common_shared.GoGeom{}
-		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
-			_ = gg.UnmarshalJSON(b)
-		}
+		// decoded into GoGeom; procedures normally don't store geometry
 	}
 
 	// Extract properties from the properties object
@@ -86,6 +84,7 @@ func (Procedure) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Proce
 	procedure.Name = geoJSON.Properties.Name
 	procedure.Description = geoJSON.Properties.Description
 	procedure.FeatureType = geoJSON.Properties.FeatureType
+	procedure.ValidTime = geoJSON.Properties.ValidTime
 
 	return procedure, nil
 }

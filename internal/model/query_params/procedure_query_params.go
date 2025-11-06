@@ -30,8 +30,15 @@ func (ProceduresQueryParams) BuildFromRequest(r *http.Request) *ProceduresQueryP
 		params.ObservedProperty = strings.Split(observedProperties, ",")
 	}
 
-	if dateTime := r.URL.Query().Get("dateTime"); dateTime != "" {
-		tr := common_shared.ToTimeRange(dateTime)
+	// dateTime may be provided as a single value (string) or as repeated query params
+	// where index 0 = start, index 1 = end.
+	if dateVals := r.URL.Query()["dateTime"]; len(dateVals) > 0 {
+		var tr common_shared.TimeRange
+		if len(dateVals) == 1 {
+			tr = common_shared.ToTimeRange(dateVals[0])
+		} else {
+			tr = common_shared.ToTimeRangeFromSlice(dateVals)
+		}
 		params.DateTime = &tr
 	}
 

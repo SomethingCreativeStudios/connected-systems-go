@@ -1,7 +1,6 @@
 package domains
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -26,7 +25,7 @@ type Feature struct {
 
 	// Temporal
 	DateTime  *time.Time               `gorm:"type:timestamptz" json:"dateTime,omitempty"`
-	ValidTime *common_shared.TimeRange `gorm:"type:jsonb" json:"validTime,omitempty"`
+	ValidTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:valid_time_" json:"validTime,omitempty"`
 
 	// Spatial
 	Geometry *common_shared.GoGeom `gorm:"type:geometry" json:"geometry,omitempty"`
@@ -88,11 +87,11 @@ func (f Feature) ToGeoJSON() FeatureGeoJSONFeature {
 func (Feature) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Feature, error) {
 	// Decode GeoJSON Feature format
 	var geoJSON struct {
-		Type       string                  `json:"type"`
-		ID         string                  `json:"id,omitempty"`
-		Properties map[string]interface{}  `json:"properties"`
-		Geometry   *common_shared.Geometry `json:"geometry,omitempty"`
-		Links      common_shared.Links     `json:"links,omitempty"`
+		Type       string                 `json:"type"`
+		ID         string                 `json:"id,omitempty"`
+		Properties map[string]interface{} `json:"properties"`
+		Geometry   *common_shared.GoGeom  `json:"geometry,omitempty"`
+		Links      common_shared.Links    `json:"links,omitempty"`
 	}
 
 	if err := render.DecodeJSON(r.Body, &geoJSON); err != nil {
@@ -106,13 +105,9 @@ func (Feature) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Feature
 		Links:      geoJSON.Links,
 		Properties: geoJSON.Properties,
 	}
-	// convert geometry into GoGeom wrapper
+	// assign geometry (decoded directly into GoGeom)
 	if geoJSON.Geometry != nil {
-		gg := &common_shared.GoGeom{}
-		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
-			_ = gg.UnmarshalJSON(b)
-			feature.Geometry = gg
-		}
+		feature.Geometry = geoJSON.Geometry
 	}
 
 	// Extract standard properties

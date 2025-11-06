@@ -33,5 +33,16 @@ func (SamplingFeatureQueryParams) BuildFromRequest(r *http.Request) (*SamplingFe
 		params.ObservedProperty = strings.Split(observedProperty, ",")
 	}
 
+	// dateTime may be provided either as a single value or as repeated params
+	if dateVals := r.URL.Query()["dateTime"]; len(dateVals) > 0 {
+		var tr common_shared.TimeRange
+		if len(dateVals) == 1 {
+			tr = common_shared.ToTimeRange(dateVals[0])
+		} else {
+			tr = common_shared.ToTimeRangeFromSlice(dateVals)
+		}
+		params.DateTime = &tr
+	}
+
 	return params, nil
 }

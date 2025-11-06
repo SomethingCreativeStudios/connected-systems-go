@@ -1,10 +1,8 @@
 package domains
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -18,7 +16,7 @@ type SamplingFeature struct {
 	FeatureType string `gorm:"type:varchar(255)" json:"featureType"`
 
 	// Temporal
-	ValidTime *time.Time `gorm:"type:timestamp with time zone" json:"validTime,omitempty"`
+	ValidTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:valid_time_" json:"validTime,omitempty"`
 
 	// Spatial - sampling geometry
 	Geometry *common_shared.GoGeom `gorm:"type:geometry" json:"geometry,omitempty"`
@@ -57,12 +55,12 @@ type SamplingFeatureGeoJSONFeature struct {
 
 // SamplingFeatureGeoJSONProperties represents the properties object in GeoJSON
 type SamplingFeatureGeoJSONProperties struct {
-	UID                UniqueID           `json:"uid"`
-	Name               string             `json:"name"`
-	Description        string             `json:"description,omitempty"`
-	FeatureType        string             `json:"featureType"`
-	ValidTime          string             `json:"validTime,omitempty"`
-	SampledFeatureLink common_shared.Link `json:"sampledFeature@Link,omitempty"`
+	UID                UniqueID                 `json:"uid"`
+	Name               string                   `json:"name"`
+	Description        string                   `json:"description,omitempty"`
+	FeatureType        string                   `json:"featureType"`
+	ValidTime          *common_shared.TimeRange `json:"validTime,omitempty"`
+	SampledFeatureLink common_shared.Link       `json:"sampledFeature@Link,omitempty"`
 }
 
 func (SamplingFeature) BuildFromRequest(r *http.Request, w http.ResponseWriter) (SamplingFeature, error) {
@@ -71,7 +69,7 @@ func (SamplingFeature) BuildFromRequest(r *http.Request, w http.ResponseWriter) 
 		Type       string                           `json:"type"`
 		ID         string                           `json:"id,omitempty"`
 		Properties SamplingFeatureGeoJSONProperties `json:"properties"`
-		Geometry   *common_shared.Geometry          `json:"geometry,omitempty"`
+		Geometry   *common_shared.GoGeom            `json:"geometry,omitempty"`
 		Links      common_shared.Links              `json:"links,omitempty"`
 	}
 
@@ -86,11 +84,7 @@ func (SamplingFeature) BuildFromRequest(r *http.Request, w http.ResponseWriter) 
 		Links: geoJSON.Links,
 	}
 	if geoJSON.Geometry != nil {
-		gg := &common_shared.GoGeom{}
-		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
-			_ = gg.UnmarshalJSON(b)
-			samplingFeatures.Geometry = gg
-		}
+		samplingFeatures.Geometry = geoJSON.Geometry
 	}
 
 	// Extract properties from the properties object
@@ -99,15 +93,7 @@ func (SamplingFeature) BuildFromRequest(r *http.Request, w http.ResponseWriter) 
 	samplingFeatures.Name = geoJSON.Properties.Name
 	samplingFeatures.Description = geoJSON.Properties.Description
 	samplingFeatures.FeatureType = geoJSON.Properties.FeatureType
-
-	// Handle validTime if present
-	if geoJSON.Properties.ValidTime == "now" {
-		timeNow := time.Now()
-		samplingFeatures.ValidTime = &timeNow
-	} else if geoJSON.Properties.ValidTime != "" {
-		parsedTime, _ := time.Parse(time.RFC3339, geoJSON.Properties.ValidTime)
-		samplingFeatures.ValidTime = &parsedTime
-	}
+	samplingFeatures.ValidTime = geoJSON.Properties.ValidTime
 
 	parts := strings.Split(geoJSON.Properties.SampledFeatureLink.Href, "/")
 	samplingFeatures.SampledFeatureID = &parts[len(parts)-1]

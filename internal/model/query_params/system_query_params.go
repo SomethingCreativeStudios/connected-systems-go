@@ -32,5 +32,16 @@ func (SystemQueryParams) BuildFromRequest(r *http.Request) *SystemQueryParams {
 		params.Parent = strings.Split(parent, ",")
 	}
 
+	// dateTime may be supplied as a single string or as repeated parameters
+	if dateVals := r.URL.Query()["dateTime"]; len(dateVals) > 0 {
+		var tr common_shared.TimeRange
+		if len(dateVals) == 1 {
+			tr = common_shared.ToTimeRange(dateVals[0])
+		} else {
+			tr = common_shared.ToTimeRangeFromSlice(dateVals)
+		}
+		params.Datetime = &tr
+	}
+
 	return params
 }

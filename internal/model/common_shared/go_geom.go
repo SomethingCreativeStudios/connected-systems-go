@@ -2,11 +2,14 @@ package common_shared
 
 import (
 	"database/sql/driver"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	geom "github.com/twpayne/go-geom"
 	"github.com/twpayne/go-geom/encoding/wkb"
+	"github.com/twpayne/go-geom/encoding/wkt"
 )
 
 // GoGeom is a thin wrapper around go-geom's geom.T that implements
@@ -42,31 +45,124 @@ func (gg GoGeom) Value() (driver.Value, error) {
 	return json.Marshal(out)
 }
 
-// Scan accepts WKB bytes or GeoJSON bytes and sets the inner geom.T
+// Scan accepts WKB bytes, WKT strings (optionally SRID-prefixed), or GeoJSON bytes
+// and sets the inner geom.T.
 func (gg *GoGeom) Scan(value interface{}) error {
 	if value == nil {
 		gg.T = nil
 		return nil
 	}
-	b, ok := value.([]byte)
-	if !ok {
+
+	// Helper to try JSON/GeoJSON -> geom
+	tryGeoJSON := func(b []byte) (geom.T, error) {
+		var raw interface{}
+		if err := json.Unmarshal(b, &raw); err != nil {
+			return nil, err
+		}
+		return toGeomFromGeoJSON(raw)
+	}
+
+	switch v := value.(type) {
+	case []byte:
+		// Try WKB first
+		if t, err := wkb.Unmarshal(v); err == nil && t != nil {
+			gg.T = t
+			return nil
+		}
+		// Try JSON/GeoJSON
+		if tg, err := tryGeoJSON(v); err == nil {
+			gg.T = tg
+			return nil
+		}
+		// Try WKT (byte -> string) and hex WKB encoded as text
+		if s := strings.TrimSpace(string(v)); s != "" {
+			// remove SRID prefix if present
+			if strings.HasPrefix(strings.ToUpper(s), "SRID=") {
+				if idx := strings.Index(s, ";"); idx != -1 {
+					s = s[idx+1:]
+				}
+			}
+			// If this looks like hex-encoded WKB (maybe prefixed with "\\x"), try decode
+			hexStr := s
+			if strings.HasPrefix(hexStr, "\\x") || strings.HasPrefix(hexStr, "\\\\x") {
+				// remove leading backslash sequences
+				hexStr = strings.TrimPrefix(hexStr, "\\x")
+				hexStr = strings.TrimPrefix(hexStr, "\\\\x")
+			}
+			if after, ok := strings.CutPrefix(hexStr, "0x"); ok {
+				hexStr = after
+			}
+			// If hexStr contains only hex chars, try decode
+			if isHexString(hexStr) {
+				if bb, err := hex.DecodeString(hexStr); err == nil {
+					if t, err := wkb.Unmarshal(bb); err == nil && t != nil {
+						gg.T = t
+						return nil
+					}
+				}
+			}
+			if t, err := wkt.Unmarshal(s); err == nil && t != nil {
+				gg.T = t
+				return nil
+			}
+		}
+		return fmt.Errorf("unable to scan GoGeom from []byte")
+	case string:
+		s := strings.TrimSpace(v)
+		if s == "" {
+			gg.T = nil
+			return nil
+		}
+		// Remove SRID=####; prefix if present
+		if strings.HasPrefix(strings.ToUpper(s), "SRID=") {
+			if idx := strings.Index(s, ";"); idx != -1 {
+				s = s[idx+1:]
+			}
+		}
+		// Try hex-encoded WKB in string form (e.g. "\\x0101..." or "0101...")
+		hexStr := s
+		if strings.HasPrefix(hexStr, "\\x") || strings.HasPrefix(hexStr, "\\\\x") {
+			hexStr = strings.TrimPrefix(hexStr, "\\x")
+			hexStr = strings.TrimPrefix(hexStr, "\\\\x")
+		}
+		if strings.HasPrefix(hexStr, "0x") {
+			hexStr = strings.TrimPrefix(hexStr, "0x")
+		}
+		if isHexString(hexStr) {
+			if bb, err := hex.DecodeString(hexStr); err == nil {
+				if t, err := wkb.Unmarshal(bb); err == nil && t != nil {
+					gg.T = t
+					return nil
+				}
+			}
+		}
+		// Try WKT
+		if t, err := wkt.Unmarshal(s); err == nil && t != nil {
+			gg.T = t
+			return nil
+		}
+		// Try JSON
+		if tg, err := tryGeoJSON([]byte(s)); err == nil {
+			gg.T = tg
+			return nil
+		}
+		return fmt.Errorf("unable to scan GoGeom from string")
+	default:
 		return fmt.Errorf("unsupported scan type for GoGeom: %T", value)
 	}
-	// Try WKB first
-	if t, err := wkb.Unmarshal(b); err == nil && t != nil {
-		gg.T = t
-		return nil
+}
+
+// isHexString returns true if s contains only hexadecimal characters and has even length.
+func isHexString(s string) bool {
+	if s == "" || len(s)%2 != 0 {
+		return false
 	}
-	// Fallback to GeoJSON (raw map or simple Geometry struct)
-	var raw interface{}
-	if err := json.Unmarshal(b, &raw); err != nil {
-		return err
+	for _, r := range s {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return false
+		}
 	}
-	if tg, err := toGeomFromGeoJSON(raw); err == nil {
-		gg.T = tg
-		return nil
-	}
-	return fmt.Errorf("unable to scan GoGeom")
+	return true
 }
 
 // MarshalJSON encodes as GeoJSON using a JSON-friendly representation

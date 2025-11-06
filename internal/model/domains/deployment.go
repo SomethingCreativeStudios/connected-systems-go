@@ -1,7 +1,6 @@
 package domains
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -16,7 +15,7 @@ type Deployment struct {
 	DeploymentType string `gorm:"type:varchar(255)" json:"featureType,omitempty"`
 
 	// Temporal - deployment period
-	ValidTime *common_shared.TimeRange `gorm:"type:jsonb" json:"validTime,omitempty"`
+	ValidTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:valid_time_" json:"validTime,omitempty"`
 
 	// Spatial - deployment location
 	Geometry *common_shared.GoGeom `gorm:"type:geometry" json:"geometry,omitempty"`
@@ -65,7 +64,7 @@ func (Deployment) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Depl
 		Type       string                      `json:"type"`
 		ID         string                      `json:"id,omitempty"`
 		Properties DeploymentGeoJSONProperties `json:"properties"`
-		Geometry   *common_shared.Geometry     `json:"geometry,omitempty"`
+		Geometry   *common_shared.GoGeom       `json:"geometry,omitempty"`
 		Links      common_shared.Links         `json:"links,omitempty"`
 	}
 	if err := render.DecodeJSON(r.Body, &geoJSON); err != nil {
@@ -77,11 +76,7 @@ func (Deployment) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Depl
 		Links: geoJSON.Links,
 	}
 	if geoJSON.Geometry != nil {
-		gg := &common_shared.GoGeom{}
-		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
-			_ = gg.UnmarshalJSON(b)
-			deployment.Geometry = gg
-		}
+		deployment.Geometry = geoJSON.Geometry
 	}
 	// Extract properties from the properties object
 	deployment.UniqueIdentifier = UniqueID(geoJSON.Properties.UID)

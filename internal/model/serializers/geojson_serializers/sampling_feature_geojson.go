@@ -63,7 +63,7 @@ func (s *SamplingFeatureGeoJSONSerializer) convert(sf *domains.SamplingFeature) 
 			Name:        sf.Name,
 			Description: sf.Description,
 			FeatureType: sf.FeatureType,
-			ValidTime:   sf.ValidTime.String(),
+			ValidTime:   sf.ValidTime,
 			SampledFeatureLink: common_shared.Link{
 				Href:  "features/" + *sf.SampledFeatureID,
 				Type:  "application/geo+json",
