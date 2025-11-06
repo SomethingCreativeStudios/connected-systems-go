@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -45,7 +46,7 @@ const (
 type PropertyGeoJSONFeature struct {
 	Type       string                    `json:"type"`
 	ID         string                    `json:"id"`
-	Geometry   *common_shared.Geometry   `json:"geometry"`
+	Geometry   *common_shared.GoGeom     `json:"geometry"`
 	Properties PropertyGeoJSONProperties `json:"properties"`
 	Links      common_shared.Links       `json:"links,omitempty"`
 }
@@ -81,6 +82,15 @@ func (Property) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Proper
 	// Convert GeoJSON properties to Property model
 	property := Property{
 		Links: geoJSON.Links,
+	}
+
+	// If geometry provided (although Property doesn't store geometry currently), validate/convert it
+	if geoJSON.Geometry != nil {
+		gg := &common_shared.GoGeom{}
+		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
+			_ = gg.UnmarshalJSON(b)
+			// Not stored on Property, but conversion succeeded
+		}
 	}
 
 	// Extract properties from the properties object

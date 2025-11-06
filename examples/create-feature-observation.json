@@ -1,0 +1,37 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:feature:observation:temp001",
+    "name": "Temperature Observation",
+    "description": "Temperature measurement at weather station",
+    "collectionId": "observations",
+    "dateTime": "2024-01-15T12:00:00Z",
+    "validTime": {
+      "start": "2024-01-15T12:00:00Z",
+      "end": "2024-01-15T12:05:00Z"
+    },
+    "observedProperty": "temperature",
+    "value": 22.5,
+    "unit": "Celsius",
+    "quality": "good"
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [7.1, 50.75]
+  },
+  "links": [
+    {
+      "rel": "self",
+      "href": "/collections/observations/items/urn:example:feature:observation:temp001"
+    },
+    {
+      "rel": "collection",
+      "href": "/collections/observations"
+    },
+    {
+      "rel": "related",
+      "href": "/systems/urn:example:system:weatherstation:001",
+      "title": "Weather Station 001"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:feature:building:001",
+    "name": "Building 001",
+    "description": "Example building feature with point geometry",
+    "collectionId": "buildings",
+    "dateTime": "2024-01-15T10:30:00Z",
+    "buildingType": "residential",
+    "floors": 3,
+    "address": "123 Main St"
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [7.09, 50.73]
+  },
+  "links": [
+    {
+      "rel": "self",
+      "href": "/collections/buildings/items/urn:example:feature:building:001"
+    },
+    {
+      "rel": "collection",
+      "href": "/collections/buildings"
+    }
+  ]
+}

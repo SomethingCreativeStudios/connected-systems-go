@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -21,7 +22,8 @@ type System struct {
 	ValidTime *common_shared.TimeRange `gorm:"type:jsonb" json:"validTime,omitempty"`
 
 	// Spatial
-	Geometry *common_shared.Geometry `gorm:"type:jsonb" json:"geometry,omitempty"`
+	// Use GoGeom wrapper which stores as PostGIS WKB/EWKB when possible
+	Geometry *common_shared.GoGeom `gorm:"type:geometry" json:"geometry,omitempty"`
 
 	// Associations (stored as links in JSON)
 	ParentSystemID *string `gorm:"type:varchar(255);index" json:"-"`
@@ -60,7 +62,7 @@ const (
 type SystemGeoJSONFeature struct {
 	Type       string                  `json:"type"`
 	ID         string                  `json:"id"`
-	Geometry   *common_shared.Geometry `json:"geometry"`
+	Geometry   *common_shared.GoGeom   `json:"geometry"`
 	Properties SystemGeoJSONProperties `json:"properties"`
 	Links      common_shared.Links     `json:"links,omitempty"`
 }
@@ -94,8 +96,17 @@ func (System) BuildFromRequest(r *http.Request, w http.ResponseWriter) (System, 
 
 	// Convert GeoJSON properties to System model
 	system := System{
-		Geometry: geoJSON.Geometry,
-		Links:    geoJSON.Links,
+		Links: geoJSON.Links,
+	}
+
+	// convert geometry (GeoJSON) into GoGeom wrapper
+	if geoJSON.Geometry != nil {
+		gg := &common_shared.GoGeom{}
+		// marshal the incoming geoJSON Geometry and unmarshal into GoGeom (uses toGeom)
+		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
+			_ = gg.UnmarshalJSON(b)
+			system.Geometry = gg
+		}
 	}
 
 	// Extract properties from the properties object

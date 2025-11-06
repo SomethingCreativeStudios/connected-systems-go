@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -20,7 +21,7 @@ type SamplingFeature struct {
 	ValidTime *time.Time `gorm:"type:timestamp with time zone" json:"validTime,omitempty"`
 
 	// Spatial - sampling geometry
-	Geometry *common_shared.Geometry `gorm:"type:jsonb" json:"geometry,omitempty"`
+	Geometry *common_shared.GoGeom `gorm:"type:geometry" json:"geometry,omitempty"`
 
 	// Associations
 	ParentSystemID *string `gorm:"type:varchar(255);index" json:"-"`
@@ -49,7 +50,7 @@ const (
 type SamplingFeatureGeoJSONFeature struct {
 	Type       string                           `json:"type"`
 	ID         string                           `json:"id"`
-	Geometry   *common_shared.Geometry          `json:"geometry"`
+	Geometry   *common_shared.GoGeom            `json:"geometry"`
 	Properties SamplingFeatureGeoJSONProperties `json:"properties"`
 	Links      common_shared.Links              `json:"links,omitempty"`
 }
@@ -82,8 +83,14 @@ func (SamplingFeature) BuildFromRequest(r *http.Request, w http.ResponseWriter) 
 
 	// Convert GeoJSON properties to System model
 	samplingFeatures := SamplingFeature{
-		Geometry: geoJSON.Geometry,
-		Links:    geoJSON.Links,
+		Links: geoJSON.Links,
+	}
+	if geoJSON.Geometry != nil {
+		gg := &common_shared.GoGeom{}
+		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
+			_ = gg.UnmarshalJSON(b)
+			samplingFeatures.Geometry = gg
+		}
 	}
 
 	// Extract properties from the properties object

@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -18,7 +19,7 @@ type Deployment struct {
 	ValidTime *common_shared.TimeRange `gorm:"type:jsonb" json:"validTime,omitempty"`
 
 	// Spatial - deployment location
-	Geometry *common_shared.Geometry `gorm:"type:jsonb" json:"geometry,omitempty"`
+	Geometry *common_shared.GoGeom `gorm:"type:geometry" json:"geometry,omitempty"`
 
 	// Associations
 	ParentDeploymentID *string `gorm:"type:varchar(255);index" json:"-"`
@@ -44,7 +45,7 @@ const (
 type DeploymentGeoJSONFeature struct {
 	Type       string                      `json:"type"`
 	ID         string                      `json:"id"`
-	Geometry   *common_shared.Geometry     `json:"geometry"`
+	Geometry   *common_shared.GoGeom       `json:"geometry"`
 	Properties DeploymentGeoJSONProperties `json:"properties"`
 	Links      common_shared.Links         `json:"links,omitempty"`
 }
@@ -75,14 +76,19 @@ func (Deployment) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Depl
 	deployment := Deployment{
 		Links: geoJSON.Links,
 	}
-
+	if geoJSON.Geometry != nil {
+		gg := &common_shared.GoGeom{}
+		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
+			_ = gg.UnmarshalJSON(b)
+			deployment.Geometry = gg
+		}
+	}
 	// Extract properties from the properties object
 	deployment.UniqueIdentifier = UniqueID(geoJSON.Properties.UID)
 	deployment.Name = geoJSON.Properties.Name
 	deployment.Description = geoJSON.Properties.Description
 	deployment.DeploymentType = geoJSON.Properties.FeatureType
 	deployment.ValidTime = geoJSON.Properties.ValidTime
-	deployment.Geometry = geoJSON.Geometry
 
 	return deployment, nil
 }

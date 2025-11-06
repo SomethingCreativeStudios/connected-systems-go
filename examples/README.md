@@ -1,8 +1,46 @@
 # OGC Connected Systems API - Example JSON Documents
 
-This directory contains example JSON documents for creating resources via the OGC Connected Systems API.
+This directory contains example JSON documents for creating resources via the OGC Connected Systems API and OGC API - Features.
 
-## Systems
+## OGC API - Features (Part 1: Core)
+
+Generic features following the OGC API - Features Part 1 specification.
+
+### Point Features
+- **`create-feature-point.json`** - Building feature with point geometry
+  ```bash
+  curl -X POST http://localhost:8080/collections/buildings/items \
+    -H "Content-Type: application/geo+json" \
+    -d @examples/create-feature-point.json
+  ```
+
+### Polygon Features
+- **`create-feature-polygon.json`** - Land parcel with polygon geometry
+  ```bash
+  curl -X POST http://localhost:8080/collections/parcels/items \
+    -H "Content-Type: application/geo+json" \
+    -d @examples/create-feature-polygon.json
+  ```
+
+### LineString Features
+- **`create-feature-linestring.json`** - Road feature with linestring geometry
+  ```bash
+  curl -X POST http://localhost:8080/collections/roads/items \
+    -H "Content-Type: application/geo+json" \
+    -d @examples/create-feature-linestring.json
+  ```
+
+### Observation Features
+- **`create-feature-observation.json`** - Temporal observation with point geometry
+  ```bash
+  curl -X POST http://localhost:8080/collections/observations/items \
+    -H "Content-Type: application/geo+json" \
+    -d @examples/create-feature-observation.json
+  ```
+
+## Connected Systems Resources
+
+### Systems
 
 Systems represent sensors, actuators, platforms, or composite systems.
 

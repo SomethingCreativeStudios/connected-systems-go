@@ -40,7 +40,6 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	// Create handlers
 	landingHandler := NewLandingHandler(cfg, logger)
 	conformanceHandler := NewConformanceHandler(cfg, logger)
-	collectionsHandler := NewCollectionsHandler(cfg, logger)
 
 	// Create serializer and inject lightweight repository readers
 	systemSerializerCollection := buildSystemSerializerCollection(repos)
@@ -48,12 +47,16 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	procedureSerializerCollection := buildProcedureSerializerCollection(repos)
 	samplingFeatureSerializerCollection := buildSamplingFeatureSerializerCollection(repos)
 	propertySerializerCollection := buildPropertySerializerCollection(repos)
+	featureSerializerCollection := buildFeatureSerializerCollection(repos)
+	collectionSerializerCollection := buildCollectionSerializerCollection(repos)
 
+	collectionHandler := NewCollectionHandler(repos.Collection, collectionSerializerCollection)
 	systemHandler := NewSystemHandler(cfg, logger, repos.System, systemSerializerCollection)
 	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentSerializerCollection)
 	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureSerializerCollection)
 	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, samplingFeatureSerializerCollection)
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertySerializerCollection)
+	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureSerializerCollection)
 
 	// Routes
 
@@ -64,9 +67,21 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	r.Get("/conformance", conformanceHandler.GetConformance)
 
 	// Collections
-	r.Get("/collections", collectionsHandler.GetCollections)
-	r.Get("/collections/{collectionId}", collectionsHandler.GetCollection)
-	r.Get("/collections/{collectionId}/items", collectionsHandler.GetCollectionItems)
+	r.Post("/collections", collectionHandler.CreateCollection)
+	r.Get("/collections", collectionHandler.ListCollections)
+	r.Get("/collections/{collectionId}", collectionHandler.GetCollection)
+
+	// OGC API Features endpoints (within collections)
+	r.Route("/collections/{collectionId}/items", func(r chi.Router) {
+		r.Get("/", featureHandler.ListFeatures)
+		r.Post("/", featureHandler.CreateFeature)
+
+		r.Route("/{featureId}", func(r chi.Router) {
+			r.Get("/", featureHandler.GetFeature)
+			r.Put("/", featureHandler.UpdateFeature)
+			r.Delete("/", featureHandler.DeleteFeature)
+		})
+	})
 
 	// Systems (canonical endpoints)
 	r.Route("/systems", func(r chi.Router) {
@@ -157,7 +172,7 @@ func buildSystemSerializerCollection(repos *repository.Repositories) *serializer
 		"default":              geojson_serializers.NewSystemGeoJSONSerializer(repos),
 	}
 
-	return serializers.NewSerializerCollection[domains.SystemGeoJSONFeature, *domains.System](serMap)
+	return serializers.NewSerializerCollection(serMap)
 }
 
 func buildDeploymentSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment] {
@@ -167,7 +182,7 @@ func buildDeploymentSerializerCollection(repos *repository.Repositories) *serial
 		"default":              geojson_serializers.NewDeploymentGeoJSONSerializer(repos),
 	}
 
-	return serializers.NewSerializerCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment](serMap)
+	return serializers.NewSerializerCollection(serMap)
 }
 
 func buildProcedureSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure] {
@@ -177,7 +192,7 @@ func buildProcedureSerializerCollection(repos *repository.Repositories) *seriali
 		"default":              geojson_serializers.NewProcedureGeoJSONSerializer(repos),
 	}
 
-	return serializers.NewSerializerCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure](serMap)
+	return serializers.NewSerializerCollection(serMap)
 }
 
 func buildSamplingFeatureSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature] {
@@ -187,7 +202,7 @@ func buildSamplingFeatureSerializerCollection(repos *repository.Repositories) *s
 		"default":              geojson_serializers.NewSamplingFeatureGeoJSONSerializer(repos),
 	}
 
-	return serializers.NewSerializerCollection[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature](serMap)
+	return serializers.NewSerializerCollection(serMap)
 }
 
 func buildPropertySerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.PropertyGeoJSONFeature, *domains.Property] {
@@ -197,5 +212,25 @@ func buildPropertySerializerCollection(repos *repository.Repositories) *serializ
 		"default":              geojson_serializers.NewPropertyGeoJSONSerializer(repos),
 	}
 
-	return serializers.NewSerializerCollection[domains.PropertyGeoJSONFeature, *domains.Property](serMap)
+	return serializers.NewSerializerCollection(serMap)
+}
+
+func buildFeatureSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.FeatureGeoJSONFeature, *domains.Feature] {
+	// create concrete serializers and register them by content type
+	serMap := map[string]serializers.Serializer[domains.FeatureGeoJSONFeature, *domains.Feature]{
+		"application/geo+json": geojson_serializers.NewFeatureGeoJSONSerializer(),
+		"default":              geojson_serializers.NewFeatureGeoJSONSerializer(),
+	}
+
+	return serializers.NewSerializerCollection(serMap)
+}
+
+func buildCollectionSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.CollectionGeoJSONFeature, *domains.Collection] {
+	// create concrete serializers and register them by content type
+	serMap := map[string]serializers.Serializer[domains.CollectionGeoJSONFeature, *domains.Collection]{
+		"application/geo+json": geojson_serializers.NewCollectionGeoJSONSerializer(repos),
+		"default":              geojson_serializers.NewCollectionGeoJSONSerializer(repos),
+	}
+
+	return serializers.NewSerializerCollection(serMap)
 }

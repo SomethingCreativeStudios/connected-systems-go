@@ -1,0 +1,32 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:feature:road:001",
+    "name": "Main Street",
+    "description": "Example road feature with linestring geometry",
+    "collectionId": "roads",
+    "dateTime": "2024-01-18T09:00:00Z",
+    "roadType": "primary",
+    "lanes": 2,
+    "surface": "asphalt"
+  },
+  "geometry": {
+    "type": "LineString",
+    "coordinates": [
+      [7.01, 50.73],
+      [7.015, 50.732],
+      [7.02, 50.735],
+      [7.025, 50.738]
+    ]
+  },
+  "links": [
+    {
+      "rel": "self",
+      "href": "/collections/roads/items/urn:example:feature:road:001"
+    },
+    {
+      "rel": "collection",
+      "href": "/collections/roads"
+    }
+  ]
+}

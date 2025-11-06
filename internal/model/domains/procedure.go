@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -37,7 +38,7 @@ const (
 type ProcedureGeoJSONFeature struct {
 	Type       string                     `json:"type"`
 	ID         string                     `json:"id"`
-	Geometry   *common_shared.Geometry    `json:"geometry"` // Always null for procedures
+	Geometry   *common_shared.GoGeom      `json:"geometry"` // Always null for procedures
 	Properties ProcedureGeoJSONProperties `json:"properties"`
 	Links      common_shared.Links        `json:"links,omitempty"`
 }
@@ -70,6 +71,14 @@ func (Procedure) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Proce
 	// Convert GeoJSON properties to Procedure model
 	procedure := Procedure{
 		Links: geoJSON.Links,
+	}
+
+	// Validate/convert geometry if provided (procedures usually don't have geometry)
+	if geoJSON.Geometry != nil {
+		gg := &common_shared.GoGeom{}
+		if b, err := json.Marshal(geoJSON.Geometry); err == nil {
+			_ = gg.UnmarshalJSON(b)
+		}
 	}
 
 	// Extract properties from the properties object

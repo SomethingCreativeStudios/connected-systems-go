@@ -1,0 +1,33 @@
+{
+  "type": "Feature",
+  "properties": {
+    "uid": "urn:example:feature:parcel:001",
+    "name": "Land Parcel 001",
+    "description": "Example land parcel feature with polygon geometry",
+    "collectionId": "parcels",
+    "dateTime": "2024-01-20T14:00:00Z",
+    "parcelType": "commercial",
+    "area": 5000,
+    "zoning": "C-1"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[
+      [7.01, 50.73],
+      [7.02, 50.73],
+      [7.02, 50.74],
+      [7.01, 50.74],
+      [7.01, 50.73]
+    ]]
+  },
+  "links": [
+    {
+      "rel": "self",
+      "href": "/collections/parcels/items/urn:example:feature:parcel:001"
+    },
+    {
+      "rel": "collection",
+      "href": "/collections/parcels"
+    }
+  ]
+}
