@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	geom "github.com/twpayne/go-geom"
@@ -62,92 +63,100 @@ func (gg *GoGeom) Scan(value interface{}) error {
 		return toGeomFromGeoJSON(raw)
 	}
 
+	// Debug log value type and content
+	log.Printf("GoGeom.Scan: value type=%T value=%v", value, value)
+
 	switch v := value.(type) {
 	case []byte:
-		// Try WKB first
+		s := strings.TrimSpace(string(v))
+		// Try hex decode if looks like hex
+		if isHexString(s) {
+			if bb, err := hex.DecodeString(s); err == nil {
+				// If EWKB (PostGIS), first 4 bytes are SRID if type code has high bit set
+				t, err := wkb.Unmarshal(bb)
+				if err != nil && err.Error() == "unknown type" && len(bb) > 8 {
+					// Try stripping first 4 bytes (SRID)
+					log.Printf("GoGeom.Scan: detected EWKB, stripping SRID")
+					t, err = wkb.Unmarshal(bb[4:])
+				}
+				if err != nil {
+					log.Printf("GoGeom.Scan: wkb.Unmarshal failed for hex WKB: hex=%q err=%v", s, err)
+				}
+				if t != nil && err == nil {
+					gg.T = t
+					log.Printf("GoGeom.Scan: decoded hex WKB from []byte")
+					return nil
+				}
+			} else {
+				log.Printf("GoGeom.Scan: hex.DecodeString failed: hex=%q err=%v", s, err)
+			}
+		}
+		// Try WKB directly
 		if t, err := wkb.Unmarshal(v); err == nil && t != nil {
 			gg.T = t
+			log.Printf("GoGeom.Scan: decoded WKB from []byte")
+			return nil
+		}
+		// Try WKT (byte -> string)
+		if t, err := wkt.Unmarshal(s); err == nil && t != nil {
+			gg.T = t
+			log.Printf("GoGeom.Scan: decoded WKT from []byte")
 			return nil
 		}
 		// Try JSON/GeoJSON
 		if tg, err := tryGeoJSON(v); err == nil {
 			gg.T = tg
+			log.Printf("GoGeom.Scan: decoded GeoJSON from []byte")
 			return nil
 		}
-		// Try WKT (byte -> string) and hex WKB encoded as text
-		if s := strings.TrimSpace(string(v)); s != "" {
-			// remove SRID prefix if present
-			if strings.HasPrefix(strings.ToUpper(s), "SRID=") {
-				if idx := strings.Index(s, ";"); idx != -1 {
-					s = s[idx+1:]
-				}
-			}
-			// If this looks like hex-encoded WKB (maybe prefixed with "\\x"), try decode
-			hexStr := s
-			if strings.HasPrefix(hexStr, "\\x") || strings.HasPrefix(hexStr, "\\\\x") {
-				// remove leading backslash sequences
-				hexStr = strings.TrimPrefix(hexStr, "\\x")
-				hexStr = strings.TrimPrefix(hexStr, "\\\\x")
-			}
-			if after, ok := strings.CutPrefix(hexStr, "0x"); ok {
-				hexStr = after
-			}
-			// If hexStr contains only hex chars, try decode
-			if isHexString(hexStr) {
-				if bb, err := hex.DecodeString(hexStr); err == nil {
-					if t, err := wkb.Unmarshal(bb); err == nil && t != nil {
-						gg.T = t
-						return nil
-					}
-				}
-			}
-			if t, err := wkt.Unmarshal(s); err == nil && t != nil {
-				gg.T = t
-				return nil
-			}
-		}
-		return fmt.Errorf("unable to scan GoGeom from []byte")
+		log.Printf("GoGeom.Scan: unable to scan from []byte: %q", s)
+		return fmt.Errorf("unable to scan GoGeom from []byte: %q", s)
 	case string:
 		s := strings.TrimSpace(v)
-		if s == "" {
-			gg.T = nil
-			return nil
-		}
 		// Remove SRID=####; prefix if present
 		if strings.HasPrefix(strings.ToUpper(s), "SRID=") {
 			if idx := strings.Index(s, ";"); idx != -1 {
 				s = s[idx+1:]
 			}
 		}
-		// Try hex-encoded WKB in string form (e.g. "\\x0101..." or "0101...")
-		hexStr := s
-		if strings.HasPrefix(hexStr, "\\x") || strings.HasPrefix(hexStr, "\\\\x") {
-			hexStr = strings.TrimPrefix(hexStr, "\\x")
-			hexStr = strings.TrimPrefix(hexStr, "\\\\x")
-		}
-		if strings.HasPrefix(hexStr, "0x") {
-			hexStr = strings.TrimPrefix(hexStr, "0x")
-		}
-		if isHexString(hexStr) {
-			if bb, err := hex.DecodeString(hexStr); err == nil {
-				if t, err := wkb.Unmarshal(bb); err == nil && t != nil {
+		// Try hex decode if looks like hex
+		if isHexString(s) {
+			if bb, err := hex.DecodeString(s); err == nil {
+				// If EWKB (PostGIS), first 4 bytes are SRID if type code has high bit set
+				t, err := wkb.Unmarshal(bb)
+				if err != nil && err.Error() == "unknown type" && len(bb) > 8 {
+					// Try stripping first 4 bytes (SRID)
+					log.Printf("GoGeom.Scan: detected EWKB, stripping SRID")
+					t, err = wkb.Unmarshal(bb[4:])
+				}
+				if err != nil {
+					log.Printf("GoGeom.Scan: wkb.Unmarshal failed for hex WKB: hex=%q err=%v", s, err)
+				}
+				if t != nil && err == nil {
 					gg.T = t
+					log.Printf("GoGeom.Scan: decoded hex WKB from string")
 					return nil
 				}
+			} else {
+				log.Printf("GoGeom.Scan: hex.DecodeString failed: hex=%q err=%v", s, err)
 			}
 		}
 		// Try WKT
 		if t, err := wkt.Unmarshal(s); err == nil && t != nil {
 			gg.T = t
+			log.Printf("GoGeom.Scan: decoded WKT from string")
 			return nil
 		}
 		// Try JSON
 		if tg, err := tryGeoJSON([]byte(s)); err == nil {
 			gg.T = tg
+			log.Printf("GoGeom.Scan: decoded GeoJSON from string")
 			return nil
 		}
-		return fmt.Errorf("unable to scan GoGeom from string")
+		log.Printf("GoGeom.Scan: unable to scan from string: %q", s)
+		return fmt.Errorf("unable to scan GoGeom from string: %q", s)
 	default:
+		log.Printf("GoGeom.Scan: unsupported scan type: %T", value)
 		return fmt.Errorf("unsupported scan type for GoGeom: %T", value)
 	}
 }

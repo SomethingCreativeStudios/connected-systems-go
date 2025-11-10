@@ -13,6 +13,7 @@ type SystemQueryParams struct {
 	Bbox               *common_shared.BoundingBox
 	Datetime           *common_shared.TimeRange
 	Geom               string // WKT geometry
+	Q                  []string
 	Parent             []string
 	Procedure          []string
 	FOI                []string

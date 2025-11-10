@@ -51,8 +51,8 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	collectionSerializerCollection := buildCollectionSerializerCollection(repos)
 
 	collectionHandler := NewCollectionHandler(repos.Collection, collectionSerializerCollection)
-	systemHandler := NewSystemHandler(cfg, logger, repos.System, systemSerializerCollection)
 	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentSerializerCollection)
+	systemHandler := NewSystemHandler(cfg, logger, repos.System, systemSerializerCollection, repos.Deployment, deploymentSerializerCollection)
 	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureSerializerCollection)
 	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, samplingFeatureSerializerCollection)
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertySerializerCollection)
@@ -93,9 +93,12 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 			r.Put("/", systemHandler.UpdateSystem)
 			r.Delete("/", systemHandler.DeleteSystem)
 
-			// Nested endpoints
+			// Nested Systems endpoints
 			r.Get("/subsystems", systemHandler.GetSubsystems)
 			r.Post("/subsystems", systemHandler.AddSubsystem)
+
+			// Associated resource endpoint
+			r.Get("/deployments", systemHandler.GetDeployments)
 			r.Get("/samplingFeatures", samplingFeatureHandler.GetSystemSamplingFeatures)
 		})
 	})
@@ -109,6 +112,10 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 			r.Get("/", deploymentHandler.GetDeployment)
 			r.Put("/", deploymentHandler.UpdateDeployment)
 			r.Delete("/", deploymentHandler.DeleteDeployment)
+
+			// Subdeployments endpoint
+			r.Get("/subdeployments", deploymentHandler.ListSubdeployments)
+			r.Post("/subdeployments", deploymentHandler.AddSubdeployment)
 		})
 	})
 

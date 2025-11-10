@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strings"
+
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
@@ -134,16 +136,45 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
 
-	if params.Q != "" {
-		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+params.Q+"%", "%"+params.Q+"%")
+	if len(params.Q) > 0 {
+		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
 	}
 
 	if len(params.Parent) > 0 {
 		query = query.Where("parent_system_id IN ?", params.Parent)
 	}
 
-	// Add more filters as needed (bbox, datetime, etc.)
+	if params.Datetime != nil {
+		query = query.Where("valid_from <= ? AND (valid_to IS NULL OR valid_to >= ?)", params.Datetime.End, params.Datetime.Start)
+	}
 
+	if params.Bbox != nil {
+		query = query.Where("ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", params.Bbox.MinX, params.Bbox.MinY, params.Bbox.MaxX, params.Bbox.MaxY)
+	}
+
+	if params.Geom != "" {
+		query = query.Where("ST_Intersects(geometry, ST_GeomFromText(?, 4326))", params.Geom)
+	}
+
+	if len(params.Procedure) > 0 {
+		query = query.Joins("JOIN system_procedures ON systems.id = system_procedures.system_id").
+			Where("system_procedures.procedure_id IN ?", params.Procedure)
+	}
+
+	if len(params.FOI) > 0 {
+		query = query.Joins("JOIN sampling_features ON systems.id = sampling_features.parent_system_id").
+			Where("sampling_features.id IN ?", params.FOI)
+	}
+
+	if len(params.ObservedProperty) > 0 {
+		query = query.Joins("JOIN system_observed_properties ON systems.id = system_observed_properties.system_id").
+			Where("system_observed_properties.observed_property_id IN ?", params.ObservedProperty)
+	}
+
+	if len(params.ControlledProperty) > 0 {
+		query = query.Joins("JOIN system_controlled_properties ON systems.id = system_controlled_properties.system_id").
+			Where("system_controlled_properties.controlled_property_id IN ?", params.ControlledProperty)
+	}
 	return query
 }
 

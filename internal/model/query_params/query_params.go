@@ -11,7 +11,7 @@ import (
 
 type QueryParams struct {
 	IDs []string
-	Q   string // Full-text search
+	Q   []string // Full-text search
 
 	Limit  int
 	Offset int // Not part of standard, but useful for pagination (till i do curorsors)
@@ -39,7 +39,9 @@ func (QueryParams) BuildFromRequest(r *http.Request) *QueryParams {
 		params.IDs = strings.Split(ids, ",")
 	}
 
-	params.Q = r.URL.Query().Get("q")
+	if queries := r.URL.Query().Get("q"); queries != "" {
+		params.Q = strings.Split(queries, ",")
+	}
 
 	return params
 }

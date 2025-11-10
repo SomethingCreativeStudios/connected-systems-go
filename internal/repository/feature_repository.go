@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
@@ -102,8 +103,8 @@ func (r *FeatureRepository) Delete(id string) error {
 
 func (r *FeatureRepository) applyFilters(query *gorm.DB, params *queryparams.FeatureQueryParams) *gorm.DB {
 	// Text search
-	if params.Q != "" {
-		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+params.Q+"%", "%"+params.Q+"%")
+	if len(params.Q) > 0 {
+		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
 	}
 
 	// Bounding box filter (OGC bbox parameter)

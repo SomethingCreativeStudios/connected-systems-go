@@ -22,7 +22,8 @@ type SamplingFeature struct {
 	Geometry *common_shared.GoGeom `gorm:"type:geometry" json:"geometry,omitempty"`
 
 	// Associations
-	ParentSystemID *string `gorm:"type:varchar(255);index" json:"-"`
+	// store parent system id; put FK constraint on the column to avoid duplicate constraint definitions
+	ParentSystemID *string `gorm:"type:varchar(255);index;" json:"parentSystemId,omitempty"`
 
 	SampledFeatureID *string   `gorm:"type:varchar(255);index" json:"featureId"`
 	SampleOf         *[]string `gorm:"type:varchar(255)[]" json:"sampleOf,omitempty"`
@@ -32,6 +33,11 @@ type SamplingFeature struct {
 
 	// Additional properties
 	Properties common_shared.Properties `gorm:"type:jsonb" json:"properties,omitempty"`
+
+	// Optional back-reference to parent system. Don't specify foreignKey here since it's already
+	// defined on the System side (System.SamplingFeatures with foreignKey:ParentSystemID).
+	// Specifying it on both sides causes GORM to create duplicate/conflicting FK constraints.
+	ParentSystem *System `gorm:"->;references:ID" json:"parentSystem,omitempty"`
 }
 
 // TableName specifies the table name

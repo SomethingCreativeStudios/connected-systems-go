@@ -22,15 +22,22 @@ type SystemHandler struct {
 	logger               *zap.Logger
 	repo                 *repository.SystemRepository
 	serializerCollection *serializers.SerializerCollection[domains.SystemGeoJSONFeature, *domains.System]
+	// deployment dependencies for server-side reuse
+	deploymentRepo *repository.DeploymentRepository
+	deploymentSC   *serializers.SerializerCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment]
+	deploymentFC   model.FeatureCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment]
 }
 
 // NewSystemHandler creates a new SystemHandler
-func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, s *serializers.SerializerCollection[domains.SystemGeoJSONFeature, *domains.System]) *SystemHandler {
+func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, s *serializers.SerializerCollection[domains.SystemGeoJSONFeature, *domains.System], deploymentRepo *repository.DeploymentRepository, deploymentSC *serializers.SerializerCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment]) *SystemHandler {
 	return &SystemHandler{
 		cfg:                  cfg,
 		logger:               logger,
 		repo:                 repo,
 		serializerCollection: s,
+		deploymentRepo:       deploymentRepo,
+		deploymentSC:         deploymentSC,
+		deploymentFC:         model.FeatureCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment]{},
 	}
 }
 
@@ -154,6 +161,26 @@ func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 
 	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
 	render.JSON(w, r, model.FeatureCollection[domains.SystemGeoJSONFeature, *domains.System]{}.BuildCollection(systems, serializer, h.cfg.API.BaseURL+r.URL.Path, len(systems), r.URL.Query(), params.QueryParams))
+}
+
+// GetDeployments retrieves deployments associated with a system
+func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	// Build optional pagination params from request
+	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r)
+
+	// Use deployment repository helper to find deployments associated with this system
+	deployments, total, err := h.deploymentRepo.List(params)
+	if err != nil {
+		h.logger.Error("Failed to get deployments for system", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to get deployments"})
+		return
+	}
+
+	serializer := h.deploymentSC.GetSerializer(r.Header.Get("content-type"))
+	render.JSON(w, r, h.deploymentFC.BuildCollection(deployments, serializer, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
 }
 
 // Add subsystem to a system

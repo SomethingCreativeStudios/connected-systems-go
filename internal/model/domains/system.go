@@ -31,6 +31,11 @@ type System struct {
 
 	// Additional properties
 	Properties common_shared.Properties `gorm:"type:jsonb" json:"properties,omitempty"`
+
+	// Associations
+	Procedures       []Procedure       `gorm:"many2many:system_procedures;"`
+	Deployments      []Deployment      `gorm:"many2many:system_deployments;"`
+	SamplingFeatures []SamplingFeature `gorm:"foreignKey:ParentSystemID;"`
 }
 
 // TableName specifies the table name

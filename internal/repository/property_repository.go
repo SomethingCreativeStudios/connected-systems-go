@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
@@ -72,8 +73,8 @@ func (r *PropertyRepository) applyFilters(query *gorm.DB, params *queryparams.Pr
 		query = query.Where("unique_identifier IN ?", params.IDs, params.IDs)
 	}
 
-	if params.Q != "" {
-		query = query.Where("name ILIKE ? OR description ILIKE ? OR property_type ILIKE ? OR object_type ILIKE ?", "%"+params.Q+"%", "%"+params.Q+"%", "%"+params.Q+"%", "%"+params.Q+"%")
+	if len(params.Q) > 0 {
+		query = query.Where("name ILIKE ? OR description ILIKE ? OR property_type ILIKE ? OR object_type ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
 	}
 
 	if len(params.ObjectType) > 0 {

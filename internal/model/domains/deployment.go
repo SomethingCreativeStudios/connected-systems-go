@@ -28,6 +28,7 @@ type Deployment struct {
 
 	// Additional properties
 	Properties common_shared.Properties `gorm:"type:jsonb" json:"properties,omitempty"`
+	Systems    []System                 `gorm:"many2many:system_deployments;"`
 }
 
 // TableName specifies the table name

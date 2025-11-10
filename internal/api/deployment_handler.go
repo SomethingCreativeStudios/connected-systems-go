@@ -137,3 +137,51 @@ func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Requ
 
 	render.Status(r, http.StatusNoContent)
 }
+
+// List all subdeployments
+func (h *DeploymentHandler) ListSubdeployments(w http.ResponseWriter, r *http.Request) {
+	//parentID := chi.URLParam(r, "id")
+	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r)
+
+	deployments, total, err := h.repo.List(params)
+	if err != nil {
+		h.logger.Error("Failed to list subdeployments", zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		return
+	}
+
+	serializer := h.sc.GetSerializer(r.Header.Get("content-type"))
+	render.JSON(w, r, h.fc.BuildCollection(deployments, serializer, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
+}
+
+// Add subdeployment to a deployment
+func (h *DeploymentHandler) AddSubdeployment(w http.ResponseWriter, r *http.Request) {
+	parentID := chi.URLParam(r, "id")
+
+	subdeployment, err := domains.Deployment{}.BuildFromRequest(r, w)
+	if err != nil {
+		return // Error already handled in buildDeployment
+	}
+
+	subdeployment.ParentDeploymentID = &parentID
+
+	if err := h.repo.Create(&subdeployment); err != nil {
+		h.logger.Error("Failed to create subdeployment", zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to create subdeployment"})
+		return
+	}
+
+	subdeploymentGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), &subdeployment)
+
+	if err != nil {
+		h.logger.Error("Failed to serialize subdeployment", zap.String("id", subdeployment.ID), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize subdeployment"})
+		return
+	}
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(w, r, subdeploymentGeoJSON)
+}

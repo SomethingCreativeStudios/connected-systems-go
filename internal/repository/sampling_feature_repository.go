@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strings"
+
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
@@ -68,8 +70,8 @@ func (r *SamplingFeatureRepository) applyFilters(query *gorm.DB, params *querypa
 	if len(params.IDs) > 0 {
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
-	if params.Q != "" {
-		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+params.Q+"%", "%"+params.Q+"%")
+	if len(params.Q) > 0 {
+		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
 	}
 	return query
 }
