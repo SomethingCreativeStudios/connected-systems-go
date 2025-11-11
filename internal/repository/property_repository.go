@@ -70,11 +70,25 @@ func (r *PropertyRepository) Delete(id string) error {
 
 func (r *PropertyRepository) applyFilters(query *gorm.DB, params *queryparams.PropertiesQueryParams) *gorm.DB {
 	if len(params.IDs) > 0 {
-		query = query.Where("unique_identifier IN ?", params.IDs, params.IDs)
+		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
 
 	if len(params.Q) > 0 {
-		query = query.Where("name ILIKE ? OR description ILIKE ? OR property_type ILIKE ? OR object_type ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
+		var clauses []string
+		var args []interface{}
+		for _, term := range params.Q {
+			clauses = append(clauses, "name ILIKE ?")
+			args = append(args, "%"+term+"%")
+			clauses = append(clauses, "description ILIKE ?")
+			args = append(args, "%"+term+"%")
+			clauses = append(clauses, "base_property ILIKE ?")
+			args = append(args, "%"+term+"%")
+			clauses = append(clauses, "object_type ILIKE ?")
+			args = append(args, "%"+term+"%")
+			clauses = append(clauses, "property_type ILIKE ?")
+			args = append(args, "%"+term+"%")
+		}
+		query = query.Where(strings.Join(clauses, " OR "), args...)
 	}
 
 	if len(params.ObjectType) > 0 {

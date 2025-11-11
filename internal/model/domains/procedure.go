@@ -15,9 +15,13 @@ type Procedure struct {
 	FeatureType string `gorm:"type:varchar(255)" json:"featureType,omitempty"`
 
 	// Note: Procedures typically don't have location
+	ProcedureType string `gorm:"type:varchar(255)" json:"procedureType,omitempty"`
 
 	// Links to related resources
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
+
+	ControlledProperties []Property `gorm:"many2many:procedure_controlled_properties;" json:"-"`
+	ObservedProperties   []Property `gorm:"many2many:procedure_observed_properties;" json:"-"`
 
 	// Additional properties
 	Properties common_shared.Properties `gorm:"type:jsonb" json:"properties,omitempty"`
@@ -31,9 +35,22 @@ func (Procedure) TableName() string {
 	return "procedures"
 }
 
-// ProcedureType constants (SOSA/SSN)
+// ProcedureType constants based on Table 16 from OGC API - Connected Systems
+// Procedure Types (Methods)
 const (
-	ProcedureTypeProcedure = "http://www.w3.org/ns/sosa/Procedure"
+	ProcedureTypeObserving = "http://www.w3.org/ns/sosa/ObservingProcedure" // sosa:ObservingProcedure - An observation method
+	ProcedureTypeSampling  = "http://www.w3.org/ns/sosa/SamplingProcedure"  // sosa:SamplingProcedure - A sampling method
+	ProcedureTypeActuating = "http://www.w3.org/ns/sosa/ActuatingProcedure" // sosa:ActuatingProcedure - An actuation method
+	ProcedureTypeProcedure = "http://www.w3.org/ns/sosa/Procedure"          // sosa:Procedure - Any other type of procedure or methodology
+)
+
+// System Datasheet Types
+const (
+	ProcedureTypeSensor   = "http://www.w3.org/ns/sosa/Sensor"   // sosa:Sensor - A sensor datasheet
+	ProcedureTypeActuator = "http://www.w3.org/ns/sosa/Actuator" // sosa:Actuator - An actuator datasheet
+	ProcedureTypeSampler  = "http://www.w3.org/ns/sosa/Sampler"  // sosa:Sampler - A sampler datasheet
+	ProcedureTypePlatform = "http://www.w3.org/ns/sosa/Platform" // sosa:Platform - A platform datasheet
+	ProcedureTypeSystem   = "http://www.w3.org/ns/sosa/System"   // sosa:System - Any other system datasheet
 )
 
 // ProcedureGeoJSONFeature converts Procedure to GeoJSON Feature format

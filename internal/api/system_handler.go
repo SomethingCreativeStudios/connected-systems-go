@@ -114,7 +114,7 @@ func (h *SystemHandler) UpdateSystem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	system.ID = id
-	if err := h.repo.Update(&system); err != nil {
+	if err := h.repo.Update(system.ID, &system); err != nil {
 		h.logger.Error("Failed to update system", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, map[string]string{"error": "Failed to update system"})

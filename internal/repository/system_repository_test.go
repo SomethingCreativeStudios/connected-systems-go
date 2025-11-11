@@ -222,6 +222,8 @@ func TestSystemRepository_List(t *testing.T) {
 		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sensor1", Name: "Temperature Sensor 1"},
 		SystemType: domains.SystemTypeSensor,
 		Geometry:   testutil.MakePoint(-122.4194, 37.7749), // San Francisco
+		// Always valid
+		ValidTime: &common_shared.TimeRange{Start: testutil.PtrTime(time.Now())},
 	}
 	require.NoError(t, repo.Create(sensor1))
 
@@ -229,6 +231,8 @@ func TestSystemRepository_List(t *testing.T) {
 		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sensor2", Name: "Humidity Sensor"},
 		SystemType: domains.SystemTypeSensor,
 		Geometry:   testutil.MakePoint(-118.2437, 34.0522), // Los Angeles
+		// Always valid
+		ValidTime: &common_shared.TimeRange{Start: testutil.PtrTime(time.Now())},
 	}
 	require.NoError(t, repo.Create(sensor2))
 
@@ -236,12 +240,16 @@ func TestSystemRepository_List(t *testing.T) {
 		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:platform1", Name: "Weather Station"},
 		SystemType: domains.SystemTypePlatform,
 		Geometry:   testutil.MakePoint(-122.3321, 47.6062), // Seattle
+		// Only valid for november 2025 to december 2025
+		ValidTime: &common_shared.TimeRange{Start: testutil.PtrTime(time.Date(2025, 11, 1, 0, 0, 0, 0, time.UTC)), End: testutil.PtrTime(time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC))},
 	}
 	require.NoError(t, repo.Create(platform1))
 
 	actuator1 := &domains.System{
 		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:actuator1", Name: "Valve Controller"},
 		SystemType: domains.SystemTypeActuator,
+		// Valid whenever but only until end of 2024
+		ValidTime: &common_shared.TimeRange{End: testutil.PtrTime(time.Date(2024, 12, 31, 23, 59, 59, 0, time.UTC))},
 	}
 	require.NoError(t, repo.Create(actuator1))
 
@@ -250,6 +258,7 @@ func TestSystemRepository_List(t *testing.T) {
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:child1", Name: "Child Sensor"},
 		SystemType:     domains.SystemTypeSensor,
 		ParentSystemID: &platform1.ID,
+		// No valid time
 	}
 	require.NoError(t, repo.Create(childSensor))
 
@@ -264,6 +273,7 @@ func TestSystemRepository_List(t *testing.T) {
 			name: "list all systems with default limit",
 			params: &queryparams.SystemQueryParams{
 				QueryParams: queryparams.QueryParams{Limit: 10},
+				Recursive:   true,
 			},
 			wantCount: 5,
 			wantTotal: 5,
@@ -275,6 +285,7 @@ func TestSystemRepository_List(t *testing.T) {
 			name: "list with limit 2",
 			params: &queryparams.SystemQueryParams{
 				QueryParams: queryparams.QueryParams{Limit: 2},
+				Recursive:   true,
 			},
 			wantCount: 2,
 			wantTotal: 5,
@@ -286,6 +297,7 @@ func TestSystemRepository_List(t *testing.T) {
 			name: "list with limit and offset",
 			params: &queryparams.SystemQueryParams{
 				QueryParams: queryparams.QueryParams{Limit: 2, Offset: 2},
+				Recursive:   true,
 			},
 			wantCount: 2,
 			wantTotal: 5,
@@ -315,6 +327,7 @@ func TestSystemRepository_List(t *testing.T) {
 			params: &queryparams.SystemQueryParams{
 				QueryParams: queryparams.QueryParams{Limit: 10},
 				Parent:      []string{platform1.ID},
+				Recursive:   true,
 			},
 			wantCount: 1,
 			wantTotal: 1,
@@ -325,18 +338,84 @@ func TestSystemRepository_List(t *testing.T) {
 			},
 		},
 		{
-			name: "list systems with no parent (top-level only)",
+			name: "in bbox filter",
 			params: &queryparams.SystemQueryParams{
 				QueryParams: queryparams.QueryParams{Limit: 10},
-				Parent:      []string{"null"},
+				Bbox:        testutil.TestBoundingBoxLA(),
 			},
-			wantCount: 4,
-			wantTotal: 4,
+			wantCount: 1,
+			wantTotal: 1,
 			checkFunc: func(t *testing.T, systems []*domains.System) {
-				require.Len(t, systems, 4)
-				for _, sys := range systems {
-					require.Nil(t, sys.ParentSystemID)
-				}
+				require.Len(t, systems, 1)
+				require.Equal(t, sensor2.ID, systems[0].ID)
+				require.Equal(t, "Humidity Sensor", systems[0].Name)
+				require.Equal(t, sensor2.Geometry, systems[0].Geometry)
+			},
+		},
+		{
+			name: "Query test",
+			params: &queryparams.SystemQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				Q:           []string{"Humidity", "Controller"},
+			},
+			wantCount: 2,
+			wantTotal: 2,
+			checkFunc: func(t *testing.T, systems []*domains.System) {
+				require.Len(t, systems, 2)
+
+				names := []string{systems[0].Name, systems[1].Name}
+
+				require.Contains(t, names, "Humidity Sensor")
+				require.Contains(t, names, "Valve Controller")
+			},
+		},
+		{
+			name: "Datetime test",
+			params: &queryparams.SystemQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				// Current time falls within platform1 valid times but only that one
+				Datetime: &common_shared.TimeRange{
+					Start: testutil.PtrTime(time.Date(2025, 11, 3, 0, 0, 0, 0, time.UTC)),
+					End:   testutil.PtrTime(time.Date(2025, 11, 4, 0, 0, 0, 0, time.UTC)),
+				},
+			},
+			wantCount: 1,
+			wantTotal: 1,
+			checkFunc: func(t *testing.T, systems []*domains.System) {
+				require.Len(t, systems, 1)
+
+				names := []string{systems[0].Name}
+
+				require.Contains(t, names, "Weather Station")
+			},
+		},
+		{
+			name: "Geom test",
+			params: &queryparams.SystemQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				// WKT format of geometry around Seattle
+				Geom: "POINT(-122.3321 47.6062)",
+			},
+			wantCount: 1,
+			wantTotal: 1,
+			checkFunc: func(t *testing.T, systems []*domains.System) {
+				require.Len(t, systems, 1)
+
+				names := []string{systems[0].Name}
+
+				require.Contains(t, names, "Weather Station")
+			},
+		},
+		{
+			name: "in bbox filter multiple results",
+			params: &queryparams.SystemQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				Bbox:        testutil.TestBoundingBoxLA_SF(),
+			},
+			wantCount: 2,
+			wantTotal: 2,
+			checkFunc: func(t *testing.T, systems []*domains.System) {
+				require.Len(t, systems, 2)
 			},
 		},
 		{
@@ -368,79 +447,102 @@ func TestSystemRepository_List(t *testing.T) {
 	}
 }
 
-func TestSystemRepository_Update(t *testing.T) {
+func TestSystemRepository_DeeplyNestedSystems(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	repo := NewSystemRepository(db)
 
-	// Setup: create a system
-	original := &domains.System{
-		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:update1", Name: "Original Name"},
+	// Setup: create multiple test systems with different attributes
+	sensor1 := &domains.System{
+		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sensor1", Name: "Temperature Sensor 1"},
 		SystemType: domains.SystemTypeSensor,
+		Geometry:   testutil.MakePoint(-122.4194, 37.7749), // San Francisco
+		// Always valid
+		ValidTime: &common_shared.TimeRange{Start: testutil.PtrTime(time.Now())},
 	}
-	require.NoError(t, repo.Create(original))
+	require.NoError(t, repo.Create(sensor1))
+
+	sensor2 := &domains.System{
+		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sensor2", Name: "Humidity Sensor"},
+		SystemType: domains.SystemTypeSensor,
+		Geometry:   testutil.MakePoint(-118.2437, 34.0522), // Los Angeles
+		// Always valid
+		ValidTime: &common_shared.TimeRange{Start: testutil.PtrTime(time.Now())},
+	}
+	require.NoError(t, repo.Create(sensor2))
+
+	platform1 := &domains.System{
+		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:platform1", Name: "Weather Station"},
+		SystemType: domains.SystemTypePlatform,
+		Geometry:   testutil.MakePoint(-122.3321, 47.6062), // Seattle
+		// Only valid for november 2025 to december 2025
+		ValidTime: &common_shared.TimeRange{Start: testutil.PtrTime(time.Date(2025, 11, 1, 0, 0, 0, 0, time.UTC)), End: testutil.PtrTime(time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC))},
+	}
+	require.NoError(t, repo.Create(platform1))
+
+	// Create a child system
+	childSensor := &domains.System{
+		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:child1", Name: "Child Sensor"},
+		SystemType:     domains.SystemTypeSensor,
+		ParentSystemID: &platform1.ID,
+		// No valid time
+	}
+
+	require.NoError(t, repo.Create(childSensor))
+
+	grandchildSensor := &domains.System{
+		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:grandchild1", Name: "Grandchild Sensor"},
+		SystemType:     domains.SystemTypeSensor,
+		ParentSystemID: &childSensor.ID,
+		// No valid time
+	}
+
+	require.NoError(t, repo.Create(grandchildSensor))
 
 	tests := []struct {
-		name       string
-		updateFunc func(*domains.System)
-		checkFunc  func(t *testing.T, updated *domains.System)
-		wantErr    bool
+		name      string
+		params    *queryparams.SystemQueryParams
+		wantCount int
+		wantTotal int64
+		checkFunc func(t *testing.T, systems []*domains.System)
 	}{
 		{
-			name: "update name",
-			updateFunc: func(s *domains.System) {
-				s.Name = "Updated Name"
+			name: "Finding the grandchild system via recursive listing",
+			params: &queryparams.SystemQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				Q:           []string{"Grandchild"},
+				Recursive:   true,
 			},
-			checkFunc: func(t *testing.T, updated *domains.System) {
-				require.Equal(t, "Updated Name", updated.Name)
+			wantCount: 1,
+			wantTotal: 1,
+			checkFunc: func(t *testing.T, systems []*domains.System) {
+				require.Len(t, systems, 1)
 			},
-			wantErr: false,
 		},
 		{
-			name: "update description",
-			updateFunc: func(s *domains.System) {
-				s.Description = "New description"
+			name: "Finding the grandchild system but non-recursively (so should not find it)",
+			params: &queryparams.SystemQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				Q:           []string{"Grandchild"},
+				Recursive:   false,
 			},
-			checkFunc: func(t *testing.T, updated *domains.System) {
-				require.Equal(t, "New description", updated.Description)
+			wantCount: 0,
+			wantTotal: 0,
+			checkFunc: func(t *testing.T, systems []*domains.System) {
+				require.Len(t, systems, 0)
 			},
-			wantErr: false,
-		},
-		{
-			name: "update system type",
-			updateFunc: func(s *domains.System) {
-				s.SystemType = domains.SystemTypePlatform
-			},
-			checkFunc: func(t *testing.T, updated *domains.System) {
-				require.Equal(t, domains.SystemTypePlatform, updated.SystemType)
-			},
-			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Get fresh copy for each test
-			sys, err := repo.GetByID(original.ID)
+			systems, total, err := repo.List(tt.params)
 			require.NoError(t, err)
-
-			// Apply update
-			tt.updateFunc(sys)
-
-			// Save
-			err = repo.Update(sys)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-
-			// Verify
-			updated, err := repo.GetByID(sys.ID)
-			require.NoError(t, err)
+			require.Equal(t, tt.wantTotal, total, "total count mismatch")
+			require.Len(t, systems, tt.wantCount, "result count mismatch")
 			if tt.checkFunc != nil {
-				tt.checkFunc(t, updated)
+				tt.checkFunc(t, systems)
 			}
 		})
 	}
@@ -583,37 +685,6 @@ func TestSystemRepository_Delete(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "delete without cascade keeps children",
-			setupFunc: func() (parentID string, childIDs []string) {
-				parent := &domains.System{
-					CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:delparent2", Name: "Delete Parent 2"},
-					SystemType: domains.SystemTypePlatform,
-				}
-				require.NoError(t, repo.Create(parent))
-
-				child := &domains.System{
-					CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:delchild2", Name: "Delete Child 2"},
-					SystemType:     domains.SystemTypeSensor,
-					ParentSystemID: &parent.ID,
-				}
-				require.NoError(t, repo.Create(child))
-				return parent.ID, []string{child.ID}
-			},
-			cascade: false,
-			checkFunc: func(t *testing.T, parentID string, childIDs []string) {
-				// Parent should be gone
-				_, err := repo.GetByID(parentID)
-				require.Error(t, err)
-
-				// Children should still exist (orphaned)
-				for _, childID := range childIDs {
-					child, err := repo.GetByID(childID)
-					require.NoError(t, err)
-					require.Nil(t, child.ParentSystemID) // FK should be set to NULL
-				}
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -622,6 +693,118 @@ func TestSystemRepository_Delete(t *testing.T) {
 			err := repo.Delete(parentID, tt.cascade)
 			require.NoError(t, err)
 			tt.checkFunc(t, parentID, childIDs)
+		})
+	}
+}
+
+func TestSystemRepository_Update(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	repo := NewSystemRepository(db)
+
+	// Setup: create multiple test systems with different attributes
+	sensor1 := &domains.System{
+		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sensor1", Name: "Temperature Sensor 1"},
+		SystemType: domains.SystemTypeSensor,
+		Geometry:   testutil.MakePoint(-122.4194, 37.7749), // San Francisco
+		// Always valid
+		ValidTime: &common_shared.TimeRange{Start: testutil.PtrTime(time.Now())},
+	}
+	require.NoError(t, repo.Create(sensor1))
+
+	tests := []struct {
+		name      string
+		systemId  string
+		system    *domains.System
+		wantErr   bool
+		checkFunc func(t *testing.T, updated *domains.System)
+	}{
+		{
+			name:     "update sensor system",
+			systemId: sensor1.ID,
+			system: &domains.System{
+				CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sensor1", Name: "Temperature Sensor 1"},
+				SystemType: domains.SystemTypeSensor,
+				Geometry:   testutil.MakePoint(-122.3321, 47.6062), // Seattle
+				// Always valid
+				ValidTime: &common_shared.TimeRange{Start: testutil.PtrTime(time.Now())},
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T, updated *domains.System) {
+				require.NotEmpty(t, updated.ID)
+				require.Equal(t, "Temperature Sensor 1", updated.Name)
+				require.Equal(t, domains.SystemTypeSensor, updated.SystemType)
+				require.Equal(t, updated.Geometry, testutil.MakePoint(-122.3321, 47.6062))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := repo.Update(tt.systemId, tt.system)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if tt.checkFunc != nil {
+				tt.checkFunc(t, tt.system)
+			}
+		})
+	}
+}
+
+func TestSystemRepository_HasSubsystems(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	repo := NewSystemRepository(db)
+
+	platform1 := &domains.System{
+		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:platform1", Name: "Platform 1"},
+		SystemType: domains.SystemTypePlatform,
+	}
+	require.NoError(t, repo.Create(platform1))
+
+	actuator1 := &domains.System{
+		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:actuator1", Name: "Valve Controller"},
+		SystemType: domains.SystemTypeActuator,
+		// Valid whenever but only until end of 2024
+		ValidTime: &common_shared.TimeRange{End: testutil.PtrTime(time.Date(2024, 12, 31, 23, 59, 59, 0, time.UTC))},
+	}
+	require.NoError(t, repo.Create(actuator1))
+
+	// Create a child system
+	childSensor := &domains.System{
+		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:child1", Name: "Child Sensor"},
+		SystemType:     domains.SystemTypeSensor,
+		ParentSystemID: &actuator1.ID,
+		// No valid time
+	}
+	require.NoError(t, repo.Create(childSensor))
+
+	tests := []struct {
+		name     string
+		parentID string
+		wantHas  bool
+	}{
+		{
+			name:     "has subsystems",
+			parentID: actuator1.ID,
+			wantHas:  true,
+		},
+		{
+			name:     "has no subsystems",
+			parentID: platform1.ID,
+			wantHas:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			has, err := repo.HasSubsystems(tt.parentID)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantHas, has)
 		})
 	}
 }

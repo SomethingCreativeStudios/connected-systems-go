@@ -115,7 +115,8 @@ func (r *SystemRepository) GetSubsystems(parentID string, recursive bool) ([]*do
 }
 
 // Update updates a system
-func (r *SystemRepository) Update(system *domains.System) error {
+func (r *SystemRepository) Update(systemId string, system *domains.System) error {
+	system.ID = systemId
 	return r.db.Save(system).Error
 }
 
@@ -130,14 +131,39 @@ func (r *SystemRepository) Delete(id string, cascade bool) error {
 	return r.db.Delete(&domains.System{}, "id = ?", id).Error
 }
 
+// Checks if a system has subsystems
+func (r *SystemRepository) HasSubsystems(systemID string) (bool, error) {
+	var count int64
+
+	err := r.db.Model(&domains.System{}).Where("parent_system_id = ?", systemID).Count(&count).Error
+
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 // applyFilters applies query filters
 func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.SystemQueryParams) *gorm.DB {
+	if !params.Recursive {
+		query = query.Where("parent_system_id IS NULL")
+	}
+
 	if len(params.IDs) > 0 {
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
 
 	if len(params.Q) > 0 {
-		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
+		var clauses []string
+		var args []interface{}
+		for _, term := range params.Q {
+			clauses = append(clauses, "name ILIKE ?")
+			args = append(args, "%"+term+"%")
+			clauses = append(clauses, "description ILIKE ?")
+			args = append(args, "%"+term+"%")
+		}
+		query = query.Where(strings.Join(clauses, " OR "), args...)
 	}
 
 	if len(params.Parent) > 0 {
@@ -145,7 +171,14 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 	}
 
 	if params.Datetime != nil {
-		query = query.Where("valid_from <= ? AND (valid_to IS NULL OR valid_to >= ?)", params.Datetime.End, params.Datetime.Start)
+		// Only add conditions if start/end are not nil
+		if params.Datetime.Start != nil && params.Datetime.End != nil {
+			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.Datetime.End, params.Datetime.Start)
+		} else if params.Datetime.Start != nil {
+			query = query.Where("valid_time_end IS NULL OR valid_time_end >= ?", params.Datetime.Start)
+		} else if params.Datetime.End != nil {
+			query = query.Where("valid_time_start <= ?", params.Datetime.End)
+		}
 	}
 
 	if params.Bbox != nil {
@@ -176,17 +209,4 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 			Where("system_controlled_properties.controlled_property_id IN ?", params.ControlledProperty)
 	}
 	return query
-}
-
-// Checks if a system has subsystems
-func (r *SystemRepository) HasSubsystems(systemID string) (bool, error) {
-	var count int64
-
-	err := r.db.Model(&domains.System{}).Where("parent_system_id = ?", systemID).Count(&count).Error
-
-	if err != nil {
-		return false, err
-	}
-
-	return count > 0, nil
 }

@@ -115,7 +115,12 @@ func OpenTestDB(t *testing.T, dsn string, opts OpenTestDBOptions) *gorm.DB {
 func DefaultSystemModels() []interface{} {
 	return []interface{}{
 		&domains.System{},
+		&domains.Deployment{},
+		&domains.Procedure{},
 		&domains.SamplingFeature{},
+		&domains.Property{},
+		&domains.Feature{},
+		&domains.Collection{},
 	}
 }
 
@@ -239,4 +244,46 @@ func coordPairsToCoords(coords []float64) []geom.Coord {
 		result[i/2] = geom.Coord{coords[i], coords[i+1]}
 	}
 	return result
+}
+
+// TestBoundingBoxLA returns a BoundingBox that contains Los Angeles, CA
+func TestBoundingBoxLA() *common_shared.BoundingBox {
+	// Los Angeles city center: lat 34.0522, lon -118.2437
+	// We'll use a box roughly 0.1 deg around the center
+	box := common_shared.BoundingBox{
+		MinX: -118.30, // west
+		MinY: 34.00,   // south
+		MaxX: -118.18, // east
+		MaxY: 34.10,   // north
+	}
+
+	return &box
+}
+
+// TestBoundingBoxLA_SF returns a BoundingBox that intersects both Los Angeles and San Francisco
+func TestBoundingBoxLA_SF() *common_shared.BoundingBox {
+	// LA: lat 34.0522, lon -118.2437
+	// SF: lat 37.7749, lon -122.4194
+	// We'll use a box that covers from just south of LA to just north of SF, and from west of SF to east of LA
+	box := common_shared.BoundingBox{
+		MinX: -123.0, // west of SF
+		MinY: 33.5,   // south of LA
+		MaxX: -117.5, // east of LA
+		MaxY: 38.0,   // north of SF
+	}
+	return &box
+}
+
+// TestBoundingBoxSeattle returns a BoundingBox that contains Seattle, WA
+func TestBoundingBoxSeattle() *common_shared.BoundingBox {
+	// Seattle city center: lat 47.6062, lon -122.3321
+	// We'll use a box roughly 0.1 deg around the center
+	test := common_shared.BoundingBox{
+		MinX: -122.38, // west
+		MinY: 47.55,   // south
+		MaxX: -122.28, // east
+		MaxY: 47.65,   // north
+	}
+
+	return &test
 }

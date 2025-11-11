@@ -11,17 +11,11 @@ import (
 // Feature represents a generic OGC API Features resource
 // This is the base feature type for OGC API - Features Part 1
 type Feature struct {
+	CommonSSN
 	Base
 
 	// Collection ID that owns this feature
 	CollectionID string `gorm:"type:varchar(255);not null;index" json:"-"`
-
-	// Unique identifier (business key, can be URN/URL)
-	UniqueIdentifier UniqueID `gorm:"type:varchar(255);uniqueIndex;not null" json:"uid"`
-
-	// Basic metadata
-	Name        string `gorm:"type:varchar(255)" json:"name"`
-	Description string `gorm:"type:text" json:"description,omitempty"`
 
 	// Temporal
 	DateTime  *time.Time               `gorm:"type:timestamptz" json:"dateTime,omitempty"`

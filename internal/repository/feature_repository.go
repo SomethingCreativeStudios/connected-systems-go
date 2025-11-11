@@ -102,13 +102,25 @@ func (r *FeatureRepository) Delete(id string) error {
 }
 
 func (r *FeatureRepository) applyFilters(query *gorm.DB, params *queryparams.FeatureQueryParams) *gorm.DB {
+	if len(params.IDs) > 0 {
+		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
+	}
+
 	// Text search
 	if len(params.Q) > 0 {
-		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
+		var clauses []string
+		var args []interface{}
+		for _, term := range params.Q {
+			clauses = append(clauses, "name ILIKE ?")
+			args = append(args, "%"+term+"%")
+			clauses = append(clauses, "description ILIKE ?")
+			args = append(args, "%"+term+"%")
+		}
+		query = query.Where(strings.Join(clauses, " OR "), args...)
 	}
 
 	// Bounding box filter (OGC bbox parameter)
-	if params.BBox != nil && len(params.BBox) >= 4 {
+	if len(params.BBox) >= 4 {
 		// PostGIS ST_Intersects on geometry JSONB
 		// Format: [minLon, minLat, maxLon, maxLat] or [minLon, minLat, minZ, maxLon, maxLat, maxZ]
 		minLon, minLat, maxLon, maxLat := params.BBox[0], params.BBox[1], params.BBox[2], params.BBox[3]

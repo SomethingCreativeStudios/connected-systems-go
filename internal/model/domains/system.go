@@ -26,11 +26,15 @@ type System struct {
 	// Associations (stored as links in JSON)
 	ParentSystemID *string `gorm:"type:varchar(255);index" json:"-"`
 
+	SystemKindID *string `gorm:"type:varchar(255);index" json:"-"`
+
 	// Links to related resources
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
 
 	// Additional properties
 	Properties common_shared.Properties `gorm:"type:jsonb" json:"properties,omitempty"`
+
+	SystemKind Procedure `gorm:"foreignKey:SystemKindID;" json:"-"`
 
 	// Associations
 	Procedures       []Procedure       `gorm:"many2many:system_procedures;"`

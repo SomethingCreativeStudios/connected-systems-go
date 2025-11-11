@@ -68,24 +68,42 @@ func (r *ProcedureRepository) Delete(id string) error {
 }
 
 func (r *ProcedureRepository) applyFilters(query *gorm.DB, params *queryparams.ProceduresQueryParams) *gorm.DB {
+
 	if len(params.IDs) > 0 {
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
+
 	if len(params.Q) > 0 {
-		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
+		var clauses []string
+		var args []interface{}
+		for _, term := range params.Q {
+			clauses = append(clauses, "name ILIKE ?")
+			args = append(args, "%"+term+"%")
+			clauses = append(clauses, "description ILIKE ?")
+			args = append(args, "%"+term+"%")
+		}
+		query = query.Where(strings.Join(clauses, " OR "), args...)
+	}
+
+	if params.DateTime != nil {
+		// Only add conditions if start/end are not nil
+		if params.DateTime.Start != nil && params.DateTime.End != nil {
+			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.DateTime.End, params.DateTime.Start)
+		} else if params.DateTime.Start != nil {
+			query = query.Where("valid_time_end IS NULL OR valid_time_end >= ?", params.DateTime.Start)
+		} else if params.DateTime.End != nil {
+			query = query.Where("valid_time_start <= ?", params.DateTime.End)
+		}
 	}
 
 	if len(params.ControlledProperty) > 0 {
-		query = query.Where("controlled_property IN ?", params.ControlledProperty)
+		query = query.Joins("JOIN procedure_controlled_properties ON procedures.id = procedure_controlled_properties.procedure_id").
+			Where("procedure_controlled_properties.property_id IN ?", params.ControlledProperty)
 	}
+
 	if len(params.ObservedProperty) > 0 {
-		query = query.Where("observed_property IN ?", params.ObservedProperty)
-	}
-	if params.DateTime != nil && params.DateTime.End != nil {
-		query = query.Where("valid_time <= ?", params.DateTime.End)
-	}
-	if params.DateTime != nil && params.DateTime.Start != nil {
-		query = query.Where("valid_time >= ?", params.DateTime.Start)
+		query = query.Joins("JOIN procedure_observed_properties ON procedures.id = procedure_observed_properties.procedure_id").
+			Where("procedure_observed_properties.property_id IN ?", params.ObservedProperty)
 	}
 
 	return query

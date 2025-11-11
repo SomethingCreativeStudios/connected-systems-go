@@ -20,6 +20,9 @@ type Property struct {
 	// Object type this property applies to
 	ObjectType *string `gorm:"type:varchar(255)" json:"objectType,omitempty"`
 
+	// Object type this property applies to
+	BaseProperty *string `gorm:"type:varchar(255)" json:"baseProperty,omitempty"`
+
 	// Unit of measurement
 	UnitOfMeasurement *string `gorm:"type:varchar(100)" json:"uom,omitempty"`
 
