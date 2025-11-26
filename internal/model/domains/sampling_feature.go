@@ -2,7 +2,6 @@ package domains
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -23,10 +22,16 @@ type SamplingFeature struct {
 
 	// Associations
 	// store parent system id; put FK constraint on the column to avoid duplicate constraint definitions
-	ParentSystemID *string `gorm:"type:varchar(255);index;" json:"parentSystemId,omitempty"`
+	ParentSystemID  *string `gorm:"type:varchar(255);index;" json:"parentSystemId,omitempty"`
+	ParentSystemUID *string `gorm:"type:varchar(255)" json:"parentSystemUid,omitempty"`
 
-	SampledFeatureID *string   `gorm:"type:varchar(255);index" json:"featureId"`
-	SampleOf         *[]string `gorm:"type:varchar(255)[]" json:"sampleOf,omitempty"`
+	SampledFeatureID   *string             `gorm:"type:varchar(255);index" json:"featureId"`
+	SampledFeatureUID  *string             `gorm:"type:varchar(255)" json:"featureUid,omitempty"`
+	SampledFeatureLink *common_shared.Link `gorm:"type:jsonb" json:"sampledFeature@Link,omitempty"`
+
+	SampleOfIDs  *[]string            `gorm:"-" json:"sampleOfIds,omitempty"`
+	SampleOfUIDs *[]string            `gorm:"-" json:"sampleOfUids,omitempty"`
+	SampleOf     *common_shared.Links `gorm:"type:jsonb" json:"sampleOf,omitempty"`
 
 	// Links to related resources
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
@@ -101,8 +106,55 @@ func (SamplingFeature) BuildFromRequest(r *http.Request, w http.ResponseWriter) 
 	samplingFeatures.FeatureType = geoJSON.Properties.FeatureType
 	samplingFeatures.ValidTime = geoJSON.Properties.ValidTime
 
-	parts := strings.Split(geoJSON.Properties.SampledFeatureLink.Href, "/")
-	samplingFeatures.SampledFeatureID = &parts[len(parts)-1]
+	if geoJSON.Properties.SampledFeatureLink.Href != "" {
+		samplingFeatures.SampledFeatureID = geoJSON.Properties.SampledFeatureLink.GetId("samplingFeatures")
+	}
+
+	samplingFeatures.handleLinks()
 
 	return samplingFeatures, nil
+}
+
+func (sf *SamplingFeature) handleLinks() {
+	sampleIds := []string{}
+	sampleUids := []string{}
+
+	for _, link := range sf.Links {
+		if link.Rel == "parentSystem" {
+			sf.ParentSystemID = link.GetId("systems")
+			if link.UID != nil {
+				sf.ParentSystemUID = link.UID
+			}
+		}
+
+		if link.Rel == "sampleOf" {
+			if id := link.GetId("samplingFeatures"); id != nil {
+				sampleIds = append(sampleIds, *id)
+			}
+			if link.UID != nil {
+				sampleUids = append(sampleUids, *link.UID)
+			}
+		}
+	}
+
+	if len(sampleIds) > 0 {
+		sf.SampleOfIDs = &sampleIds
+	}
+	if len(sampleUids) > 0 {
+		sf.SampleOfUIDs = &sampleUids
+	}
+}
+
+// SamplingFeatureSensorMLFeature represents a SamplingFeature serialized in SensorML JSON format
+type SamplingFeatureSensorMLFeature struct {
+	ID                 string                   `json:"id"`
+	Type               string                   `json:"type,omitempty"`
+	Label              string                   `json:"label"`
+	Description        string                   `json:"description,omitempty"`
+	UniqueID           string                   `json:"uniqueId"`
+	Definition         string                   `json:"definition,omitempty"`
+	ValidTime          *common_shared.TimeRange `json:"validTime,omitempty"`
+	SampledFeatureLink *common_shared.Link      `json:"sampledFeature,omitempty"`
+	SampleOf           *common_shared.Links     `json:"sampleOf,omitempty"`
+	Links              common_shared.Links      `json:"links,omitempty"`
 }

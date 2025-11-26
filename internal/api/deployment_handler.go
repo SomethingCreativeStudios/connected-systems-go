@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"github.com/yourusername/connected-systems-go/internal/model/serializers"
@@ -19,13 +18,12 @@ type DeploymentHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	repo   *repository.DeploymentRepository
-	sc     *serializers.SerializerCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment]
-	fc     model.FeatureCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment]
+	fc     *serializers.MultiFormatFormatterCollection[*domains.Deployment]
 }
 
 // NewDeploymentHandler creates a new DeploymentHandler
-func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *repository.DeploymentRepository, s *serializers.SerializerCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment]) *DeploymentHandler {
-	return &DeploymentHandler{cfg: cfg, logger: logger, repo: repo, sc: s, fc: model.FeatureCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment]{}}
+func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *repository.DeploymentRepository, fc *serializers.MultiFormatFormatterCollection[*domains.Deployment]) *DeploymentHandler {
+	return &DeploymentHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
 }
 
 func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Request) {
@@ -39,8 +37,11 @@ func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	serializer := h.sc.GetSerializer(r.Header.Get("content-type"))
-	render.JSON(w, r, h.fc.BuildCollection(deployments, serializer, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
+	acceptHeader := r.Header.Get("Accept")
+	collection := h.fc.BuildCollection(acceptHeader, deployments, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
+
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	render.JSON(w, r, collection)
 }
 
 func (h *DeploymentHandler) GetDeployment(w http.ResponseWriter, r *http.Request) {
@@ -50,12 +51,12 @@ func (h *DeploymentHandler) GetDeployment(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		h.logger.Error("Failed to get deployment", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Procedure not found"})
+		render.JSON(w, r, map[string]string{"error": "Deployment not found"})
 		return
 	}
 
-	deploymentGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), deployment)
-
+	acceptHeader := r.Header.Get("Accept")
+	serialized, err := h.fc.Serialize(acceptHeader, deployment)
 	if err != nil {
 		h.logger.Error("Failed to serialize deployment", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -63,26 +64,30 @@ func (h *DeploymentHandler) GetDeployment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.Status(r, http.StatusOK)
-	render.JSON(w, r, deploymentGeoJSON)
+	render.JSON(w, r, serialized)
 }
 
 func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Request) {
-	deployment, err := domains.Deployment{}.BuildFromRequest(r, w)
-
+	contentType := r.Header.Get("Content-Type")
+	deployment, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
-		return // Error already handled in buildProcedure
+		h.logger.Error("Failed to deserialize deployment", zap.Error(err))
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		return
 	}
 
-	if err := h.repo.Create(&deployment); err != nil {
+	if err := h.repo.Create(deployment); err != nil {
 		h.logger.Error("Failed to create deployment", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, map[string]string{"error": "Failed to create deployment"})
 		return
 	}
 
-	deploymentGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), &deployment)
-
+	acceptHeader := r.Header.Get("Accept")
+	serialized, err := h.fc.Serialize(acceptHeader, deployment)
 	if err != nil {
 		h.logger.Error("Failed to serialize deployment", zap.String("id", deployment.ID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -90,30 +95,33 @@ func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, deploymentGeoJSON)
+	render.JSON(w, r, serialized)
 }
 
 func (h *DeploymentHandler) UpdateDeployment(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	var deployment domains.Deployment
-	if err := render.DecodeJSON(r.Body, &deployment); err != nil {
+	contentType := r.Header.Get("Content-Type")
+	deployment, err := h.fc.Deserialize(contentType, r.Body)
+	if err != nil {
+		h.logger.Error("Failed to deserialize deployment", zap.Error(err))
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
 		return
 	}
 
 	deployment.ID = id
-	if err := h.repo.Update(&deployment); err != nil {
-		h.logger.Error("Failed to update procedure", zap.String("id", id), zap.Error(err))
+	if err := h.repo.Update(deployment); err != nil {
+		h.logger.Error("Failed to update deployment", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update procedure"})
+		render.JSON(w, r, map[string]string{"error": "Failed to update deployment"})
 		return
 	}
 
-	deploymentGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), &deployment)
-
+	acceptHeader := r.Header.Get("Accept")
+	serialized, err := h.fc.Serialize(acceptHeader, deployment)
 	if err != nil {
 		h.logger.Error("Failed to serialize deployment", zap.String("id", deployment.ID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -121,8 +129,9 @@ func (h *DeploymentHandler) UpdateDeployment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.Status(r, http.StatusOK)
-	render.JSON(w, r, deploymentGeoJSON)
+	render.JSON(w, r, serialized)
 }
 
 func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Request) {
@@ -135,12 +144,11 @@ func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	render.Status(r, http.StatusNoContent)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // List all subdeployments
 func (h *DeploymentHandler) ListSubdeployments(w http.ResponseWriter, r *http.Request) {
-	//parentID := chi.URLParam(r, "id")
 	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r)
 
 	deployments, total, err := h.repo.List(params)
@@ -151,30 +159,37 @@ func (h *DeploymentHandler) ListSubdeployments(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	serializer := h.sc.GetSerializer(r.Header.Get("content-type"))
-	render.JSON(w, r, h.fc.BuildCollection(deployments, serializer, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams))
+	acceptHeader := r.Header.Get("Accept")
+	collection := h.fc.BuildCollection(acceptHeader, deployments, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
+
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	render.JSON(w, r, collection)
 }
 
 // Add subdeployment to a deployment
 func (h *DeploymentHandler) AddSubdeployment(w http.ResponseWriter, r *http.Request) {
 	parentID := chi.URLParam(r, "id")
 
-	subdeployment, err := domains.Deployment{}.BuildFromRequest(r, w)
+	contentType := r.Header.Get("Content-Type")
+	subdeployment, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
-		return // Error already handled in buildDeployment
+		h.logger.Error("Failed to deserialize subdeployment", zap.Error(err))
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		return
 	}
 
 	subdeployment.ParentDeploymentID = &parentID
 
-	if err := h.repo.Create(&subdeployment); err != nil {
+	if err := h.repo.Create(subdeployment); err != nil {
 		h.logger.Error("Failed to create subdeployment", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, map[string]string{"error": "Failed to create subdeployment"})
 		return
 	}
 
-	subdeploymentGeoJSON, err := h.sc.Serialize(r.Header.Get("content-type"), &subdeployment)
-
+	acceptHeader := r.Header.Get("Accept")
+	serialized, err := h.fc.Serialize(acceptHeader, subdeployment)
 	if err != nil {
 		h.logger.Error("Failed to serialize subdeployment", zap.String("id", subdeployment.ID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -182,6 +197,7 @@ func (h *DeploymentHandler) AddSubdeployment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, subdeploymentGeoJSON)
+	render.JSON(w, r, serialized)
 }

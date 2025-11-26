@@ -23,6 +23,12 @@ type Property struct {
 	// Object type this property applies to
 	BaseProperty *string `gorm:"type:varchar(255)" json:"baseProperty,omitempty"`
 
+	// Statistic: URI pointing to definition of statistic applied to values
+	Statistic *string `gorm:"type:varchar(255)" json:"statistic,omitempty"`
+
+	// Qualifiers: additional data components used to further qualify the property
+	Qualifiers []common_shared.ComponentWrapper `gorm:"type:jsonb" json:"qualifiers,omitempty"`
+
 	// Unit of measurement
 	UnitOfMeasurement *string `gorm:"type:varchar(100)" json:"uom,omitempty"`
 
@@ -44,64 +50,64 @@ const (
 	PropertyTypeActuable   = "http://www.w3.org/ns/sosa/ActuableProperty"
 )
 
-// PropertyGeoJSONFeature converts Deployment to GeoJSON Feature format
+type PropertySensorMLFeature struct {
+	ID           string                           `json:"id"`
+	Label        string                           `json:"label"`
+	Description  string                           `json:"description,omitempty"`
+	UniqueID     string                           `json:"uniqueId"`
+	BaseProperty *string                          `json:"baseProperty,omitempty"`
+	ObjectType   *string                          `json:"objectType,omitempty"`
+	Statistic    *string                          `json:"statistic,omitempty"`
+	Qualifiers   []common_shared.ComponentWrapper `json:"qualifiers,omitempty"`
+	Links        common_shared.Links              `json:"links,omitempty"`
+}
+
+// PropertyGeoJSONFeature represents a Property serialized as GeoJSON Feature
 type PropertyGeoJSONFeature struct {
 	Type       string                    `json:"type"`
 	ID         string                    `json:"id"`
-	Geometry   *common_shared.GoGeom     `json:"geometry"`
+	Geometry   interface{}               `json:"geometry"` // null for properties (no spatial component)
 	Properties PropertyGeoJSONProperties `json:"properties"`
 	Links      common_shared.Links       `json:"links,omitempty"`
 }
 
-// PropertyGeoJSONProperties represents the properties object in GeoJSON
+// PropertyGeoJSONProperties represents the properties object in GeoJSON for a Property
 type PropertyGeoJSONProperties struct {
-	UID               UniqueID `json:"uid"`
-	Name              string   `json:"name"`
-	Description       string   `json:"description,omitempty"`
-	FeatureType       string   `json:"featureType,omitempty"`
-	PropertyType      string   `json:"propertyType,omitempty"`
-	Definition        string   `json:"definition,omitempty"`
-	ObjectType        *string  `json:"objectType,omitempty"`
-	UnitOfMeasurement *string  `json:"uom,omitempty"`
+	UID               UniqueID                         `json:"uid"`
+	Name              string                           `json:"name"`
+	Description       string                           `json:"description,omitempty"`
+	Definition        string                           `json:"definition,omitempty"`
+	PropertyType      string                           `json:"propertyType,omitempty"`
+	BaseProperty      *string                          `json:"baseProperty,omitempty"`
+	ObjectType        *string                          `json:"objectType,omitempty"`
+	Statistic         *string                          `json:"statistic,omitempty"`
+	Qualifiers        []common_shared.ComponentWrapper `json:"qualifiers,omitempty"`
+	UnitOfMeasurement *string                          `json:"uom,omitempty"`
 }
 
 func (Property) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Property, error) {
 	// Decode GeoJSON Feature format
-	var geoJSON struct {
-		Type       string                    `json:"type"`
-		ID         string                    `json:"id,omitempty"`
-		Properties PropertyGeoJSONProperties `json:"properties"`
-		Geometry   *common_shared.GoGeom     `json:"geometry,omitempty"`
-		Links      common_shared.Links       `json:"links,omitempty"`
-	}
+	var sensorML = PropertySensorMLFeature{}
 
-	if err := render.DecodeJSON(r.Body, &geoJSON); err != nil {
+	if err := render.DecodeJSON(r.Body, &sensorML); err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
 		return Property{}, err
 	}
 
-	// Convert GeoJSON properties to Property model
 	property := Property{
-		Links: geoJSON.Links,
-	}
-
-	// If geometry provided (although Property doesn't store geometry currently), validate/convert it
-	if geoJSON.Geometry != nil {
-		// decoded into GoGeom; not stored on Property but validated by unmarshalling
-		// (no further action required)
+		Links: sensorML.Links,
 	}
 
 	// Extract properties from the properties object
-	property.UniqueIdentifier = UniqueID(geoJSON.Properties.UID)
+	property.UniqueIdentifier = UniqueID(sensorML.UniqueID)
 
-	property.Name = geoJSON.Properties.Name
-	property.Description = geoJSON.Properties.Description
-	property.Definition = geoJSON.Properties.Definition
-	property.PropertyType = geoJSON.Properties.PropertyType
-	property.ObjectType = geoJSON.Properties.ObjectType
-	property.Definition = geoJSON.Properties.Definition
-	property.UnitOfMeasurement = geoJSON.Properties.UnitOfMeasurement
+	property.Name = sensorML.Label
+	property.Description = sensorML.Description
+	property.ObjectType = sensorML.ObjectType
+	property.BaseProperty = sensorML.BaseProperty
+	property.Statistic = sensorML.Statistic
+	property.Qualifiers = sensorML.Qualifiers
 
 	return property, nil
 }

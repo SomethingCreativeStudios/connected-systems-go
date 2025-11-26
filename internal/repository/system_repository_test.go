@@ -89,7 +89,6 @@ func TestSystemRepository_Create(t *testing.T) {
 				Links: common_shared.Links{
 					{Rel: "self", Href: "http://example.com/systems/1"},
 				},
-				Properties: common_shared.Properties{},
 			},
 			wantErr: false,
 			checkFunc: func(t *testing.T, created *domains.System) {

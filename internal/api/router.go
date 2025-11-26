@@ -11,7 +11,9 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/serializers/geojson_formatters"
 	"github.com/yourusername/connected-systems-go/internal/model/serializers/geojson_serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/serializers/sensorml_formatters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -41,21 +43,21 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	landingHandler := NewLandingHandler(cfg, logger)
 	conformanceHandler := NewConformanceHandler(cfg, logger)
 
-	// Create serializer and inject lightweight repository readers
-	systemSerializerCollection := buildSystemSerializerCollection(repos)
-	deploymentSerializerCollection := buildDeploymentSerializerCollection(repos)
-	procedureSerializerCollection := buildProcedureSerializerCollection(repos)
-	samplingFeatureSerializerCollection := buildSamplingFeatureSerializerCollection(repos)
-	propertySerializerCollection := buildPropertySerializerCollection(repos)
+	// Create formatter collections and inject lightweight repository readers
+	systemFormatterCollection := buildSystemFormatterCollection(repos)
+	deploymentFormatterCollection := buildDeploymentFormatterCollection(repos)
+	procedureFormatterCollection := buildProcedureFormatterCollection(repos)
+	samplingFeatureFormatterCollection := buildSamplingFeatureFormatterCollection(repos)
+	propertyFormatterCollection := buildPropertyFormatterCollection(repos)
 	featureSerializerCollection := buildFeatureSerializerCollection(repos)
 	collectionSerializerCollection := buildCollectionSerializerCollection(repos)
 
 	collectionHandler := NewCollectionHandler(repos.Collection, collectionSerializerCollection)
-	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentSerializerCollection)
-	systemHandler := NewSystemHandler(cfg, logger, repos.System, systemSerializerCollection, repos.Deployment, deploymentSerializerCollection)
-	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureSerializerCollection)
-	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, samplingFeatureSerializerCollection)
-	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertySerializerCollection)
+	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentFormatterCollection)
+	systemHandler := NewSystemHandler(cfg, logger, repos.System, systemFormatterCollection, repos.Deployment, deploymentFormatterCollection)
+	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureFormatterCollection)
+	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, samplingFeatureFormatterCollection)
+	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertyFormatterCollection)
 	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureSerializerCollection)
 
 	// Routes
@@ -100,6 +102,9 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 			// Associated resource endpoint
 			r.Get("/deployments", systemHandler.GetDeployments)
 			r.Get("/samplingFeatures", samplingFeatureHandler.GetSystemSamplingFeatures)
+
+			// Sampling Features endpoint
+			r.Post("/samplingFeatures", samplingFeatureHandler.CreateSamplingFeature)
 		})
 	})
 
@@ -134,7 +139,6 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	// Sampling Features (canonical endpoints)
 	r.Route("/samplingFeatures", func(r chi.Router) {
 		r.Get("/", samplingFeatureHandler.ListSamplingFeatures)
-		r.Post("/", samplingFeatureHandler.CreateSamplingFeature)
 
 		r.Route("/{id}", func(r chi.Router) {
 			r.Get("/", samplingFeatureHandler.GetSamplingFeature)
@@ -169,57 +173,92 @@ func getOpenAPISpec(cfg *config.Config) string {
 	return `{"openapi": "3.0.0", "info": {"title": "` + cfg.API.Title + `", "version": "` + cfg.API.Version + `"}}`
 }
 
-// Serializers
-// TODO: Maybe move to a different area?
+// Formatters
+// These provide both serialization and deserialization capabilities
 
-func buildSystemSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.SystemGeoJSONFeature, *domains.System] {
-	// create concrete serializers and register them by content type
-	serMap := map[string]serializers.Serializer[domains.SystemGeoJSONFeature, *domains.System]{
-		"application/geo+json": geojson_serializers.NewSystemGeoJSONSerializer(repos),
-		"default":              geojson_serializers.NewSystemGeoJSONSerializer(repos),
-	}
+func buildSystemFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.System] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.System]("application/geo+json")
 
-	return serializers.NewSerializerCollection(serMap)
+	// Register GeoJSON formatter
+	geoJSONFormatter := geojson_formatters.NewSystemGeoJSONFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/geo+json", geoJSONFormatter)
+
+	// Register SensorML formatter
+	sensorMLFormatter := sensorml_formatters.NewSystemSensorMLFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/sml+json", sensorMLFormatter)
+
+	// Set default (GeoJSON is the default for systems)
+	serializers.RegisterFormatterTypedDefault(collection, geoJSONFormatter, "application/geo+json")
+
+	return collection
 }
 
-func buildDeploymentSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.DeploymentGeoJSONFeature, *domains.Deployment] {
-	// create concrete serializers and register them by content type
-	serMap := map[string]serializers.Serializer[domains.DeploymentGeoJSONFeature, *domains.Deployment]{
-		"application/geo+json": geojson_serializers.NewDeploymentGeoJSONSerializer(repos),
-		"default":              geojson_serializers.NewDeploymentGeoJSONSerializer(repos),
-	}
+func buildDeploymentFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Deployment] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Deployment]("application/geo+json")
 
-	return serializers.NewSerializerCollection(serMap)
+	// Register GeoJSON formatter
+	geoJSONFormatter := geojson_formatters.NewDeploymentGeoJSONFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/geo+json", geoJSONFormatter)
+
+	// Register SensorML formatter
+	sensorMLFormatter := sensorml_formatters.NewDeploymentSensorMLFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/sml+json", sensorMLFormatter)
+
+	// Set default (GeoJSON is the default for deployments)
+	serializers.RegisterFormatterTypedDefault(collection, geoJSONFormatter, "application/geo+json")
+
+	return collection
 }
 
-func buildProcedureSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.ProcedureGeoJSONFeature, *domains.Procedure] {
-	// create concrete serializers and register them by content type
-	serMap := map[string]serializers.Serializer[domains.ProcedureGeoJSONFeature, *domains.Procedure]{
-		"application/geo+json": geojson_serializers.NewProcedureGeoJSONSerializer(repos),
-		"default":              geojson_serializers.NewProcedureGeoJSONSerializer(repos),
-	}
+func buildProcedureFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Procedure] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Procedure]("application/geo+json")
 
-	return serializers.NewSerializerCollection(serMap)
+	// Register GeoJSON formatter
+	geoJSONFormatter := geojson_formatters.NewProcedureGeoJSONFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/geo+json", geoJSONFormatter)
+
+	// Register SensorML formatter
+	sensorMLFormatter := sensorml_formatters.NewProcedureSensorMLFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/sml+json", sensorMLFormatter)
+
+	// Set default (GeoJSON is the default for procedures)
+	serializers.RegisterFormatterTypedDefault(collection, geoJSONFormatter, "application/geo+json")
+
+	return collection
 }
 
-func buildSamplingFeatureSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature] {
-	// create concrete serializers and register them by content type
-	serMap := map[string]serializers.Serializer[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature]{
-		"application/geo+json": geojson_serializers.NewSamplingFeatureGeoJSONSerializer(repos),
-		"default":              geojson_serializers.NewSamplingFeatureGeoJSONSerializer(repos),
-	}
+func buildSamplingFeatureFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.SamplingFeature] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.SamplingFeature]("application/geo+json")
 
-	return serializers.NewSerializerCollection(serMap)
+	// Register GeoJSON formatter
+	geoJSONFormatter := geojson_formatters.NewSamplingFeatureGeoJSONFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/geo+json", geoJSONFormatter)
+
+	// Register SensorML formatter
+	sensorMLFormatter := sensorml_formatters.NewSamplingFeatureSensorMLFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/sml+json", sensorMLFormatter)
+
+	// Set default (GeoJSON is the default for sampling features)
+	serializers.RegisterFormatterTypedDefault(collection, geoJSONFormatter, "application/geo+json")
+
+	return collection
 }
 
-func buildPropertySerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.PropertyGeoJSONFeature, *domains.Property] {
-	// create concrete serializers and register them by content type
-	serMap := map[string]serializers.Serializer[domains.PropertyGeoJSONFeature, *domains.Property]{
-		"application/geo+json": geojson_serializers.NewPropertyGeoJSONSerializer(repos),
-		"default":              geojson_serializers.NewPropertyGeoJSONSerializer(repos),
-	}
+func buildPropertyFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Property] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Property]("application/sml+json")
 
-	return serializers.NewSerializerCollection(serMap)
+	// Register GeoJSON formatter
+	geoJSONFormatter := geojson_formatters.NewPropertyGeoJSONFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/geo+json", geoJSONFormatter)
+
+	// Register SensorML formatter
+	sensorMLFormatter := sensorml_formatters.NewPropertySensorMLFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/sml+json", sensorMLFormatter)
+
+	// Set default (SensorML is the default for properties per OGC Connected Systems)
+	serializers.RegisterFormatterTypedDefault(collection, sensorMLFormatter, "application/sml+json")
+
+	return collection
 }
 
 func buildFeatureSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.FeatureGeoJSONFeature, *domains.Feature] {

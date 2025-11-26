@@ -64,11 +64,16 @@ func (s *SamplingFeatureGeoJSONSerializer) convert(sf *domains.SamplingFeature) 
 			Description: sf.Description,
 			FeatureType: sf.FeatureType,
 			ValidTime:   sf.ValidTime,
-			SampledFeatureLink: common_shared.Link{
-				Href:  "features/" + *sf.SampledFeatureID,
-				Type:  "application/geo+json",
-				Title: "Sampled Feature",
-			},
+			SampledFeatureLink: func() common_shared.Link {
+				if sf.SampledFeatureID == nil {
+					return common_shared.Link{}
+				}
+				return common_shared.Link{
+					Href:  "features/" + *sf.SampledFeatureID,
+					Type:  "application/geo+json",
+					Title: "Sampled Feature",
+				}
+			}(),
 		},
 		Links: sf.Links,
 	}

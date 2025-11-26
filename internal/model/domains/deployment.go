@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -22,6 +23,14 @@ type Deployment struct {
 
 	// Associations
 	ParentDeploymentID *string `gorm:"type:varchar(255);index" json:"-"`
+
+	PlatformID *string `gorm:"type:varchar(255);index" json:"-"`
+
+	// Platform link (when provided in payload)
+	Platform *common_shared.Link `gorm:"type:jsonb" json:"platform,omitempty"`
+
+	// DeployedSystems: list of systems deployed with optional configuration
+	DeployedSystems []DeployedSystemItem `gorm:"type:jsonb" json:"deployedSystems,omitempty"`
 
 	// Links to related resources
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
@@ -52,11 +61,22 @@ type DeploymentGeoJSONFeature struct {
 
 // DeploymentGeoJSONProperties represents the properties object in GeoJSON
 type DeploymentGeoJSONProperties struct {
-	UID         UniqueID                 `json:"uid"`
-	Name        string                   `json:"name"`
-	Description string                   `json:"description,omitempty"`
-	FeatureType string                   `json:"featureType,omitempty"`
-	ValidTime   *common_shared.TimeRange `json:"validTime,omitempty"`
+	UID             UniqueID                 `json:"uid"`
+	Name            string                   `json:"name"`
+	Description     string                   `json:"description,omitempty"`
+	FeatureType     string                   `json:"featureType,omitempty"`
+	ValidTime       *common_shared.TimeRange `json:"validTime,omitempty"`
+	Definition      string                   `json:"definition,omitempty"`
+	Platform        *common_shared.Link      `json:"platform,omitempty"`
+	DeployedSystems []DeployedSystemItem     `json:"deployedSystems,omitempty"`
+}
+
+// DeployedSystemItem represents an entry in the deployment's deployedSystems list
+type DeployedSystemItem struct {
+	Name          string             `json:"name"`
+	Description   string             `json:"description,omitempty"`
+	System        common_shared.Link `json:"system"`
+	Configuration json.RawMessage    `json:"configuration,omitempty"`
 }
 
 func (Deployment) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Deployment, error) {
@@ -83,8 +103,34 @@ func (Deployment) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Depl
 	deployment.UniqueIdentifier = UniqueID(geoJSON.Properties.UID)
 	deployment.Name = geoJSON.Properties.Name
 	deployment.Description = geoJSON.Properties.Description
-	deployment.DeploymentType = geoJSON.Properties.FeatureType
+	// prefer explicit `definition` when present (matches schema semantics)
+	if geoJSON.Properties.Definition != "" {
+		deployment.DeploymentType = geoJSON.Properties.Definition
+	} else {
+		deployment.DeploymentType = geoJSON.Properties.FeatureType
+	}
 	deployment.ValidTime = geoJSON.Properties.ValidTime
+	// Platform and DeployedSystems
+	if geoJSON.Properties.Platform != nil {
+		deployment.Platform = geoJSON.Properties.Platform
+	}
+	if len(geoJSON.Properties.DeployedSystems) > 0 {
+		deployment.DeployedSystems = geoJSON.Properties.DeployedSystems
+	}
 
 	return deployment, nil
+}
+
+// DeploymentSensorMLFeature represents a Deployment serialized in SensorML JSON format
+type DeploymentSensorMLFeature struct {
+	ID              string                   `json:"id"`
+	Type            string                   `json:"type,omitempty"`
+	Label           string                   `json:"label"`
+	Description     string                   `json:"description,omitempty"`
+	UniqueID        string                   `json:"uniqueId"`
+	Definition      string                   `json:"definition,omitempty"`
+	ValidTime       *common_shared.TimeRange `json:"validTime,omitempty"`
+	Platform        *common_shared.Link      `json:"platform,omitempty"`
+	DeployedSystems []DeployedSystemItem     `json:"deployedSystems,omitempty"`
+	Links           common_shared.Links      `json:"links,omitempty"`
 }

@@ -1,6 +1,7 @@
 package domains
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -19,6 +20,35 @@ type Procedure struct {
 
 	// Links to related resources
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
+
+	// Additional descriptive metadata from the SWE/System schema
+	Lang                *string                    `gorm:"type:varchar(10)" json:"lang,omitempty"`
+	Keywords            []string                   `gorm:"type:jsonb" json:"keywords,omitempty"`
+	Identifiers         common_shared.Terms        `gorm:"type:jsonb" json:"identifiers,omitempty"`
+	Classifiers         common_shared.Terms        `gorm:"type:jsonb" json:"classifiers,omitempty"`
+	SecurityConstraints []common_shared.Properties `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
+	LegalConstraints    []common_shared.Properties `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
+
+	Characteristics []common_shared.CharacteristicGroup `gorm:"type:jsonb" json:"characteristics,omitempty"`
+	Capabilities    []common_shared.CapabilityGroup     `gorm:"type:jsonb" json:"capabilities,omitempty"`
+	Contacts        []common_shared.ContactWrapper      `gorm:"type:jsonb" json:"contacts,omitempty"`
+	Documentation   common_shared.Documents             `gorm:"type:jsonb" json:"documentation,omitempty"`
+	History         common_shared.History               `gorm:"type:jsonb" json:"history,omitempty"`
+
+	TypeOf        *common_shared.Link `gorm:"type:jsonb" json:"typeOf,omitempty"`
+	Configuration json.RawMessage     `gorm:"type:jsonb" json:"configuration,omitempty"`
+
+	FeaturesOfInterest common_shared.Links `gorm:"type:jsonb" json:"featuresOfInterest,omitempty"`
+
+	Inputs     common_shared.IOList `gorm:"type:jsonb" json:"inputs,omitempty"`
+	Outputs    common_shared.IOList `gorm:"type:jsonb" json:"outputs,omitempty"`
+	Parameters common_shared.IOList `gorm:"type:jsonb" json:"parameters,omitempty"`
+	Modes      json.RawMessage      `gorm:"type:jsonb" json:"modes,omitempty"`
+
+	AttachedTo           *common_shared.Link           `gorm:"type:jsonb" json:"attachedTo,omitempty"`
+	LocalReferenceFrames []common_shared.SpatialFrame  `gorm:"type:jsonb" json:"localReferenceFrames,omitempty"`
+	LocalTimeFrames      []common_shared.TemporalFrame `gorm:"type:jsonb" json:"localTimeFrames,omitempty"`
+	Position             json.RawMessage               `gorm:"type:jsonb" json:"position,omitempty"`
 
 	ControlledProperties []Property `gorm:"many2many:procedure_controlled_properties;" json:"-"`
 	ObservedProperties   []Property `gorm:"many2many:procedure_observed_properties;" json:"-"`
@@ -64,11 +94,16 @@ type ProcedureGeoJSONFeature struct {
 
 // ProcedureGeoJSONProperties represents the properties object in GeoJSON
 type ProcedureGeoJSONProperties struct {
-	UID         UniqueID                 `json:"uid"`
-	Name        string                   `json:"name"`
-	Description string                   `json:"description,omitempty"`
-	FeatureType string                   `json:"featureType,omitempty"`
-	ValidTime   *common_shared.TimeRange `json:"validTime,omitempty"`
+	UID           UniqueID                       `json:"uid"`
+	Name          string                         `json:"name"`
+	Description   string                         `json:"description,omitempty"`
+	FeatureType   string                         `json:"featureType,omitempty"`
+	ValidTime     *common_shared.TimeRange       `json:"validTime,omitempty"`
+	Keywords      []string                       `json:"keywords,omitempty"`
+	Identifiers   common_shared.Terms            `json:"identifiers,omitempty"`
+	Contacts      []common_shared.ContactWrapper `json:"contacts,omitempty"`
+	Documentation common_shared.Documents        `json:"documentation,omitempty"`
+	History       common_shared.History          `json:"history,omitempty"`
 }
 
 func (Procedure) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Procedure, error) {
@@ -103,6 +138,41 @@ func (Procedure) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Proce
 	procedure.Description = geoJSON.Properties.Description
 	procedure.FeatureType = geoJSON.Properties.FeatureType
 	procedure.ValidTime = geoJSON.Properties.ValidTime
+	procedure.Keywords = geoJSON.Properties.Keywords
+	procedure.Identifiers = geoJSON.Properties.Identifiers
+	procedure.Contacts = geoJSON.Properties.Contacts
+	procedure.Documentation = geoJSON.Properties.Documentation
+	procedure.History = geoJSON.Properties.History
 
 	return procedure, nil
+}
+
+// ProcedureSensorMLFeature represents a Procedure serialized in SensorML JSON format
+type ProcedureSensorMLFeature struct {
+	ID                  string                              `json:"id"`
+	Type                string                              `json:"type,omitempty"`
+	Label               string                              `json:"label"`
+	Description         string                              `json:"description,omitempty"`
+	UniqueID            string                              `json:"uniqueId"`
+	Definition          string                              `json:"definition,omitempty"`
+	Lang                *string                             `json:"lang,omitempty"`
+	Keywords            []string                            `json:"keywords,omitempty"`
+	Identifiers         common_shared.Terms                 `json:"identifiers,omitempty"`
+	Classifiers         common_shared.Terms                 `json:"classifiers,omitempty"`
+	SecurityConstraints []common_shared.Properties          `json:"securityConstraints,omitempty"`
+	LegalConstraints    []common_shared.Properties          `json:"legalConstraints,omitempty"`
+	Characteristics     []common_shared.CharacteristicGroup `json:"characteristics,omitempty"`
+	Capabilities        []common_shared.CapabilityGroup     `json:"capabilities,omitempty"`
+	Contacts            []common_shared.ContactWrapper      `json:"contacts,omitempty"`
+	Documentation       common_shared.Documents             `json:"documentation,omitempty"`
+	History             common_shared.History               `json:"history,omitempty"`
+	TypeOf              *common_shared.Link                 `json:"typeOf,omitempty"`
+	Configuration       json.RawMessage                     `json:"configuration,omitempty"`
+	FeaturesOfInterest  common_shared.Links                 `json:"featuresOfInterest,omitempty"`
+	Inputs              common_shared.IOList                `json:"inputs,omitempty"`
+	Outputs             common_shared.IOList                `json:"outputs,omitempty"`
+	Parameters          common_shared.IOList                `json:"parameters,omitempty"`
+	Modes               json.RawMessage                     `json:"modes,omitempty"`
+	ValidTime           *common_shared.TimeRange            `json:"validTime,omitempty"`
+	Links               common_shared.Links                 `json:"links,omitempty"`
 }

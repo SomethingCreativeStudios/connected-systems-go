@@ -9,7 +9,6 @@ import (
 )
 
 // PropertyGeoJSONSerializer serializes domain Property objects into GeoJSON features.
-// It accepts small repository interfaces so it can prefetch related data and avoid N+1 queries.
 type PropertyGeoJSONSerializer struct {
 	serializers.Serializer[domains.PropertyGeoJSONFeature, *domains.Property]
 	repos *repository.Repositories
@@ -20,8 +19,6 @@ func NewPropertyGeoJSONSerializer(repos *repository.Repositories) *PropertyGeoJS
 	return &PropertyGeoJSONSerializer{repos: repos}
 }
 
-// ToFeatures converts a slice of domain propertys into GeoJSON features. It will prefetch
-// related deployments and properties if the corresponding repo readers are non-nil.
 func (s *PropertyGeoJSONSerializer) Serialize(ctx context.Context, property *domains.Property) (domains.PropertyGeoJSONFeature, error) {
 	features, err := s.SerializeAll(ctx, []*domains.Property{property})
 	if err != nil {
@@ -30,43 +27,33 @@ func (s *PropertyGeoJSONSerializer) Serialize(ctx context.Context, property *dom
 	return features[0], nil
 }
 
-// ToFeatures converts a slice of domain propertys into GeoJSON features. It will prefetch
-// related deployments and properties if the corresponding repo readers are non-nil.
-func (s *PropertyGeoJSONSerializer) SerializeAll(ctx context.Context, propertys []*domains.Property) ([]domains.PropertyGeoJSONFeature, error) {
-	if len(propertys) == 0 {
+func (s *PropertyGeoJSONSerializer) SerializeAll(ctx context.Context, properties []*domains.Property) ([]domains.PropertyGeoJSONFeature, error) {
+	if len(properties) == 0 {
 		return []domains.PropertyGeoJSONFeature{}, nil
 	}
 
-	features := make([]domains.PropertyGeoJSONFeature, 0, len(propertys))
-	for _, sys := range propertys {
-		if sys == nil {
-			continue
+	var features []domains.PropertyGeoJSONFeature
+	for _, property := range properties {
+		feature := domains.PropertyGeoJSONFeature{
+			Type:     "Feature",
+			ID:       property.ID,
+			Geometry: nil, // Properties don't have spatial geometry
+			Properties: domains.PropertyGeoJSONProperties{
+				UID:               property.UniqueIdentifier,
+				Name:              property.Name,
+				Description:       property.Description,
+				Definition:        property.Definition,
+				PropertyType:      property.PropertyType,
+				BaseProperty:      property.BaseProperty,
+				ObjectType:        property.ObjectType,
+				Statistic:         property.Statistic,
+				Qualifiers:        property.Qualifiers,
+				UnitOfMeasurement: property.UnitOfMeasurement,
+			},
+			Links: property.Links,
 		}
-
-		// Start with domain-provided conversion
-		f := s.convert(sys)
-
-		features = append(features, f)
+		features = append(features, feature)
 	}
 
 	return features, nil
-}
-
-func (s *PropertyGeoJSONSerializer) convert(d *domains.Property) domains.PropertyGeoJSONFeature {
-	return domains.PropertyGeoJSONFeature{
-		Type:     "Feature",
-		ID:       d.ID,
-		Geometry: nil, // Properties don't have geometry
-		Properties: domains.PropertyGeoJSONProperties{
-			UID:               d.UniqueIdentifier,
-			Name:              d.Name,
-			Description:       d.Description,
-			FeatureType:       "sosa:Property",
-			PropertyType:      d.PropertyType,
-			ObjectType:        d.ObjectType,
-			Definition:        d.Definition,
-			UnitOfMeasurement: d.UnitOfMeasurement,
-		},
-		Links: d.Links,
-	}
 }
