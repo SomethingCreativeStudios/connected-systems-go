@@ -1,10 +1,8 @@
 package domains
 
 import (
-	"net/http"
 	"time"
 
-	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
@@ -75,71 +73,4 @@ func (f Feature) ToGeoJSON() FeatureGeoJSONFeature {
 		Properties: props,
 		Links:      f.Links,
 	}
-}
-
-// BuildFromRequest decodes GeoJSON Feature request into Feature domain model
-func (Feature) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Feature, error) {
-	// Decode GeoJSON Feature format
-	var geoJSON struct {
-		Type       string                 `json:"type"`
-		ID         string                 `json:"id,omitempty"`
-		Properties map[string]interface{} `json:"properties"`
-		Geometry   *common_shared.GoGeom  `json:"geometry,omitempty"`
-		Links      common_shared.Links    `json:"links,omitempty"`
-	}
-
-	if err := render.DecodeJSON(r.Body, &geoJSON); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
-		return Feature{}, err
-	}
-
-	// Convert GeoJSON properties to Feature model
-	feature := Feature{
-		Links:      geoJSON.Links,
-		Properties: geoJSON.Properties,
-	}
-	// assign geometry (decoded directly into GoGeom)
-	if geoJSON.Geometry != nil {
-		feature.Geometry = geoJSON.Geometry
-	}
-
-	// Extract standard properties
-	if uid, ok := geoJSON.Properties["uid"].(string); ok {
-		feature.UniqueIdentifier = UniqueID(uid)
-	}
-	if name, ok := geoJSON.Properties["name"].(string); ok {
-		feature.Name = name
-	}
-	if desc, ok := geoJSON.Properties["description"].(string); ok {
-		feature.Description = desc
-	}
-	if collectionID, ok := geoJSON.Properties["collectionId"].(string); ok {
-		feature.CollectionID = collectionID
-	}
-
-	// Parse dateTime if present
-	if dtStr, ok := geoJSON.Properties["dateTime"].(string); ok {
-		if dt, err := time.Parse(time.RFC3339, dtStr); err == nil {
-			feature.DateTime = &dt
-		}
-	}
-
-	// Parse validTime if present
-	if validTimeMap, ok := geoJSON.Properties["validTime"].(map[string]interface{}); ok {
-		validTime := &common_shared.TimeRange{}
-		if start, ok := validTimeMap["start"].(string); ok {
-			if t, err := time.Parse(time.RFC3339, start); err == nil {
-				validTime.Start = &t
-			}
-		}
-		if end, ok := validTimeMap["end"].(string); ok {
-			if t, err := time.Parse(time.RFC3339, end); err == nil {
-				validTime.End = &t
-			}
-		}
-		feature.ValidTime = validTime
-	}
-
-	return feature, nil
 }

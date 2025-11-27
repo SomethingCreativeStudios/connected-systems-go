@@ -5,18 +5,24 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
+	"go.uber.org/zap"
 )
 
 type CollectionHandler struct {
-	Repo *repository.CollectionRepository
-	sc   *serializers.SerializerCollection[domains.CollectionGeoJSONFeature, *domains.Collection]
+	cfg    *config.Config
+	logger *zap.Logger
+	Repo   *repository.CollectionRepository
+	fc     *serializers.MultiFormatFormatterCollection[*domains.Collection]
 }
 
-func NewCollectionHandler(repo *repository.CollectionRepository, sc *serializers.SerializerCollection[domains.CollectionGeoJSONFeature, *domains.Collection]) *CollectionHandler {
-	return &CollectionHandler{Repo: repo, sc: sc}
+func NewCollectionHandler(cfg *config.Config, logger *zap.Logger, repo *repository.CollectionRepository, fc *serializers.MultiFormatFormatterCollection[*domains.Collection]) *CollectionHandler {
+	return &CollectionHandler{cfg: cfg, Repo: repo, logger: logger, fc: fc}
 }
 
 func (h *CollectionHandler) CreateCollection(w http.ResponseWriter, r *http.Request) {
@@ -34,12 +40,12 @@ func (h *CollectionHandler) CreateCollection(w http.ResponseWriter, r *http.Requ
 	}
 	w.WriteHeader(http.StatusCreated)
 
-	serializer := h.sc.GetSerializer(r.Header.Get("content-type"))
-	serialized, err := serializer.Serialize(ctx, &collection)
-
+	acceptHeader := r.Header.Get("Accept")
+	serialized, err := h.fc.Serialize(acceptHeader, &collection)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
+		h.logger.Error("Failed to serialize collection", zap.String("id", collection.ID), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize collection"})
 		return
 	}
 
@@ -55,22 +61,11 @@ func (h *CollectionHandler) ListCollections(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	serializer := h.sc.GetSerializer(r.Header.Get("content-type"))
-	var serializedCollections []domains.CollectionGeoJSONFeature
+	acceptHeader := r.Header.Get("Accept")
+	collection := h.fc.BuildCollection(acceptHeader, collections, h.cfg.API.BaseURL+r.URL.Path, int(10), r.URL.Query(), queryparams.QueryParams{})
 
-	for _, c := range collections {
-		serialized, err := serializer.Serialize(ctx, c)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
-			return
-		}
-		serializedCollections = append(serializedCollections, serialized)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"collections": serializedCollections,
-	})
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	render.JSON(w, r, collection)
 }
 
 func (h *CollectionHandler) GetCollection(w http.ResponseWriter, r *http.Request) {
@@ -102,16 +97,18 @@ func (h *CollectionHandler) GetCollection(w http.ResponseWriter, r *http.Request
 	}
 	w.Header().Set("Content-Type", "application/json")
 
-	serializer := h.sc.GetSerializer(r.Header.Get("content-type"))
-	serialized, err := serializer.Serialize(ctx, collection)
-
+	acceptHeader := r.Header.Get("Accept")
+	serialized, err := h.fc.Serialize(acceptHeader, collection)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
+		h.logger.Error("Failed to serialize collection", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize collection"})
 		return
 	}
 
-	json.NewEncoder(w).Encode(serialized)
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, serialized)
 }
 
 // Add Create, Update, Delete if needed for admin endpoints

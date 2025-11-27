@@ -1,13 +1,11 @@
 package api
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"github.com/yourusername/connected-systems-go/internal/model/serializers"
@@ -17,19 +15,19 @@ import (
 
 // FeatureHandler handles Feature resource requests (OGC API Features Part 1)
 type FeatureHandler struct {
-	cfg                  *config.Config
-	logger               *zap.Logger
-	repo                 *repository.FeatureRepository
-	serializerCollection *serializers.SerializerCollection[domains.FeatureGeoJSONFeature, *domains.Feature]
+	cfg    *config.Config
+	logger *zap.Logger
+	repo   *repository.FeatureRepository
+	fc     *serializers.MultiFormatFormatterCollection[*domains.Feature]
 }
 
 // NewFeatureHandler creates a new FeatureHandler
-func NewFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.FeatureRepository, s *serializers.SerializerCollection[domains.FeatureGeoJSONFeature, *domains.Feature]) *FeatureHandler {
+func NewFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.FeatureRepository, fc *serializers.MultiFormatFormatterCollection[*domains.Feature]) *FeatureHandler {
 	return &FeatureHandler{
-		cfg:                  cfg,
-		logger:               logger,
-		repo:                 repo,
-		serializerCollection: s,
+		cfg:    cfg,
+		logger: logger,
+		repo:   repo,
+		fc:     fc,
 	}
 }
 
@@ -47,15 +45,10 @@ func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
-	render.JSON(w, r, model.FeatureCollection[domains.FeatureGeoJSONFeature, *domains.Feature]{}.BuildCollection(
-		features,
-		serializer,
-		h.cfg.API.BaseURL+r.URL.Path,
-		int(total),
-		r.URL.Query(),
-		params.QueryParams,
-	))
+	acceptHeader := r.Header.Get("Accept")
+	collection := h.fc.BuildCollection(acceptHeader, features, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
+
+	render.JSON(w, r, collection)
 }
 
 // GetFeature retrieves a single feature by ID (OGC path: /collections/{collectionId}/items/{featureId})
@@ -74,20 +67,29 @@ func (h *FeatureHandler) GetFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
-	json, err := serializer.Serialize(context.Background(), feature)
+	acceptHeader := r.Header.Get("Accept")
+	json, err := h.fc.Serialize(acceptHeader, feature)
+
 	if err != nil {
+		h.logger.Error("Failed to serialize feature",
+			zap.String("collectionId", collectionID),
+			zap.String("featureId", featureID),
+			zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, map[string]string{"error": "Failed to serialize feature"})
 		return
 	}
+
 	render.JSON(w, r, json)
 }
 
 // CreateFeature creates a new feature in a collection
 func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
+	acceptHeader := r.Header.Get("content-type")
 	collectionID := chi.URLParam(r, "collectionId")
 
-	feature, err := domains.Feature{}.BuildFromRequest(r, w)
+	feature, err := h.fc.Deserialize(acceptHeader, r.Body)
+
 	if err != nil {
 		h.logger.Error("Failed to decode feature", zap.Error(err))
 		return // BuildFromRequest already wrote error response
@@ -96,7 +98,7 @@ func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 	// Set collection ID from path
 	feature.CollectionID = collectionID
 
-	if err := h.repo.Create(&feature); err != nil {
+	if err := h.repo.Create(feature); err != nil {
 		h.logger.Error("Failed to create feature", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, map[string]string{"error": "Failed to create feature"})
@@ -104,8 +106,7 @@ func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusCreated)
-	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
-	json, _ := serializer.Serialize(context.Background(), &feature)
+	json, _ := h.fc.Serialize(r.Header.Get("Accept"), feature)
 	render.JSON(w, r, json)
 }
 
@@ -124,7 +125,7 @@ func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := domains.Feature{}.BuildFromRequest(r, w)
+	updated, err := h.fc.Deserialize(r.Header.Get("content-type"), r.Body)
 	if err != nil {
 		h.logger.Error("Failed to decode feature", zap.Error(err))
 		return // BuildFromRequest already wrote error response
@@ -134,15 +135,14 @@ func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 	updated.ID = existing.ID
 	updated.CollectionID = collectionID
 
-	if err := h.repo.Update(&updated); err != nil {
+	if err := h.repo.Update(updated); err != nil {
 		h.logger.Error("Failed to update feature", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, map[string]string{"error": "Failed to update feature"})
 		return
 	}
 
-	serializer := h.serializerCollection.GetSerializer(r.Header.Get("content-type"))
-	json, _ := serializer.Serialize(context.Background(), &updated)
+	json, _ := h.fc.Serialize(r.Header.Get("Accept"), updated)
 	render.JSON(w, r, json)
 }
 

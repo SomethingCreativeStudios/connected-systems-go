@@ -12,7 +12,6 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/model/serializers/geojson_formatters"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers/geojson_serializers"
 	"github.com/yourusername/connected-systems-go/internal/model/serializers/sensorml_formatters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
@@ -49,16 +48,16 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	procedureFormatterCollection := buildProcedureFormatterCollection(repos)
 	samplingFeatureFormatterCollection := buildSamplingFeatureFormatterCollection(repos)
 	propertyFormatterCollection := buildPropertyFormatterCollection(repos)
-	featureSerializerCollection := buildFeatureSerializerCollection(repos)
-	collectionSerializerCollection := buildCollectionSerializerCollection(repos)
+	featureFormatterCollection := buildFeatureFormatterCollection(repos)
+	collectionFormatterCollection := buildCollectionFormatterCollection(repos)
 
-	collectionHandler := NewCollectionHandler(repos.Collection, collectionSerializerCollection)
+	collectionHandler := NewCollectionHandler(cfg, logger, repos.Collection, collectionFormatterCollection)
 	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentFormatterCollection)
 	systemHandler := NewSystemHandler(cfg, logger, repos.System, systemFormatterCollection, repos.Deployment, deploymentFormatterCollection)
 	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureFormatterCollection)
 	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, samplingFeatureFormatterCollection)
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertyFormatterCollection)
-	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureSerializerCollection)
+	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureFormatterCollection)
 
 	// Routes
 
@@ -261,22 +260,28 @@ func buildPropertyFormatterCollection(repos *repository.Repositories) *serialize
 	return collection
 }
 
-func buildFeatureSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.FeatureGeoJSONFeature, *domains.Feature] {
-	// create concrete serializers and register them by content type
-	serMap := map[string]serializers.Serializer[domains.FeatureGeoJSONFeature, *domains.Feature]{
-		"application/geo+json": geojson_serializers.NewFeatureGeoJSONSerializer(),
-		"default":              geojson_serializers.NewFeatureGeoJSONSerializer(),
-	}
+func buildFeatureFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Feature] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Feature]("application/sml+json")
 
-	return serializers.NewSerializerCollection(serMap)
+	// Register GeoJSON formatter
+	geoJSONFormatter := geojson_formatters.NewFeatureGeoJSONFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/geo+json", geoJSONFormatter)
+
+	// Set default (SensorML is the default for properties per OGC Connected Systems)
+	serializers.RegisterFormatterTypedDefault(collection, geoJSONFormatter, "application/geo+json")
+
+	return collection
 }
 
-func buildCollectionSerializerCollection(repos *repository.Repositories) *serializers.SerializerCollection[domains.CollectionGeoJSONFeature, *domains.Collection] {
-	// create concrete serializers and register them by content type
-	serMap := map[string]serializers.Serializer[domains.CollectionGeoJSONFeature, *domains.Collection]{
-		"application/geo+json": geojson_serializers.NewCollectionGeoJSONSerializer(repos),
-		"default":              geojson_serializers.NewCollectionGeoJSONSerializer(repos),
-	}
+func buildCollectionFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Collection] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Collection]("application/sml+json")
 
-	return serializers.NewSerializerCollection(serMap)
+	// Register GeoJSON formatter
+	geoJSONFormatter := geojson_formatters.NewFeatureCollectionGeoJSONFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/geo+json", geoJSONFormatter)
+
+	// Set default (SensorML is the default for properties per OGC Connected Systems)
+	serializers.RegisterFormatterTypedDefault(collection, geoJSONFormatter, "application/geo+json")
+
+	return collection
 }
