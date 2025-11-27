@@ -1,6 +1,7 @@
 package common_shared
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 )
 
@@ -21,6 +22,30 @@ type Component interface {
 	ComponentType() string
 }
 
+// ComponentWrappers is a slice of ComponentWrapper that implements GORM JSONB support
+type ComponentWrappers []ComponentWrapper
+
+// Value implements driver.Valuer for JSONB storage
+func (c ComponentWrappers) Value() (driver.Value, error) {
+	if c == nil {
+		return nil, nil
+	}
+	return json.Marshal(c)
+}
+
+// Scan implements sql.Scanner for JSONB retrieval
+func (c *ComponentWrappers) Scan(value interface{}) error {
+	if value == nil {
+		*c = nil
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return nil
+	}
+	return json.Unmarshal(b, c)
+}
+
 // ComponentWrapper is a generic container for a component variant. It preserves
 // the raw payload and unmarshals into a concrete typed component when possible.
 type ComponentWrapper struct {
@@ -31,6 +56,9 @@ type ComponentWrapper struct {
 	ReferenceFrame string `json:"referenceFrame,omitempty"`
 	AxisID         string `json:"axisID,omitempty"`
 	LocalFrame     string `json:"localFrame,omitempty"`
+
+	Updatable *bool `json:"updateable,omitempty"`
+	Optional  *bool `json:"optional,omitempty"`
 
 	// Variant fields left as raw so callers can decode according to type
 	UOM        json.RawMessage `json:"uom,omitempty"`

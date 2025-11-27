@@ -13,161 +13,476 @@ import (
 func TestPropertiesAPI_E2E(t *testing.T) {
 	cleanupDB(t)
 
-	t.Run("POST /properties - create observable property", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"type": "Feature",
-			"properties": map[string]interface{}{
-				"uid":          "urn:test:property:prop-001",
-				"name":         "Temperature",
+	// SensorML format payloads for properties with various qualifier types
+	createTestCases := []struct {
+		name           string
+		payload        map[string]interface{}
+		expectedStatus int
+		validateResult func(t *testing.T, result map[string]interface{})
+	}{
+		{
+			name: "simple property with label and uniqueId",
+			payload: map[string]interface{}{
+				"label":        "Temperature",
 				"description":  "Air temperature property",
-				"featureType":  "http://www.w3.org/ns/sosa/ObservableProperty",
-				"propertyType": "observable",
+				"uniqueId":     "urn:test:property:simple-temp",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
 			},
-		}
-
-		body, _ := json.Marshal(payload)
-		resp, err := http.Post(testServer.URL+"/properties", "application/json", bytes.NewReader(body))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		assert.Equal(t, http.StatusCreated, resp.StatusCode)
-
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-		assert.NotEmpty(t, result["id"])
-	})
-
-	t.Run("GET /properties - list properties", func(t *testing.T) {
-		resp, err := http.Get(testServer.URL + "/properties")
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-		assert.Equal(t, "FeatureCollection", result["type"])
-	})
-
-	t.Run("GET /properties/{id} - get specific property", func(t *testing.T) {
-		// Create property
-		payload := map[string]interface{}{
-			"type": "Feature",
-			"properties": map[string]interface{}{
-				"uid":          "urn:test:property:prop-002",
-				"name":         "Humidity",
-				"propertyType": "observable",
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				assert.Equal(t, "Temperature", result["label"])
+				assert.Equal(t, "urn:test:property:simple-temp", result["uniqueId"])
+				assert.Equal(t, "https://qudt.org/vocab/quantitykind/Temperature", result["baseProperty"])
 			},
-		}
-
-		body, _ := json.Marshal(payload)
-		createResp, err := http.Post(testServer.URL+"/properties", "application/json", bytes.NewReader(body))
-		require.NoError(t, err)
-		var created map[string]interface{}
-		err = json.NewDecoder(createResp.Body).Decode(&created)
-		createResp.Body.Close()
-		require.NoError(t, err)
-
-		propID := created["id"].(string)
-
-		// Get it
-		resp, err := http.Get(testServer.URL + "/properties/" + propID)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-	})
-
-	t.Run("PUT /properties/{id} - update property", func(t *testing.T) {
-		// Create property
-		payload := map[string]interface{}{
-			"type": "Feature",
-			"properties": map[string]interface{}{
-				"uid":  "urn:test:property:prop-003",
-				"name": "Property to Update",
+		},
+		{
+			name: "property with objectType and statistic",
+			payload: map[string]interface{}{
+				"label":        "Average CPU Temperature",
+				"description":  "Hourly average of CPU temperature",
+				"uniqueId":     "urn:test:property:avg-cpu-temp",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+				"objectType":   "http://dbpedia.org/resource/Central_processing_unit",
+				"statistic":    "http://sensorml.com/ont/x-stats/HourlyMean",
 			},
-		}
-
-		body, _ := json.Marshal(payload)
-		createResp, err := http.Post(testServer.URL+"/properties", "application/json", bytes.NewReader(body))
-		require.NoError(t, err)
-		var created map[string]interface{}
-		err = json.NewDecoder(createResp.Body).Decode(&created)
-		createResp.Body.Close()
-		require.NoError(t, err)
-
-		propID := created["id"].(string)
-
-		// Update it
-		updatePayload := map[string]interface{}{
-			"type": "Feature",
-			"properties": map[string]interface{}{
-				"uid":  "urn:test:property:prop-003",
-				"name": "Updated Property",
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				assert.Equal(t, "Average CPU Temperature", result["label"])
+				assert.Equal(t, "http://dbpedia.org/resource/Central_processing_unit", result["objectType"])
+				assert.Equal(t, "http://sensorml.com/ont/x-stats/HourlyMean", result["statistic"])
 			},
-		}
-
-		updateBody, _ := json.Marshal(updatePayload)
-		req, _ := http.NewRequest(http.MethodPut, testServer.URL+"/properties/"+propID, bytes.NewReader(updateBody))
-		req.Header.Set("Content-Type", "application/json")
-
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-	})
-
-	t.Run("DELETE /properties/{id} - delete property", func(t *testing.T) {
-		// Create property
-		payload := map[string]interface{}{
-			"type": "Feature",
-			"properties": map[string]interface{}{
-				"uid":  "urn:test:property:prop-004",
-				"name": "Property to Delete",
+		},
+		{
+			name: "property with Quantity qualifier",
+			payload: map[string]interface{}{
+				"label":        "Temperature at Height",
+				"uniqueId":     "urn:test:property:temp-with-height",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "Quantity",
+						"label":      "Measurement Height",
+						"definition": "http://sensorml.com/ont/swe/property/Height",
+						"uom": map[string]interface{}{
+							"code": "m",
+						},
+						"value": 2.0,
+					},
+				},
 			},
-		}
-
-		body, _ := json.Marshal(payload)
-		createResp, err := http.Post(testServer.URL+"/properties", "application/json", bytes.NewReader(body))
-		require.NoError(t, err)
-		var created map[string]interface{}
-		err = json.NewDecoder(createResp.Body).Decode(&created)
-		createResp.Body.Close()
-		require.NoError(t, err)
-
-		propID := created["id"].(string)
-
-		// Delete it
-		req, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/properties/"+propID, nil)
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	})
-
-	t.Run("POST /properties - create actuable property", func(t *testing.T) {
-		payload := map[string]interface{}{
-			"type": "Feature",
-			"properties": map[string]interface{}{
-				"uid":          "urn:test:property:prop-005",
-				"name":         "Valve Position",
-				"description":  "Actuable valve position property",
-				"featureType":  "http://www.w3.org/ns/sosa/ActuableProperty",
-				"propertyType": "actuable",
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array")
+				require.Len(t, qualifiers, 1)
+				q := qualifiers[0].(map[string]interface{})
+				assert.Equal(t, "Quantity", q["type"])
+				assert.Equal(t, "Measurement Height", q["label"])
 			},
-		}
+		},
+		{
+			name: "property with Category qualifier",
+			payload: map[string]interface{}{
+				"label":        "Wind Speed by Terrain",
+				"uniqueId":     "urn:test:property:wind-terrain",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Speed",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "Category",
+						"label":      "Terrain Type",
+						"definition": "http://sensorml.com/ont/swe/property/TerrainType",
+						"codeSpace":  "http://example.org/terrains",
+						"value":      "urban",
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array")
+				require.Len(t, qualifiers, 1)
+				q := qualifiers[0].(map[string]interface{})
+				assert.Equal(t, "Category", q["type"])
+				assert.Equal(t, "urban", q["value"])
+			},
+		},
+		{
+			name: "property with Boolean qualifier",
+			payload: map[string]interface{}{
+				"label":        "Calibrated Temperature",
+				"uniqueId":     "urn:test:property:calibrated-temp",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "Boolean",
+						"label":      "Is Calibrated",
+						"definition": "http://sensorml.com/ont/swe/property/IsCalibrated",
+						"value":      true,
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array")
+				require.Len(t, qualifiers, 1)
+				q := qualifiers[0].(map[string]interface{})
+				assert.Equal(t, "Boolean", q["type"])
+				assert.Equal(t, true, q["value"])
+			},
+		},
+		{
+			name: "property with Count qualifier",
+			payload: map[string]interface{}{
+				"label":        "Average Over Samples",
+				"uniqueId":     "urn:test:property:avg-samples",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+				"statistic":    "http://sensorml.com/ont/x-stats/Average",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "Count",
+						"label":      "Sample Count",
+						"definition": "http://sensorml.com/ont/swe/property/SampleCount",
+						"value":      100,
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array")
+				require.Len(t, qualifiers, 1)
+				q := qualifiers[0].(map[string]interface{})
+				assert.Equal(t, "Count", q["type"])
+				// JSON decodes numbers as float64
+				assert.Equal(t, float64(100), q["value"])
+			},
+		},
+		{
+			name: "property with Text qualifier",
+			payload: map[string]interface{}{
+				"label":        "Temperature with Notes",
+				"uniqueId":     "urn:test:property:temp-notes",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "Text",
+						"label":      "Measurement Notes",
+						"definition": "http://sensorml.com/ont/swe/property/Notes",
+						"value":      "Measured in shade, away from heat sources",
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array")
+				require.Len(t, qualifiers, 1)
+				q := qualifiers[0].(map[string]interface{})
+				assert.Equal(t, "Text", q["type"])
+				assert.Equal(t, "Measured in shade, away from heat sources", q["value"])
+			},
+		},
+		{
+			name: "property with Time qualifier",
+			payload: map[string]interface{}{
+				"label":        "Temperature at Time",
+				"uniqueId":     "urn:test:property:temp-time",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "Time",
+						"label":      "Measurement Time",
+						"definition": "http://sensorml.com/ont/swe/property/SamplingTime",
+						"uom": map[string]interface{}{
+							"href": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+						},
+						"value": "2025-11-27T12:00:00Z",
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array")
+				require.Len(t, qualifiers, 1)
+				q := qualifiers[0].(map[string]interface{})
+				assert.Equal(t, "Time", q["type"])
+				assert.Equal(t, "2025-11-27T12:00:00Z", q["value"])
+			},
+		},
+		{
+			name: "property with QuantityRange qualifier",
+			payload: map[string]interface{}{
+				"label":        "Temperature in Range",
+				"uniqueId":     "urn:test:property:temp-range",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "QuantityRange",
+						"label":      "Valid Range",
+						"definition": "http://sensorml.com/ont/swe/property/ValidRange",
+						"uom": map[string]interface{}{
+							"code": "Cel",
+						},
+						"value": []float64{-40.0, 85.0},
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array")
+				require.Len(t, qualifiers, 1)
+				q := qualifiers[0].(map[string]interface{})
+				assert.Equal(t, "QuantityRange", q["type"])
+				rangeVal, ok := q["value"].([]interface{})
+				require.True(t, ok, "expected value to be array")
+				assert.Len(t, rangeVal, 2)
+			},
+		},
+		{
+			name: "property with multiple qualifiers",
+			payload: map[string]interface{}{
+				"label":        "Complex Temperature Measurement",
+				"description":  "Temperature with multiple qualifiers",
+				"uniqueId":     "urn:test:property:complex-temp",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+				"objectType":   "http://dbpedia.org/resource/Atmosphere",
+				"statistic":    "http://sensorml.com/ont/x-stats/Average",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "Quantity",
+						"label":      "Measurement Height",
+						"definition": "http://sensorml.com/ont/swe/property/Height",
+						"uom": map[string]interface{}{
+							"code": "m",
+						},
+						"value": 10.0,
+					},
+					{
+						"type":       "Category",
+						"label":      "Environment",
+						"definition": "http://sensorml.com/ont/swe/property/Environment",
+						"value":      "outdoor",
+					},
+					{
+						"type":       "Boolean",
+						"label":      "Quality Controlled",
+						"definition": "http://sensorml.com/ont/swe/property/QualityControlled",
+						"value":      true,
+					},
+					{
+						"type":       "QuantityRange",
+						"label":      "Frequency Range",
+						"definition": "http://sensorml.com/ont/swe/property/FrequencyRange",
+						"uom": map[string]interface{}{
+							"code": "Hz",
+						},
+						"value": []float64{0.1, 10.0},
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				assert.Equal(t, "Complex Temperature Measurement", result["label"])
+				assert.Equal(t, "http://dbpedia.org/resource/Atmosphere", result["objectType"])
+				assert.Equal(t, "http://sensorml.com/ont/x-stats/Average", result["statistic"])
 
-		body, _ := json.Marshal(payload)
-		resp, err := http.Post(testServer.URL+"/properties", "application/json", bytes.NewReader(body))
-		require.NoError(t, err)
-		defer resp.Body.Close()
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array")
+				assert.Len(t, qualifiers, 4)
 
-		assert.Equal(t, http.StatusCreated, resp.StatusCode)
-	})
+				// Verify each qualifier type is present
+				types := make(map[string]bool)
+				for _, q := range qualifiers {
+					qMap := q.(map[string]interface{})
+					types[qMap["type"].(string)] = true
+				}
+				assert.True(t, types["Quantity"], "expected Quantity qualifier")
+				assert.True(t, types["Category"], "expected Category qualifier")
+				assert.True(t, types["Boolean"], "expected Boolean qualifier")
+				assert.True(t, types["QuantityRange"], "expected QuantityRange qualifier")
+			},
+		},
+		{
+			name: "property with Quantity constraint",
+			payload: map[string]interface{}{
+				"label":        "Constrained Height",
+				"uniqueId":     "urn:test:property:constrained-height",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Height",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "Quantity",
+						"label":      "Height Above Ground",
+						"definition": "http://sensorml.com/ont/swe/property/HeightAboveGround",
+						"uom": map[string]interface{}{
+							"code":   "m",
+							"label":  "meters",
+							"symbol": "m",
+						},
+						"constraint": map[string]interface{}{
+							"type":      "AllowedValues",
+							"intervals": [][]float64{{0.0, 100.0}},
+						},
+						"value": 50.0,
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateResult: func(t *testing.T, result map[string]interface{}) {
+				assert.NotEmpty(t, result["id"])
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array")
+				require.Len(t, qualifiers, 1)
+				q := qualifiers[0].(map[string]interface{})
+				assert.Equal(t, "Quantity", q["type"])
+				constraint, ok := q["constraint"].(map[string]interface{})
+				require.True(t, ok, "expected constraint object")
+				assert.Equal(t, "AllowedValues", constraint["type"])
+			},
+		},
+	}
+
+	for _, tc := range createTestCases {
+		t.Run("POST /properties - "+tc.name, func(t *testing.T) {
+			body, _ := json.Marshal(tc.payload)
+			resp, err := http.Post(testServer.URL+"/properties", "application/sml+json", bytes.NewReader(body))
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+
+			if tc.validateResult != nil {
+				var result map[string]interface{}
+				err = json.NewDecoder(resp.Body).Decode(&result)
+				require.NoError(t, err)
+				tc.validateResult(t, result)
+			}
+		})
+	}
+
+	// CRUD operation test cases
+	crudTestCases := []struct {
+		name            string
+		createPayload   map[string]interface{}
+		updatePayload   map[string]interface{}
+		expectedGetCode int
+		validateUpdate  func(t *testing.T, result map[string]interface{})
+	}{
+		{
+			name: "get specific property",
+			createPayload: map[string]interface{}{
+				"label":        "Humidity",
+				"uniqueId":     "urn:test:property:crud-humidity",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/RelativeHumidity",
+			},
+			expectedGetCode: http.StatusOK,
+		},
+		{
+			name: "update property label",
+			createPayload: map[string]interface{}{
+				"label":        "Property to Update",
+				"uniqueId":     "urn:test:property:crud-update",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+			},
+			updatePayload: map[string]interface{}{
+				"label":        "Updated Property Name",
+				"uniqueId":     "urn:test:property:crud-update",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
+				"description":  "Now with a description",
+			},
+			expectedGetCode: http.StatusOK,
+			validateUpdate: func(t *testing.T, result map[string]interface{}) {
+				assert.Equal(t, "Updated Property Name", result["label"])
+				assert.Equal(t, "Now with a description", result["description"])
+			},
+		},
+		{
+			name: "update property with qualifiers",
+			createPayload: map[string]interface{}{
+				"label":        "Property for Qualifier Update",
+				"uniqueId":     "urn:test:property:crud-qualifier-update",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Pressure",
+			},
+			updatePayload: map[string]interface{}{
+				"label":        "Property for Qualifier Update",
+				"uniqueId":     "urn:test:property:crud-qualifier-update",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Pressure",
+				"qualifiers": []map[string]interface{}{
+					{
+						"type":       "Quantity",
+						"label":      "Altitude",
+						"definition": "http://sensorml.com/ont/swe/property/Altitude",
+						"uom": map[string]interface{}{
+							"code": "m",
+						},
+						"value": 1000.0,
+					},
+				},
+			},
+			expectedGetCode: http.StatusOK,
+			validateUpdate: func(t *testing.T, result map[string]interface{}) {
+				qualifiers, ok := result["qualifiers"].([]interface{})
+				require.True(t, ok, "expected qualifiers array after update")
+				assert.Len(t, qualifiers, 1)
+			},
+		},
+	}
+
+	for _, tc := range crudTestCases {
+		t.Run("CRUD - "+tc.name, func(t *testing.T) {
+			// Create
+			body, _ := json.Marshal(tc.createPayload)
+			createResp, err := http.Post(testServer.URL+"/properties", "application/sml+json", bytes.NewReader(body))
+			require.NoError(t, err)
+			var created map[string]interface{}
+			err = json.NewDecoder(createResp.Body).Decode(&created)
+			createResp.Body.Close()
+			require.NoError(t, err)
+
+			propID := created["id"].(string)
+
+			// Get
+			req, _ := http.NewRequest(http.MethodGet, testServer.URL+"/properties/"+propID, nil)
+			req.Header.Set("Accept", "application/sml+json")
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			resp.Body.Close()
+			assert.Equal(t, tc.expectedGetCode, resp.StatusCode)
+
+			// Update if payload provided
+			if tc.updatePayload != nil {
+				updateBody, _ := json.Marshal(tc.updatePayload)
+				req, _ := http.NewRequest(http.MethodPut, testServer.URL+"/properties/"+propID, bytes.NewReader(updateBody))
+				req.Header.Set("Content-Type", "application/sml+json")
+				req.Header.Set("Accept", "application/sml+json")
+
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+
+				var updated map[string]interface{}
+				err = json.NewDecoder(resp.Body).Decode(&updated)
+				resp.Body.Close()
+				require.NoError(t, err)
+
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+				if tc.validateUpdate != nil {
+					tc.validateUpdate(t, updated)
+				}
+			}
+		})
+	}
 }

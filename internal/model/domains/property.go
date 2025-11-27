@@ -24,7 +24,7 @@ type Property struct {
 	Statistic *string `gorm:"type:varchar(255)" json:"statistic,omitempty"`
 
 	// Qualifiers: additional data components used to further qualify the property
-	Qualifiers []common_shared.ComponentWrapper `gorm:"type:jsonb" json:"qualifiers,omitempty"`
+	Qualifiers common_shared.ComponentWrappers `gorm:"type:jsonb" json:"qualifiers,omitempty"`
 
 	// Unit of measurement
 	UnitOfMeasurement *string `gorm:"type:varchar(100)" json:"uom,omitempty"`
@@ -48,15 +48,15 @@ const (
 )
 
 type PropertySensorMLFeature struct {
-	ID           string                           `json:"id"`
-	Label        string                           `json:"label"`
-	Description  string                           `json:"description,omitempty"`
-	UniqueID     string                           `json:"uniqueId"`
-	BaseProperty *string                          `json:"baseProperty,omitempty"`
-	ObjectType   *string                          `json:"objectType,omitempty"`
-	Statistic    *string                          `json:"statistic,omitempty"`
-	Qualifiers   []common_shared.ComponentWrapper `json:"qualifiers,omitempty"`
-	Links        common_shared.Links              `json:"links,omitempty"`
+	ID           string                          `json:"id"`
+	Label        string                          `json:"label"`
+	Description  string                          `json:"description,omitempty"`
+	UniqueID     string                          `json:"uniqueId"`
+	BaseProperty *string                         `json:"baseProperty,omitempty"`
+	ObjectType   *string                         `json:"objectType,omitempty"`
+	Statistic    *string                         `json:"statistic,omitempty"`
+	Qualifiers   common_shared.ComponentWrappers `json:"qualifiers,omitempty"`
+	Links        common_shared.Links             `json:"links,omitempty"`
 }
 
 // PropertyGeoJSONFeature represents a Property serialized as GeoJSON Feature
@@ -70,14 +70,14 @@ type PropertyGeoJSONFeature struct {
 
 // PropertyGeoJSONProperties represents the properties object in GeoJSON for a Property
 type PropertyGeoJSONProperties struct {
-	UID               UniqueID                         `json:"uid"`
-	Name              string                           `json:"name"`
-	Description       string                           `json:"description,omitempty"`
-	Definition        string                           `json:"definition,omitempty"`
-	PropertyType      string                           `json:"propertyType,omitempty"`
-	BaseProperty      *string                          `json:"baseProperty,omitempty"`
-	ObjectType        *string                          `json:"objectType,omitempty"`
-	Statistic         *string                          `json:"statistic,omitempty"`
-	Qualifiers        []common_shared.ComponentWrapper `json:"qualifiers,omitempty"`
-	UnitOfMeasurement *string                          `json:"uom,omitempty"`
+	UID               UniqueID                        `json:"uid"`
+	Name              string                          `json:"name"`
+	Description       string                          `json:"description,omitempty"`
+	Definition        string                          `json:"definition,omitempty"`
+	PropertyType      string                          `json:"propertyType,omitempty"`
+	BaseProperty      *string                         `json:"baseProperty,omitempty"`
+	ObjectType        *string                         `json:"objectType,omitempty"`
+	Statistic         *string                         `json:"statistic,omitempty"`
+	Qualifiers        common_shared.ComponentWrappers `json:"qualifiers,omitempty"`
+	UnitOfMeasurement *string                         `json:"uom,omitempty"`
 }

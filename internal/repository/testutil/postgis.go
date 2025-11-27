@@ -145,6 +145,10 @@ func PtrStr(s string) *string {
 	return &s
 }
 
+func PtrBool(b bool) *bool {
+	return &b
+}
+
 // Geometry maker functions for tests
 
 // MakePoint creates a PostGIS Point geometry (lon, lat) with SRID 4326 (WGS84)

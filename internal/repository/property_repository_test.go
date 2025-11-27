@@ -1,9 +1,11 @@
 package repository
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"github.com/yourusername/connected-systems-go/internal/repository/testutil"
@@ -63,6 +65,40 @@ func TestPropertyRepository_Create(t *testing.T) {
 				require.NotEmpty(t, created.ID)
 				require.Equal(t, "Humidity", created.Name)
 				require.Equal(t, "http://vocab.example.org/humidity", created.Definition)
+			},
+		},
+		{
+			name: "create property with qualifiers",
+			property: &domains.Property{
+				CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:property4", Name: "Boolean Qualifier"},
+				PropertyType: "ObservableProperty",
+				Qualifiers: []common_shared.ComponentWrapper{
+					{
+						Type:       "Boolean",
+						Label:      "Some basic boolean value",
+						Definition: "http://vocab.example.org/humidity",
+						Value:      json.RawMessage(`true`),
+						Updatable:  testutil.PtrBool(true),
+						Optional:   testutil.PtrBool(false),
+					},
+				},
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T, created *domains.Property) {
+				require.NotEmpty(t, created.ID)
+				require.Equal(t, "Boolean Qualifier", created.Name)
+				require.Equal(t, 1, len(created.Qualifiers))
+
+				qualifier := created.Qualifiers[0]
+				require.Equal(t, "Boolean", qualifier.Type)
+				require.Equal(t, "Some basic boolean value", qualifier.Label)
+				require.Equal(t, "http://vocab.example.org/humidity", qualifier.Definition)
+				require.Equal(t, json.RawMessage(`true`), qualifier.Value)
+
+				require.NotNil(t, qualifier.Updatable)
+				require.True(t, *qualifier.Updatable)
+				require.NotNil(t, qualifier.Optional)
+				require.False(t, *qualifier.Optional)
 			},
 		},
 	}
