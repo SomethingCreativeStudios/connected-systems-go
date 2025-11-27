@@ -8,8 +8,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -18,10 +18,10 @@ type CollectionHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	Repo   *repository.CollectionRepository
-	fc     *serializers.MultiFormatFormatterCollection[*domains.Collection]
+	fc     *formaters.MultiFormatFormatterCollection[*domains.Collection]
 }
 
-func NewCollectionHandler(cfg *config.Config, logger *zap.Logger, repo *repository.CollectionRepository, fc *serializers.MultiFormatFormatterCollection[*domains.Collection]) *CollectionHandler {
+func NewCollectionHandler(cfg *config.Config, logger *zap.Logger, repo *repository.CollectionRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Collection]) *CollectionHandler {
 	return &CollectionHandler{cfg: cfg, Repo: repo, logger: logger, fc: fc}
 }
 

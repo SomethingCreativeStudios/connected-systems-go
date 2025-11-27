@@ -5,8 +5,8 @@ import (
 	"net/url"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	serializers "github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 )
 
 type FeatureCollection[T any, S any] struct {

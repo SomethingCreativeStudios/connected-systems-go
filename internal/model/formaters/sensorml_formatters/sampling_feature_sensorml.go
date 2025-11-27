@@ -7,13 +7,13 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
 // SamplingFeatureSensorMLFormatter handles serialization and deserialization of SamplingFeature objects in SensorML format
 type SamplingFeatureSensorMLFormatter struct {
-	serializers.Formatter[domains.SamplingFeatureSensorMLFeature, *domains.SamplingFeature]
+	formaters.Formatter[domains.SamplingFeatureSensorMLFeature, *domains.SamplingFeature]
 	repos *repository.Repositories
 }
 

@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -18,11 +18,11 @@ type PropertyHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	repo   *repository.PropertyRepository
-	fc     *serializers.MultiFormatFormatterCollection[*domains.Property]
+	fc     *formaters.MultiFormatFormatterCollection[*domains.Property]
 }
 
 // NewPropertyHandler creates a new PropertyHandler
-func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository.PropertyRepository, fc *serializers.MultiFormatFormatterCollection[*domains.Property]) *PropertyHandler {
+func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository.PropertyRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Property]) *PropertyHandler {
 	return &PropertyHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
 }
 

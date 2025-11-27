@@ -10,9 +10,9 @@ import (
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers/geojson_formatters"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers/sensorml_formatters"
+	serializers "github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters/geojson_formatters"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters/sensorml_formatters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )

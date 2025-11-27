@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -18,11 +18,11 @@ type FeatureHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	repo   *repository.FeatureRepository
-	fc     *serializers.MultiFormatFormatterCollection[*domains.Feature]
+	fc     *formaters.MultiFormatFormatterCollection[*domains.Feature]
 }
 
 // NewFeatureHandler creates a new FeatureHandler
-func NewFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.FeatureRepository, fc *serializers.MultiFormatFormatterCollection[*domains.Feature]) *FeatureHandler {
+func NewFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.FeatureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Feature]) *FeatureHandler {
 	return &FeatureHandler{
 		cfg:    cfg,
 		logger: logger,

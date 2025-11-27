@@ -8,8 +8,8 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -19,14 +19,14 @@ type SystemHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	repo   *repository.SystemRepository
-	fc     *serializers.MultiFormatFormatterCollection[*domains.System]
+	fc     *formaters.MultiFormatFormatterCollection[*domains.System]
 	// deployment dependencies for server-side reuse
 	deploymentRepo *repository.DeploymentRepository
-	deploymentFC   *serializers.MultiFormatFormatterCollection[*domains.Deployment]
+	deploymentFC   *formaters.MultiFormatFormatterCollection[*domains.Deployment]
 }
 
 // NewSystemHandler creates a new SystemHandler
-func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, fc *serializers.MultiFormatFormatterCollection[*domains.System], deploymentRepo *repository.DeploymentRepository, deploymentFC *serializers.MultiFormatFormatterCollection[*domains.Deployment]) *SystemHandler {
+func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, fc *formaters.MultiFormatFormatterCollection[*domains.System], deploymentRepo *repository.DeploymentRepository, deploymentFC *formaters.MultiFormatFormatterCollection[*domains.Deployment]) *SystemHandler {
 	return &SystemHandler{
 		cfg:            cfg,
 		logger:         logger,

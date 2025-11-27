@@ -7,13 +7,13 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
 // ProcedureGeoJSONFormatter handles serialization and deserialization of Procedure objects in GeoJSON format
 type ProcedureGeoJSONFormatter struct {
-	serializers.Formatter[domains.ProcedureGeoJSONFeature, *domains.Procedure]
+	formaters.Formatter[domains.ProcedureGeoJSONFeature, *domains.Procedure]
 	repos *repository.Repositories
 }
 

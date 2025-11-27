@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -18,11 +18,11 @@ type ProcedureHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	repo   *repository.ProcedureRepository
-	fc     *serializers.MultiFormatFormatterCollection[*domains.Procedure]
+	fc     *formaters.MultiFormatFormatterCollection[*domains.Procedure]
 }
 
 // NewProcedureHandler creates a new ProcedureHandler
-func NewProcedureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ProcedureRepository, fc *serializers.MultiFormatFormatterCollection[*domains.Procedure]) *ProcedureHandler {
+func NewProcedureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ProcedureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Procedure]) *ProcedureHandler {
 	return &ProcedureHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
 }
 

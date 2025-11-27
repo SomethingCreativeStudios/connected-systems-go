@@ -7,7 +7,7 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
@@ -15,7 +15,7 @@ const GeoJSONContentType = "application/geo+json"
 
 // SystemGeoJSONFormatter handles serialization and deserialization of System objects in GeoJSON format
 type SystemGeoJSONFormatter struct {
-	serializers.Formatter[domains.SystemGeoJSONFeature, *domains.System]
+	formaters.Formatter[domains.SystemGeoJSONFeature, *domains.System]
 	repos *repository.Repositories
 }
 

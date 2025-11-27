@@ -7,13 +7,13 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
 // SamplingFeatureGeoJSONFormatter handles serialization and deserialization of SamplingFeature objects in GeoJSON format
 type SamplingFeatureGeoJSONFormatter struct {
-	serializers.Formatter[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature]
+	formaters.Formatter[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature]
 	repos *repository.Repositories
 }
 

@@ -7,13 +7,13 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
 // DeploymentGeoJSONFormatter handles serialization and deserialization of Deployment objects in GeoJSON format
 type DeploymentGeoJSONFormatter struct {
-	serializers.Formatter[domains.DeploymentGeoJSONFeature, *domains.Deployment]
+	formaters.Formatter[domains.DeploymentGeoJSONFeature, *domains.Deployment]
 	repos *repository.Repositories
 }
 

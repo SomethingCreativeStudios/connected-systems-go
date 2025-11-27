@@ -8,8 +8,8 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -19,11 +19,11 @@ type SamplingFeatureHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	repo   *repository.SamplingFeatureRepository
-	fc     *serializers.MultiFormatFormatterCollection[*domains.SamplingFeature]
+	fc     *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]
 }
 
 // NewSamplingFeatureHandler creates a new SamplingFeatureHandler
-func NewSamplingFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SamplingFeatureRepository, fc *serializers.MultiFormatFormatterCollection[*domains.SamplingFeature]) *SamplingFeatureHandler {
+func NewSamplingFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SamplingFeatureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]) *SamplingFeatureHandler {
 	return &SamplingFeatureHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
 }
 

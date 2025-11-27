@@ -7,13 +7,13 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
 // ProcedureSensorMLFormatter handles serialization and deserialization of Procedure objects in SensorML format
 type ProcedureSensorMLFormatter struct {
-	serializers.Formatter[domains.ProcedureSensorMLFeature, *domains.Procedure]
+	formaters.Formatter[domains.ProcedureSensorMLFeature, *domains.Procedure]
 	repos *repository.Repositories
 }
 

@@ -1,4 +1,4 @@
-package serializers
+package formaters
 
 import "context"
 

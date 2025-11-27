@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -18,11 +18,11 @@ type DeploymentHandler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	repo   *repository.DeploymentRepository
-	fc     *serializers.MultiFormatFormatterCollection[*domains.Deployment]
+	fc     *formaters.MultiFormatFormatterCollection[*domains.Deployment]
 }
 
 // NewDeploymentHandler creates a new DeploymentHandler
-func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *repository.DeploymentRepository, fc *serializers.MultiFormatFormatterCollection[*domains.Deployment]) *DeploymentHandler {
+func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *repository.DeploymentRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Deployment]) *DeploymentHandler {
 	return &DeploymentHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
 }
 

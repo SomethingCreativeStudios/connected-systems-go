@@ -7,13 +7,13 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
 // DeploymentSensorMLFormatter handles serialization and deserialization of Deployment objects in SensorML format
 type DeploymentSensorMLFormatter struct {
-	serializers.Formatter[domains.DeploymentSensorMLFeature, *domains.Deployment]
+	formaters.Formatter[domains.DeploymentSensorMLFeature, *domains.Deployment]
 	repos *repository.Repositories
 }
 

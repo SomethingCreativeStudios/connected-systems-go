@@ -1,4 +1,4 @@
-package serializers
+package formaters
 
 import (
 	"context"
@@ -153,30 +153,12 @@ func (m *MultiFormatFormatterCollection[Domain]) SerializeAll(contentType string
 	return formatter.SerializeAllAny(context.Background(), items)
 }
 
-// SerializeWithContext serializes a single item using the appropriate formatter with context
-func (m *MultiFormatFormatterCollection[Domain]) SerializeWithContext(ctx context.Context, contentType string, item Domain) (any, error) {
-	formatter := m.GetFormatter(contentType)
-	return formatter.SerializeAny(ctx, item)
-}
-
-// SerializeAllWithContext serializes multiple items using the appropriate formatter with context
-func (m *MultiFormatFormatterCollection[Domain]) SerializeAllWithContext(ctx context.Context, contentType string, items []Domain) ([]any, error) {
-	formatter := m.GetFormatter(contentType)
-	return formatter.SerializeAllAny(ctx, items)
-}
-
 // --- Deserialization methods ---
 
 // Deserialize deserializes from a reader using the appropriate formatter
 func (m *MultiFormatFormatterCollection[Domain]) Deserialize(contentType string, reader io.Reader) (Domain, error) {
 	formatter := m.GetFormatter(contentType)
 	return formatter.Deserialize(context.Background(), reader)
-}
-
-// DeserializeWithContext deserializes from a reader using the appropriate formatter with context
-func (m *MultiFormatFormatterCollection[Domain]) DeserializeWithContext(ctx context.Context, contentType string, reader io.Reader) (Domain, error) {
-	formatter := m.GetFormatter(contentType)
-	return formatter.Deserialize(ctx, reader)
 }
 
 // --- Collection building ---

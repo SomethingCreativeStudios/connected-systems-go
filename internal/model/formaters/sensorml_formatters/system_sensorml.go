@@ -7,7 +7,7 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
@@ -15,7 +15,7 @@ const SensorMLContentType = "application/sml+json"
 
 // SystemSensorMLFormatter handles serialization and deserialization of System objects in SensorML format
 type SystemSensorMLFormatter struct {
-	serializers.Formatter[domains.SystemSensorMLFeature, *domains.System]
+	formaters.Formatter[domains.SystemSensorMLFeature, *domains.System]
 	repos *repository.Repositories
 }
 

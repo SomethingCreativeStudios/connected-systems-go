@@ -8,13 +8,13 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/serializers"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
 // FeatureGeoJSONFormatter handles serialization and deserialization of Feature objects in GeoJSON format
 type FeatureGeoJSONFormatter struct {
-	serializers.Formatter[domains.FeatureGeoJSONFeature, *domains.Feature]
+	formaters.Formatter[domains.FeatureGeoJSONFeature, *domains.Feature]
 	repos *repository.Repositories
 }
 
