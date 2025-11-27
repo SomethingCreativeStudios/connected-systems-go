@@ -8,6 +8,11 @@ import (
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 )
 
+type Serializer[Output any, Input any] interface {
+	Serialize(ctx context.Context, item Input) (Output, error)
+	SerializeAll(ctx context.Context, items []Input) ([]Output, error)
+}
+
 // Deserializer converts wire format data into domain objects
 type Deserializer[Output any] interface {
 	// Deserialize reads from a reader and produces the domain object
