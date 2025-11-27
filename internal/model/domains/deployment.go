@@ -2,9 +2,7 @@ package domains
 
 import (
 	"encoding/json"
-	"net/http"
 
-	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
@@ -77,48 +75,6 @@ type DeployedSystemItem struct {
 	Description   string             `json:"description,omitempty"`
 	System        common_shared.Link `json:"system"`
 	Configuration json.RawMessage    `json:"configuration,omitempty"`
-}
-
-func (Deployment) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Deployment, error) {
-	// Decode GeoJSON Feature format
-	var geoJSON struct {
-		Type       string                      `json:"type"`
-		ID         string                      `json:"id,omitempty"`
-		Properties DeploymentGeoJSONProperties `json:"properties"`
-		Geometry   *common_shared.GoGeom       `json:"geometry,omitempty"`
-		Links      common_shared.Links         `json:"links,omitempty"`
-	}
-	if err := render.DecodeJSON(r.Body, &geoJSON); err != nil {
-		return Deployment{}, err
-	}
-
-	// Convert GeoJSON properties to Deployment model
-	deployment := Deployment{
-		Links: geoJSON.Links,
-	}
-	if geoJSON.Geometry != nil {
-		deployment.Geometry = geoJSON.Geometry
-	}
-	// Extract properties from the properties object
-	deployment.UniqueIdentifier = UniqueID(geoJSON.Properties.UID)
-	deployment.Name = geoJSON.Properties.Name
-	deployment.Description = geoJSON.Properties.Description
-	// prefer explicit `definition` when present (matches schema semantics)
-	if geoJSON.Properties.Definition != "" {
-		deployment.DeploymentType = geoJSON.Properties.Definition
-	} else {
-		deployment.DeploymentType = geoJSON.Properties.FeatureType
-	}
-	deployment.ValidTime = geoJSON.Properties.ValidTime
-	// Platform and DeployedSystems
-	if geoJSON.Properties.Platform != nil {
-		deployment.Platform = geoJSON.Properties.Platform
-	}
-	if len(geoJSON.Properties.DeployedSystems) > 0 {
-		deployment.DeployedSystems = geoJSON.Properties.DeployedSystems
-	}
-
-	return deployment, nil
 }
 
 // DeploymentSensorMLFeature represents a Deployment serialized in SensorML JSON format

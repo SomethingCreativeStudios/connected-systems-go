@@ -1,9 +1,6 @@
 package domains
 
 import (
-	"net/http"
-
-	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
@@ -83,31 +80,4 @@ type PropertyGeoJSONProperties struct {
 	Statistic         *string                          `json:"statistic,omitempty"`
 	Qualifiers        []common_shared.ComponentWrapper `json:"qualifiers,omitempty"`
 	UnitOfMeasurement *string                          `json:"uom,omitempty"`
-}
-
-func (Property) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Property, error) {
-	// Decode GeoJSON Feature format
-	var sensorML = PropertySensorMLFeature{}
-
-	if err := render.DecodeJSON(r.Body, &sensorML); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
-		return Property{}, err
-	}
-
-	property := Property{
-		Links: sensorML.Links,
-	}
-
-	// Extract properties from the properties object
-	property.UniqueIdentifier = UniqueID(sensorML.UniqueID)
-
-	property.Name = sensorML.Label
-	property.Description = sensorML.Description
-	property.ObjectType = sensorML.ObjectType
-	property.BaseProperty = sensorML.BaseProperty
-	property.Statistic = sensorML.Statistic
-	property.Qualifiers = sensorML.Qualifiers
-
-	return property, nil
 }

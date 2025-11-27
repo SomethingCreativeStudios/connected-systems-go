@@ -104,7 +104,12 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 		sf.SampledFeatureID = geoJSON.Properties.SampledFeatureLink.GetId("samplingFeatures")
 	}
 
-	// Handle links (parentSystem, sampleOf, etc.) - process link relations
+	f.handleLinks(sf)
+
+	return sf, nil
+}
+
+func (f *SamplingFeatureGeoJSONFormatter) handleLinks(sf *domains.SamplingFeature) {
 	sampleIds := []string{}
 	sampleUids := []string{}
 
@@ -132,6 +137,4 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 	if len(sampleUids) > 0 {
 		sf.SampleOfUIDs = &sampleUids
 	}
-
-	return sf, nil
 }

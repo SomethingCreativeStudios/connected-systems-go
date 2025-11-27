@@ -1,9 +1,6 @@
 package domains
 
 import (
-	"net/http"
-
-	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
@@ -72,77 +69,6 @@ type SamplingFeatureGeoJSONProperties struct {
 	FeatureType        string                   `json:"featureType"`
 	ValidTime          *common_shared.TimeRange `json:"validTime,omitempty"`
 	SampledFeatureLink common_shared.Link       `json:"sampledFeature@Link,omitempty"`
-}
-
-func (SamplingFeature) BuildFromRequest(r *http.Request, w http.ResponseWriter) (SamplingFeature, error) {
-	// Decode GeoJSON Feature format
-	var geoJSON struct {
-		Type       string                           `json:"type"`
-		ID         string                           `json:"id,omitempty"`
-		Properties SamplingFeatureGeoJSONProperties `json:"properties"`
-		Geometry   *common_shared.GoGeom            `json:"geometry,omitempty"`
-		Links      common_shared.Links              `json:"links,omitempty"`
-	}
-
-	if err := render.DecodeJSON(r.Body, &geoJSON); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
-		return SamplingFeature{}, err
-	}
-
-	// Convert GeoJSON properties to System model
-	samplingFeatures := SamplingFeature{
-		Links: geoJSON.Links,
-	}
-	if geoJSON.Geometry != nil {
-		samplingFeatures.Geometry = geoJSON.Geometry
-	}
-
-	// Extract properties from the properties object
-	samplingFeatures.UniqueIdentifier = UniqueID(geoJSON.Properties.UID)
-
-	samplingFeatures.Name = geoJSON.Properties.Name
-	samplingFeatures.Description = geoJSON.Properties.Description
-	samplingFeatures.FeatureType = geoJSON.Properties.FeatureType
-	samplingFeatures.ValidTime = geoJSON.Properties.ValidTime
-
-	if geoJSON.Properties.SampledFeatureLink.Href != "" {
-		samplingFeatures.SampledFeatureID = geoJSON.Properties.SampledFeatureLink.GetId("samplingFeatures")
-	}
-
-	samplingFeatures.handleLinks()
-
-	return samplingFeatures, nil
-}
-
-func (sf *SamplingFeature) handleLinks() {
-	sampleIds := []string{}
-	sampleUids := []string{}
-
-	for _, link := range sf.Links {
-		if link.Rel == "parentSystem" {
-			sf.ParentSystemID = link.GetId("systems")
-			if link.UID != nil {
-				sf.ParentSystemUID = link.UID
-			}
-		}
-
-		if link.Rel == "sampleOf" {
-			if id := link.GetId("samplingFeatures"); id != nil {
-				sampleIds = append(sampleIds, *id)
-			}
-			if link.UID != nil {
-				sampleUids = append(sampleUids, *link.UID)
-			}
-		}
-	}
-
-	if len(sampleIds) > 0 {
-		sf.SampleOfIDs = &sampleIds
-	}
-	if len(sampleUids) > 0 {
-		sf.SampleOfUIDs = &sampleUids
-	}
 }
 
 // SamplingFeatureSensorMLFeature represents a SamplingFeature serialized in SensorML JSON format

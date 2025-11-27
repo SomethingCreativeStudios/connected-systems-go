@@ -2,9 +2,7 @@ package domains
 
 import (
 	"encoding/json"
-	"net/http"
 
-	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
@@ -104,47 +102,6 @@ type ProcedureGeoJSONProperties struct {
 	Contacts      []common_shared.ContactWrapper `json:"contacts,omitempty"`
 	Documentation common_shared.Documents        `json:"documentation,omitempty"`
 	History       common_shared.History          `json:"history,omitempty"`
-}
-
-func (Procedure) BuildFromRequest(r *http.Request, w http.ResponseWriter) (Procedure, error) {
-	// Decode GeoJSON Feature format
-	var geoJSON struct {
-		Type       string                     `json:"type"`
-		ID         string                     `json:"id,omitempty"`
-		Properties ProcedureGeoJSONProperties `json:"properties"`
-		Geometry   *common_shared.GoGeom      `json:"geometry,omitempty"`
-		Links      common_shared.Links        `json:"links,omitempty"`
-	}
-
-	if err := render.DecodeJSON(r.Body, &geoJSON); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
-		return Procedure{}, err
-	}
-
-	// Convert GeoJSON properties to Procedure model
-	procedure := Procedure{
-		Links: geoJSON.Links,
-	}
-
-	// Validate/convert geometry if provided (procedures usually don't have geometry)
-	if geoJSON.Geometry != nil {
-		// decoded into GoGeom; procedures normally don't store geometry
-	}
-
-	// Extract properties from the properties object
-	procedure.UniqueIdentifier = UniqueID(geoJSON.Properties.UID)
-	procedure.Name = geoJSON.Properties.Name
-	procedure.Description = geoJSON.Properties.Description
-	procedure.FeatureType = geoJSON.Properties.FeatureType
-	procedure.ValidTime = geoJSON.Properties.ValidTime
-	procedure.Keywords = geoJSON.Properties.Keywords
-	procedure.Identifiers = geoJSON.Properties.Identifiers
-	procedure.Contacts = geoJSON.Properties.Contacts
-	procedure.Documentation = geoJSON.Properties.Documentation
-	procedure.History = geoJSON.Properties.History
-
-	return procedure, nil
 }
 
 // ProcedureSensorMLFeature represents a Procedure serialized in SensorML JSON format
