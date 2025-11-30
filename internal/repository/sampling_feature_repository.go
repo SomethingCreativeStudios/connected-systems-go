@@ -80,17 +80,23 @@ func (r *SamplingFeatureRepository) applyFilters(query *gorm.DB, params *querypa
 		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
 	}
 
-	if params.Bbox != nil {
-		query = query.Where("ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", params.Bbox.MinY, params.Bbox.MinX, params.Bbox.MaxY, params.Bbox.MaxX)
+	if params.DateTime != nil {
+		// Only add conditions if start/end are not nil
+		if params.DateTime.Start != nil && params.DateTime.End != nil {
+			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.DateTime.End, params.DateTime.Start)
+		} else if params.DateTime.Start != nil {
+			query = query.Where("valid_time_end IS NULL OR valid_time_end >= ?", params.DateTime.Start)
+		} else if params.DateTime.End != nil {
+			query = query.Where("valid_time_start <= ?", params.DateTime.End)
+		}
 	}
 
-	if params.DateTime != nil {
-		if params.DateTime.Start != nil {
-			query = query.Where("valid_time && tstzrange(?, NULL)", params.DateTime.Start.Format("2006-01-02T15:04:05Z"))
-		}
-		if params.DateTime.End != nil {
-			query = query.Where("valid_time && tstzrange(NULL, ?)", params.DateTime.End.Format("2006-01-02T15:04:05Z"))
-		}
+	if params.Bbox != nil {
+		query = query.Where("ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", params.Bbox.MinX, params.Bbox.MinY, params.Bbox.MaxX, params.Bbox.MaxY)
+	}
+
+	if params.Geom != "" {
+		query = query.Where("ST_Intersects(geometry, ST_GeomFromText(?, 4326))", params.Geom)
 	}
 
 	if len(params.FOI) > 0 {
