@@ -52,10 +52,20 @@ func TestSamplingFeaturesAPI_E2E(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
+		location := resp.Header.Get("Location")
+		assert.NotEmpty(t, location, "Location header should be set")
+
+		// Cleanup - delete created sampling feature
+		createdID := parseSamplingFeatureID(location)
+
+		assert.NotEmpty(t, createdID, "Created sampling feature should not be empty")
+
+		found, err := fetchById(createdID)
 		require.NoError(t, err)
-		assert.NotEmpty(t, result["id"])
+		assert.NotNil(t, found, "Fetched sampling feature should not be nil")
+
+		assert.Equal(t, (*found)["id"], createdID)
+
 	})
 
 	t.Run("GET /samplingFeatures - list sampling features", func(t *testing.T) {
@@ -88,16 +98,16 @@ func TestSamplingFeaturesAPI_E2E(t *testing.T) {
 
 		body, _ := json.Marshal(payload)
 		createResp, err := http.Post(testServer.URL+"/systems/"+systemID+"/samplingFeatures", "application/json", bytes.NewReader(body))
-		require.NoError(t, err)
-		var created map[string]interface{}
-		err = json.NewDecoder(createResp.Body).Decode(&created)
 		createResp.Body.Close()
-		require.NoError(t, err)
 
-		sfID := created["id"].(string)
+		locationId := parseSamplingFeatureID(createResp.Header.Get("Location"))
+
+		sfID, err := fetchById(locationId)
+		require.NoError(t, err)
+		assert.NotEmpty(t, sfID, "Created sampling feature should not be empty")
 
 		// Get it
-		resp, err := http.Get(testServer.URL + "/samplingFeatures/" + sfID)
+		resp, err := http.Get(testServer.URL + "/samplingFeatures/" + locationId)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -117,12 +127,9 @@ func TestSamplingFeaturesAPI_E2E(t *testing.T) {
 		body, _ := json.Marshal(payload)
 		createResp, err := http.Post(testServer.URL+"/systems/"+systemID+"/samplingFeatures", "application/json", bytes.NewReader(body))
 		require.NoError(t, err)
-		var created map[string]interface{}
-		err = json.NewDecoder(createResp.Body).Decode(&created)
 		createResp.Body.Close()
-		require.NoError(t, err)
 
-		sfID := created["id"].(string)
+		sfID := parseSamplingFeatureID(createResp.Header.Get("Location"))
 
 		// Update it
 		updatePayload := map[string]interface{}{
@@ -158,15 +165,15 @@ func TestSamplingFeaturesAPI_E2E(t *testing.T) {
 		body, _ := json.Marshal(payload)
 		createResp, err := http.Post(testServer.URL+"/systems/"+systemID+"/samplingFeatures", "application/json", bytes.NewReader(body))
 		require.NoError(t, err)
-		var created map[string]interface{}
-		err = json.NewDecoder(createResp.Body).Decode(&created)
 		createResp.Body.Close()
-		require.NoError(t, err)
 
-		sfID := created["id"].(string)
+		sfID := parseSamplingFeatureID(createResp.Header.Get("Location"))
+		created, err := fetchById(sfID)
+		require.NoError(t, err)
+		assert.NotEmpty(t, created, "Created sampling feature should not be empty")
 
 		// verify parentSystem link is present and references our system
-		linksIface, ok := created["links"].([]interface{})
+		linksIface, ok := (*created)["links"].([]interface{})
 		require.True(t, ok, "expected links to be an array")
 		foundParent := false
 		for _, li := range linksIface {
