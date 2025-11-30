@@ -43,11 +43,6 @@ func (f *SamplingFeatureGeoJSONFormatter) SerializeAll(ctx context.Context, samp
 
 	var features []domains.SamplingFeatureGeoJSONFeature
 	for _, sf := range samplingFeatures {
-		var sampledFeatureLink common_shared.Link
-		if sf.SampledFeatureLink != nil {
-			sampledFeatureLink = *sf.SampledFeatureLink
-		}
-
 		feature := domains.SamplingFeatureGeoJSONFeature{
 			Type:     "Feature",
 			ID:       sf.ID,
@@ -58,7 +53,7 @@ func (f *SamplingFeatureGeoJSONFormatter) SerializeAll(ctx context.Context, samp
 				Description:        sf.Description,
 				FeatureType:        sf.FeatureType,
 				ValidTime:          sf.ValidTime,
-				SampledFeatureLink: sampledFeatureLink,
+				SampledFeatureLink: sf.SampledFeatureLink,
 			},
 			Links: sf.Links,
 		}
@@ -99,8 +94,9 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 	sf.FeatureType = geoJSON.Properties.FeatureType
 	sf.ValidTime = geoJSON.Properties.ValidTime
 
-	// Handle sampled feature link
-	if geoJSON.Properties.SampledFeatureLink.Href != "" {
+	// Handle sampled feature link - store both the link and extract ID
+	if geoJSON.Properties.SampledFeatureLink != nil && geoJSON.Properties.SampledFeatureLink.Href != "" {
+		sf.SampledFeatureLink = geoJSON.Properties.SampledFeatureLink
 		sf.SampledFeatureID = geoJSON.Properties.SampledFeatureLink.GetId("samplingFeatures")
 	}
 

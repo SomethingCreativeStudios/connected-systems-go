@@ -35,11 +35,16 @@ func (r *SamplingFeatureRepository) GetByID(id string) (*domains.SamplingFeature
 
 // List retrieves sampling features with filtering
 func (r *SamplingFeatureRepository) List(params *queryparams.SamplingFeatureQueryParams) ([]*domains.SamplingFeature, int64, error) {
+	return r.ListSystem(params, nil)
+}
+
+// List retrieves sampling features with filtering
+func (r *SamplingFeatureRepository) ListSystem(params *queryparams.SamplingFeatureQueryParams, systemID *string) ([]*domains.SamplingFeature, int64, error) {
 	var features []*domains.SamplingFeature
 	var total int64
 
 	query := r.db.Model(&domains.SamplingFeature{})
-	query = r.applyFilters(query, params)
+	query = r.applyFilters(query, params, systemID)
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -66,12 +71,36 @@ func (r *SamplingFeatureRepository) Delete(id string) error {
 	return r.db.Delete(&domains.SamplingFeature{}, "id = ?", id).Error
 }
 
-func (r *SamplingFeatureRepository) applyFilters(query *gorm.DB, params *queryparams.SamplingFeatureQueryParams) *gorm.DB {
+func (r *SamplingFeatureRepository) applyFilters(query *gorm.DB, params *queryparams.SamplingFeatureQueryParams, systemID *string) *gorm.DB {
 	if len(params.IDs) > 0 {
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
+
 	if len(params.Q) > 0 {
 		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
 	}
+
+	if params.Bbox != nil {
+		query = query.Where("ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", params.Bbox.MinY, params.Bbox.MinX, params.Bbox.MaxY, params.Bbox.MaxX)
+	}
+
+	if params.DateTime != nil {
+		if params.DateTime.Start != nil {
+			query = query.Where("valid_time && tstzrange(?, NULL)", params.DateTime.Start.Format("2006-01-02T15:04:05Z"))
+		}
+		if params.DateTime.End != nil {
+			query = query.Where("valid_time && tstzrange(NULL, ?)", params.DateTime.End.Format("2006-01-02T15:04:05Z"))
+		}
+	}
+
+	if len(params.FOI) > 0 {
+		query = query.Joins("JOIN sampling_feature_fois sff ON sff.sampling_feature_id = sampling_features.id").
+			Where("sff.foi_id IN ?", params.FOI)
+	}
+
+	if systemID != nil {
+		query = query.Where("parent_system_id = ?", *systemID)
+	}
+
 	return query
 }

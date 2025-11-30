@@ -24,7 +24,7 @@ type SamplingFeature struct {
 
 	SampledFeatureID   *string             `gorm:"type:varchar(255);index" json:"featureId"`
 	SampledFeatureUID  *string             `gorm:"type:varchar(255)" json:"featureUid,omitempty"`
-	SampledFeatureLink *common_shared.Link `gorm:"type:jsonb" json:"sampledFeature@Link,omitempty"`
+	SampledFeatureLink *common_shared.Link `gorm:"type:jsonb" json:"sampledFeature@link,omitempty"`
 
 	SampleOfIDs  *[]string            `gorm:"-" json:"sampleOfIds,omitempty"`
 	SampleOfUIDs *[]string            `gorm:"-" json:"sampleOfUids,omitempty"`
@@ -68,7 +68,7 @@ type SamplingFeatureGeoJSONProperties struct {
 	Description        string                   `json:"description,omitempty"`
 	FeatureType        string                   `json:"featureType"`
 	ValidTime          *common_shared.TimeRange `json:"validTime,omitempty"`
-	SampledFeatureLink common_shared.Link       `json:"sampledFeature@Link,omitempty"`
+	SampledFeatureLink *common_shared.Link      `json:"sampledFeature@link,omitempty"`
 }
 
 // SamplingFeatureSensorMLFeature represents a SamplingFeature serialized in SensorML JSON format

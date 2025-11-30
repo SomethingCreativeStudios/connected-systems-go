@@ -109,18 +109,9 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, sampledFeature)
-	if err != nil {
-		h.logger.Error("Failed to serialize sampling feature", zap.String("id", sampledFeature.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize sampling feature"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, serialized)
+	// Per spec: return 201 Created with Location header and no response body
+	w.Header().Set("Location", h.cfg.API.BaseURL+"/samplingFeatures/"+sampledFeature.ID)
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r *http.Request) {
@@ -171,6 +162,28 @@ func (h *SamplingFeatureHandler) DeleteSamplingFeature(w http.ResponseWriter, r 
 }
 
 func (h *SamplingFeatureHandler) GetSystemSamplingFeatures(w http.ResponseWriter, r *http.Request) {
-	render.Status(r, http.StatusNotImplemented)
-	render.JSON(w, r, map[string]string{"message": "Not implemented"})
+	systemID := chi.URLParam(r, "id")
+
+	params, err := queryparams.SamplingFeatureQueryParams{}.BuildFromRequest(r)
+	if err != nil {
+		h.logger.Error("Failed to parse query parameters", zap.Error(err))
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": "Invalid query parameters"})
+		return
+	}
+
+	sampledFeatures, total, err := h.repo.ListSystem(params, &systemID)
+	if err != nil {
+		h.logger.Error("Failed to list sampling features", zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		return
+	}
+
+	acceptHeader := r.Header.Get("Accept")
+	collection := h.fc.BuildCollection(acceptHeader, sampledFeatures, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
+
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	render.JSON(w, r, collection)
+
 }

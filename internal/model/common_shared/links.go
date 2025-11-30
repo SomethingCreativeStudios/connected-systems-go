@@ -16,6 +16,23 @@ type Link struct {
 	UID   *string `json:"uid,omitempty"`
 }
 
+// Value implements driver.Valuer for JSONB storage
+func (l Link) Value() (driver.Value, error) {
+	return json.Marshal(l)
+}
+
+// Scan implements sql.Scanner for JSONB retrieval
+func (l *Link) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return nil
+	}
+	return json.Unmarshal(b, l)
+}
+
 func (l Link) GetId(basePath string) *string {
 	// Build a regex that matches the resource and captures the next segment
 	// Anchored to the end to avoid grabbing extra segments.
