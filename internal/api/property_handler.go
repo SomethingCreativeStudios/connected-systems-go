@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -87,19 +88,12 @@ func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request)
 		render.JSON(w, r, map[string]string{"error": "Failed to create property"})
 		return
 	}
-
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, property)
-	if err != nil {
-		h.logger.Error("Failed to serialize property", zap.String("id", property.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize property"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, serialized)
+	// Per conformance behavior, respond with 201 Created and a Location header
+	// pointing to the newly created resource. Do not include a response body.
+	base := strings.TrimRight(h.cfg.API.BaseURL, "/")
+	location := base + "/properties/" + property.ID
+	w.Header().Set("Location", location)
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request) {
@@ -122,18 +116,7 @@ func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, property)
-	if err != nil {
-		h.logger.Error("Failed to serialize property", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize property"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, serialized)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *PropertyHandler) DeleteProperty(w http.ResponseWriter, r *http.Request) {

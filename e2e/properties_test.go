@@ -3,7 +3,9 @@ package e2e
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -364,10 +366,21 @@ func TestPropertiesAPI_E2E(t *testing.T) {
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 
 			if tc.validateResult != nil {
-				var result map[string]interface{}
-				err = json.NewDecoder(resp.Body).Decode(&result)
-				require.NoError(t, err)
-				tc.validateResult(t, result)
+				if resp.StatusCode == http.StatusCreated {
+					// Expect Location header and fetch the created resource for validation
+					location := resp.Header.Get("Location")
+					require.NotEmpty(t, location, "expected Location header on create")
+					id := parsePropertyID(location)
+					require.NotEmpty(t, id, "unable to parse id from Location header: %s", location)
+					created, err := fetchPropertyById(id)
+					require.NoError(t, err)
+					tc.validateResult(t, *created)
+				} else {
+					var result map[string]interface{}
+					err = json.NewDecoder(resp.Body).Decode(&result)
+					require.NoError(t, err)
+					tc.validateResult(t, result)
+				}
 			}
 		})
 	}
@@ -446,12 +459,14 @@ func TestPropertiesAPI_E2E(t *testing.T) {
 			body, _ := json.Marshal(tc.createPayload)
 			createResp, err := http.Post(testServer.URL+"/properties", "application/sml+json", bytes.NewReader(body))
 			require.NoError(t, err)
-			var created map[string]interface{}
-			err = json.NewDecoder(createResp.Body).Decode(&created)
 			createResp.Body.Close()
-			require.NoError(t, err)
 
-			propID := created["id"].(string)
+			// Extract ID from Location header (create returns 201 + Location, no body)
+			require.Equal(t, http.StatusCreated, createResp.StatusCode)
+			location := createResp.Header.Get("Location")
+			require.NotEmpty(t, location, "expected Location header on create")
+			propID := parsePropertyID(location)
+			require.NotEmpty(t, propID, "unable to parse id from Location header: %s", location)
 
 			// Get
 			req, _ := http.NewRequest(http.MethodGet, testServer.URL+"/properties/"+propID, nil)
@@ -472,17 +487,58 @@ func TestPropertiesAPI_E2E(t *testing.T) {
 				resp, err := client.Do(req)
 				require.NoError(t, err)
 
-				var updated map[string]interface{}
-				err = json.NewDecoder(resp.Body).Decode(&updated)
 				resp.Body.Close()
-				require.NoError(t, err)
-
-				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				// Update now returns 204 No Content; fetch the resource to verify changes
+				assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 				if tc.validateUpdate != nil {
-					tc.validateUpdate(t, updated)
+					fetched, err := fetchPropertyById(propID)
+					require.NoError(t, err)
+					tc.validateUpdate(t, *fetched)
 				}
 			}
 		})
 	}
+}
+
+func parsePropertyID(locationHeader string) string {
+	parts := strings.Split(locationHeader, "/properties/")
+
+	if len(parts) == 2 {
+		// strip any trailing slash or query
+		id := parts[1]
+		if idx := strings.IndexAny(id, "?#/"); idx != -1 {
+			id = id[:idx]
+		}
+		return id
+	}
+
+	return ""
+}
+
+func fetchPropertyById(propertyID string) (*map[string]interface{}, error) {
+	url := fmt.Sprintf("%s/properties/%s", testServer.URL, propertyID)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/sml+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch property: status %d", resp.StatusCode)
+	}
+
+	var p map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&p)
+	if err != nil {
+		return nil, err
+	}
+
+	return &p, nil
 }

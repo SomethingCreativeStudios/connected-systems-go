@@ -107,13 +107,11 @@ func setupPropertyConformanceData(t *testing.T) []string {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusCreated, resp.StatusCode, "failed to create property: %s", prop["label"])
 
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
+		location := resp.Header.Get("Location")
 		resp.Body.Close()
-		require.NoError(t, err)
-
-		id, ok := result["id"].(string)
-		require.True(t, ok, "expected id in response")
+		require.NotEmpty(t, location, "expected Location header on create")
+		id := parsePropertyID(location)
+		require.NotEmpty(t, id, "unable to parse id from Location header: %s", location)
 		createdIDs = append(createdIDs, id)
 	}
 
@@ -478,20 +476,22 @@ func testPropertyCRUD(t *testing.T) {
 						// Must return 201 Created
 						assert.Equal(t, http.StatusCreated, resp.StatusCode, "POST /properties must return 201 Created")
 
-						var result map[string]interface{}
-						err = json.NewDecoder(resp.Body).Decode(&result)
+						location := resp.Header.Get("Location")
+						require.NotEmpty(t, location, "expected Location header on create")
+						id := parsePropertyID(location)
+						require.NotEmpty(t, id, "unable to parse id from Location header: %s", location)
+
+						created, err := fetchPropertyById(id)
 						require.NoError(t, err)
 
 						// Must return created resource with ID
-						assert.NotEmpty(t, result["id"], "Created property must have an id")
-						assert.Equal(t, tc.payload["label"], result["label"])
-						assert.Equal(t, tc.payload["uniqueId"], result["uniqueId"])
+						assert.NotEmpty(t, (*created)["id"], "Created property must have an id")
+						assert.Equal(t, tc.payload["label"], (*created)["label"])
+						assert.Equal(t, tc.payload["uniqueId"], (*created)["uniqueId"])
 
 						// Cleanup
-						if id, ok := result["id"].(string); ok {
-							deleteReq, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/properties/"+id, nil)
-							http.DefaultClient.Do(deleteReq)
-						}
+						deleteReq, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/properties/"+id, nil)
+						http.DefaultClient.Do(deleteReq)
 					})
 				}
 			},
@@ -522,11 +522,11 @@ func testPropertyCRUD(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusCreated, createResp.StatusCode)
 
-				var created map[string]interface{}
-				json.NewDecoder(createResp.Body).Decode(&created)
+				location := createResp.Header.Get("Location")
 				createResp.Body.Close()
-
-				propertyID := created["id"].(string)
+				require.NotEmpty(t, location, "expected Location header on create")
+				propertyID := parsePropertyID(location)
+				require.NotEmpty(t, propertyID, "unable to parse id from Location header: %s", location)
 				defer func() {
 					deleteReq, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/properties/"+propertyID, nil)
 					http.DefaultClient.Do(deleteReq)
@@ -548,16 +548,16 @@ func testPropertyCRUD(t *testing.T) {
 
 				replaceResp, err := http.DefaultClient.Do(replaceReq)
 				require.NoError(t, err)
-				defer replaceResp.Body.Close()
+				replaceResp.Body.Close()
 
-				// Must return 200 OK
-				assert.Equal(t, http.StatusOK, replaceResp.StatusCode, "PUT /properties/{id} must return 200 OK")
+				// Update should return 204 No Content
+				assert.Equal(t, http.StatusNoContent, replaceResp.StatusCode, "PUT /properties/{id} must return 204 No Content")
 
-				var replaced map[string]interface{}
-				err = json.NewDecoder(replaceResp.Body).Decode(&replaced)
+				// Fetch the replaced resource to verify updates were applied
+				replacedPtr, err := fetchPropertyById(propertyID)
 				require.NoError(t, err)
+				replaced := *replacedPtr
 
-				// Verify updates were applied
 				assert.Equal(t, "Replaced Property", replaced["label"])
 				assert.Equal(t, "Replaced description", replaced["description"])
 				assert.Equal(t, "https://qudt.org/vocab/quantitykind/Pressure", replaced["baseProperty"])
@@ -588,11 +588,11 @@ func testPropertyCRUD(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusCreated, createResp.StatusCode)
 
-				var created map[string]interface{}
-				json.NewDecoder(createResp.Body).Decode(&created)
+				location := createResp.Header.Get("Location")
 				createResp.Body.Close()
-
-				propertyID := created["id"].(string)
+				require.NotEmpty(t, location, "expected Location header on create")
+				propertyID := parsePropertyID(location)
+				require.NotEmpty(t, propertyID, "unable to parse id from Location header: %s", location)
 
 				// Delete the property
 				deleteReq, err := http.NewRequest(http.MethodDelete, testServer.URL+"/properties/"+propertyID, nil)
