@@ -134,18 +134,7 @@ func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r 
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, sampledFeature)
-	if err != nil {
-		h.logger.Error("Failed to serialize sampling feature", zap.String("id", sampledFeature.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize sampling feature"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, serialized)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *SamplingFeatureHandler) DeleteSamplingFeature(w http.ResponseWriter, r *http.Request) {

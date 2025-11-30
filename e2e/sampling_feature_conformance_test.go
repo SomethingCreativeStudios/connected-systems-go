@@ -652,12 +652,12 @@ func testSamplingFeatureCRUD(t *testing.T, systemID string) {
 
 				replaceResp, err := http.DefaultClient.Do(replaceReq)
 				require.NoError(t, err)
-				defer replaceResp.Body.Close()
+				replaceResp.Body.Close()
 
-				// Must return 200 OK
-				assert.Equal(t, http.StatusOK, replaceResp.StatusCode, "PUT must return 200 OK")
+				// Must return 204 No Content
+				assert.Equal(t, http.StatusNoContent, replaceResp.StatusCode, "PUT must return 204 No Content")
 
-				// Verify the update
+				// Verify the update by fetching the resource
 				getReq, _ := http.NewRequest(http.MethodGet, testServer.URL+"/samplingFeatures/"+sfID, nil)
 				getReq.Header.Set("Accept", "application/geo+json")
 				getResp, err := http.DefaultClient.Do(getReq)

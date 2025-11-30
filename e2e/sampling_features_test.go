@@ -147,9 +147,17 @@ func TestSamplingFeaturesAPI_E2E(t *testing.T) {
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		resp.Body.Close()
 
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		// Update now returns 204 No Content; verify status and fetch resource to confirm changes
+		assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+		// Fetch and verify update
+		fetched, err := fetchById(sfID)
+		require.NoError(t, err)
+		require.NotNil(t, fetched)
+		props := (*fetched)["properties"].(map[string]interface{})
+		assert.Equal(t, "Updated SF", props["name"])
 	})
 
 	t.Run("DELETE /samplingFeatures/{id} - delete sampling feature", func(t *testing.T) {
