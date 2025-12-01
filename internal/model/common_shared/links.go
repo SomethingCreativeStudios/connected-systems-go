@@ -81,3 +81,19 @@ func (l Links) GetIds(basePath string) *[]string {
 	return &ids
 
 }
+
+func (l Links) FilterByRels(rels []string, match bool) Links {
+	var filtered Links
+	relSet := make(map[string]struct{})
+	for _, rel := range rels {
+		relSet[rel] = struct{}{}
+	}
+
+	for _, link := range l {
+		if _, exists := relSet[link.Rel]; exists == match {
+			filtered = append(filtered, link)
+		}
+	}
+
+	return filtered
+}

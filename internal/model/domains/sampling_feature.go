@@ -39,7 +39,7 @@ type SamplingFeature struct {
 	// Optional back-reference to parent system. Don't specify foreignKey here since it's already
 	// defined on the System side (System.SamplingFeatures with foreignKey:ParentSystemID).
 	// Specifying it on both sides causes GORM to create duplicate/conflicting FK constraints.
-	ParentSystem *System `gorm:"->;references:ID" json:"parentSystem,omitempty"`
+	//ParentSystem *System `gorm:"->;references:ID" json:"parentSystem,omitempty"`
 }
 
 // TableName specifies the table name
