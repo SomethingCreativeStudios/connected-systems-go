@@ -60,6 +60,27 @@ func (io IOItem) IsComponent() bool { return io.Component != nil }
 // IsObservable returns true if this IOItem contains an observable property.
 func (io IOItem) IsObservable() bool { return io.Observable != nil }
 
+// MarshalJSON implements custom marshalling so that IOItem serializes to the
+// original JSON payload when possible. This avoids emitting empty objects
+// ("{}") for list entries when only internal fields are populated.
+func (io IOItem) MarshalJSON() ([]byte, error) {
+	// Prefer the preserved raw payload if present
+	if len(io.Raw) > 0 {
+		return io.Raw, nil
+	}
+
+	// Fall back to concrete variants
+	if io.Observable != nil {
+		return json.Marshal(io.Observable)
+	}
+	if io.Component != nil {
+		return json.Marshal(io.Component)
+	}
+
+	// Nothing to emit; return empty object
+	return []byte("{}"), nil
+}
+
 // IOList is a JSONB-friendly slice of IOItem values.
 type IOList []IOItem
 

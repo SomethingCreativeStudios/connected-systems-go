@@ -1,7 +1,9 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -41,7 +43,8 @@ func (h *ProcedureHandler) ListProcedures(w http.ResponseWriter, r *http.Request
 	collection := h.fc.BuildCollection(acceptHeader, procedures, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	render.Status(r, http.StatusOK)
+	json.NewEncoder(w).Encode(collection)
 }
 
 func (h *ProcedureHandler) GetProcedure(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +69,7 @@ func (h *ProcedureHandler) GetProcedure(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.Status(r, http.StatusOK)
-	render.JSON(w, r, serialized)
+	json.NewEncoder(w).Encode(serialized)
 }
 
 func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Request) {
@@ -86,18 +89,9 @@ func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, procedure)
-	if err != nil {
-		h.logger.Error("Failed to serialize procedure", zap.String("id", procedure.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize procedure"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, serialized)
+	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/procedures/" + procedure.ID
+	w.Header().Set("Location", location)
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Request) {
@@ -120,18 +114,8 @@ func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, procedure)
-	if err != nil {
-		h.logger.Error("Failed to serialize procedure", zap.String("id", procedure.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize procedure"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, serialized)
+	render.Status(r, http.StatusNoContent)
+	render.NoContent(w, r)
 }
 
 func (h *ProcedureHandler) DeleteProcedure(w http.ResponseWriter, r *http.Request) {

@@ -46,18 +46,13 @@ func (f *ProcedureGeoJSONFormatter) SerializeAll(ctx context.Context, procedures
 		feature := domains.ProcedureGeoJSONFeature{
 			Type:     "Feature",
 			ID:       procedure.ID,
-			Geometry: nil, // Procedures don't have spatial geometry
+			Geometry: nil, // Procedure GeoJson do not have geometry
 			Properties: domains.ProcedureGeoJSONProperties{
-				UID:           procedure.UniqueIdentifier,
-				Name:          procedure.Name,
-				Description:   procedure.Description,
-				FeatureType:   procedure.FeatureType,
-				ValidTime:     procedure.ValidTime,
-				Keywords:      procedure.Keywords,
-				Identifiers:   procedure.Identifiers,
-				Contacts:      procedure.Contacts,
-				Documentation: procedure.Documentation,
-				History:       procedure.History,
+				UID:         procedure.UniqueIdentifier,
+				Name:        procedure.Name,
+				Description: procedure.Description,
+				FeatureType: procedure.ProcedureType,
+				ValidTime:   procedure.ValidTime,
 			},
 			Links: procedure.Links,
 		}
@@ -90,13 +85,8 @@ func (f *ProcedureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.R
 	procedure.UniqueIdentifier = domains.UniqueID(geoJSON.Properties.UID)
 	procedure.Name = geoJSON.Properties.Name
 	procedure.Description = geoJSON.Properties.Description
-	procedure.FeatureType = geoJSON.Properties.FeatureType
+	procedure.ProcedureType = geoJSON.Properties.FeatureType
 	procedure.ValidTime = geoJSON.Properties.ValidTime
-	procedure.Keywords = geoJSON.Properties.Keywords
-	procedure.Identifiers = geoJSON.Properties.Identifiers
-	procedure.Contacts = geoJSON.Properties.Contacts
-	procedure.Documentation = geoJSON.Properties.Documentation
-	procedure.History = geoJSON.Properties.History
 
 	return procedure, nil
 }

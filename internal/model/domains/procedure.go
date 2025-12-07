@@ -11,10 +11,9 @@ type Procedure struct {
 	Base
 	CommonSSN
 
-	FeatureType string `gorm:"type:varchar(255)" json:"featureType,omitempty"`
-
 	// Note: Procedures typically don't have location
 	ProcedureType string `gorm:"type:varchar(255)" json:"procedureType,omitempty"`
+	ProcessType   string `gorm:"type:varchar(255)" json:"type,omitempty"` // SimpleProcess, AggregateProcess, PhysicalSystem, PhysicalComponent
 
 	// Links to related resources
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
@@ -41,12 +40,16 @@ type Procedure struct {
 	Inputs     common_shared.IOList `gorm:"type:jsonb" json:"inputs,omitempty"`
 	Outputs    common_shared.IOList `gorm:"type:jsonb" json:"outputs,omitempty"`
 	Parameters common_shared.IOList `gorm:"type:jsonb" json:"parameters,omitempty"`
+	Method     common_shared.Method `gorm:"type:jsonb" json:"method,omitempty"`
 	Modes      json.RawMessage      `gorm:"type:jsonb" json:"modes,omitempty"`
+
+	// Aggregate Process fields
+	Components  json.RawMessage `gorm:"type:jsonb" json:"components,omitempty"`
+	Connections json.RawMessage `gorm:"type:jsonb" json:"connections,omitempty"`
 
 	AttachedTo           *common_shared.Link           `gorm:"type:jsonb" json:"attachedTo,omitempty"`
 	LocalReferenceFrames []common_shared.SpatialFrame  `gorm:"type:jsonb" json:"localReferenceFrames,omitempty"`
 	LocalTimeFrames      []common_shared.TemporalFrame `gorm:"type:jsonb" json:"localTimeFrames,omitempty"`
-	Position             json.RawMessage               `gorm:"type:jsonb" json:"position,omitempty"`
 
 	ControlledProperties []Property `gorm:"many2many:procedure_controlled_properties;" json:"-"`
 	ObservedProperties   []Property `gorm:"many2many:procedure_observed_properties;" json:"-"`
@@ -92,44 +95,46 @@ type ProcedureGeoJSONFeature struct {
 
 // ProcedureGeoJSONProperties represents the properties object in GeoJSON
 type ProcedureGeoJSONProperties struct {
-	UID           UniqueID                       `json:"uid"`
-	Name          string                         `json:"name"`
-	Description   string                         `json:"description,omitempty"`
-	FeatureType   string                         `json:"featureType,omitempty"`
-	ValidTime     *common_shared.TimeRange       `json:"validTime,omitempty"`
-	Keywords      []string                       `json:"keywords,omitempty"`
-	Identifiers   common_shared.Terms            `json:"identifiers,omitempty"`
-	Contacts      []common_shared.ContactWrapper `json:"contacts,omitempty"`
-	Documentation common_shared.Documents        `json:"documentation,omitempty"`
-	History       common_shared.History          `json:"history,omitempty"`
+	UID         UniqueID                 `json:"uid"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description,omitempty"`
+	FeatureType string                   `json:"featureType,omitempty"`
+	ValidTime   *common_shared.TimeRange `json:"validTime,omitempty"`
 }
 
 // ProcedureSensorMLFeature represents a Procedure serialized in SensorML JSON format
 type ProcedureSensorMLFeature struct {
-	ID                  string                              `json:"id"`
-	Type                string                              `json:"type,omitempty"`
-	Label               string                              `json:"label"`
-	Description         string                              `json:"description,omitempty"`
-	UniqueID            string                              `json:"uniqueId"`
-	Definition          string                              `json:"definition,omitempty"`
-	Lang                *string                             `json:"lang,omitempty"`
-	Keywords            []string                            `json:"keywords,omitempty"`
-	Identifiers         common_shared.Terms                 `json:"identifiers,omitempty"`
-	Classifiers         common_shared.Terms                 `json:"classifiers,omitempty"`
-	SecurityConstraints []common_shared.Properties          `json:"securityConstraints,omitempty"`
-	LegalConstraints    []common_shared.Properties          `json:"legalConstraints,omitempty"`
-	Characteristics     []common_shared.CharacteristicGroup `json:"characteristics,omitempty"`
-	Capabilities        []common_shared.CapabilityGroup     `json:"capabilities,omitempty"`
-	Contacts            []common_shared.ContactWrapper      `json:"contacts,omitempty"`
-	Documentation       common_shared.Documents             `json:"documentation,omitempty"`
-	History             common_shared.History               `json:"history,omitempty"`
-	TypeOf              *common_shared.Link                 `json:"typeOf,omitempty"`
-	Configuration       json.RawMessage                     `json:"configuration,omitempty"`
-	FeaturesOfInterest  common_shared.Links                 `json:"featuresOfInterest,omitempty"`
-	Inputs              common_shared.IOList                `json:"inputs,omitempty"`
-	Outputs             common_shared.IOList                `json:"outputs,omitempty"`
-	Parameters          common_shared.IOList                `json:"parameters,omitempty"`
-	Modes               json.RawMessage                     `json:"modes,omitempty"`
-	ValidTime           *common_shared.TimeRange            `json:"validTime,omitempty"`
-	Links               common_shared.Links                 `json:"links,omitempty"`
+	ID                   string                              `json:"id"`
+	Type                 string                              `json:"type,omitempty"`
+	Label                string                              `json:"label"`
+	Description          string                              `json:"description,omitempty"`
+	UniqueID             string                              `json:"uniqueId"`
+	Definition           string                              `json:"definition,omitempty"`
+	Lang                 *string                             `json:"lang,omitempty"`
+	Keywords             []string                            `json:"keywords,omitempty"`
+	Identifiers          common_shared.Terms                 `json:"identifiers,omitempty"`
+	Classifiers          common_shared.Terms                 `json:"classifiers,omitempty"`
+	SecurityConstraints  []common_shared.Properties          `json:"securityConstraints,omitempty"`
+	LegalConstraints     []common_shared.Properties          `json:"legalConstraints,omitempty"`
+	Characteristics      []common_shared.CharacteristicGroup `json:"characteristics,omitempty"`
+	Capabilities         []common_shared.CapabilityGroup     `json:"capabilities,omitempty"`
+	Contacts             []common_shared.ContactWrapper      `json:"contacts,omitempty"`
+	Documentation        common_shared.Documents             `json:"documentation,omitempty"`
+	History              common_shared.History               `json:"history,omitempty"`
+	TypeOf               *common_shared.Link                 `json:"typeOf,omitempty"`
+	Configuration        json.RawMessage                     `json:"configuration,omitempty"`
+	FeaturesOfInterest   common_shared.Links                 `json:"featuresOfInterest,omitempty"`
+	Inputs               common_shared.IOList                `json:"inputs,omitempty"`
+	Outputs              common_shared.IOList                `json:"outputs,omitempty"`
+	Parameters           common_shared.IOList                `json:"parameters,omitempty"`
+	Modes                json.RawMessage                     `json:"modes,omitempty"`
+	Method               common_shared.Method                `json:"method,omitempty"`
+	Components           json.RawMessage                     `json:"components,omitempty"`
+	Connections          json.RawMessage                     `json:"connections,omitempty"`
+	AttachedTo           *common_shared.Link                 `json:"attachedTo,omitempty"`
+	LocalReferenceFrames []common_shared.SpatialFrame        `json:"localReferenceFrames,omitempty"`
+	LocalTimeFrames      []common_shared.TemporalFrame       `json:"localTimeFrames,omitempty"`
+	Position             json.RawMessage                     `json:"position,omitempty"`
+	ValidTime            *common_shared.TimeRange            `json:"validTime,omitempty"`
+	Links                common_shared.Links                 `json:"links,omitempty"`
 }

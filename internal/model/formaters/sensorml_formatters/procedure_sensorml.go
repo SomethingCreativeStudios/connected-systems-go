@@ -44,32 +44,38 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 	var features []domains.ProcedureSensorMLFeature
 	for _, procedure := range procedures {
 		feature := domains.ProcedureSensorMLFeature{
-			ID:                  procedure.ID,
-			Type:                procedure.FeatureType,
-			Label:               procedure.Name,
-			Description:         procedure.Description,
-			UniqueID:            string(procedure.UniqueIdentifier),
-			Definition:          procedure.FeatureType,
-			Lang:                procedure.Lang,
-			Keywords:            procedure.Keywords,
-			Identifiers:         procedure.Identifiers,
-			Classifiers:         procedure.Classifiers,
-			SecurityConstraints: procedure.SecurityConstraints,
-			LegalConstraints:    procedure.LegalConstraints,
-			Characteristics:     procedure.Characteristics,
-			Capabilities:        procedure.Capabilities,
-			Contacts:            procedure.Contacts,
-			Documentation:       procedure.Documentation,
-			History:             procedure.History,
-			TypeOf:              procedure.TypeOf,
-			Configuration:       procedure.Configuration,
-			FeaturesOfInterest:  procedure.FeaturesOfInterest,
-			Inputs:              procedure.Inputs,
-			Outputs:             procedure.Outputs,
-			Parameters:          procedure.Parameters,
-			Modes:               procedure.Modes,
-			ValidTime:           procedure.ValidTime,
-			Links:               procedure.Links,
+			ID:                   procedure.ID,
+			Type:                 procedure.ProcessType,
+			Label:                procedure.Name,
+			Description:          procedure.Description,
+			UniqueID:             string(procedure.UniqueIdentifier),
+			Definition:           procedure.ProcedureType,
+			Lang:                 procedure.Lang,
+			Keywords:             procedure.Keywords,
+			Identifiers:          procedure.Identifiers,
+			Classifiers:          procedure.Classifiers,
+			SecurityConstraints:  procedure.SecurityConstraints,
+			LegalConstraints:     procedure.LegalConstraints,
+			Characteristics:      procedure.Characteristics,
+			Capabilities:         procedure.Capabilities,
+			Contacts:             procedure.Contacts,
+			Documentation:        procedure.Documentation,
+			History:              procedure.History,
+			TypeOf:               procedure.TypeOf,
+			Configuration:        procedure.Configuration,
+			FeaturesOfInterest:   procedure.FeaturesOfInterest,
+			Inputs:               procedure.Inputs,
+			Outputs:              procedure.Outputs,
+			Parameters:           procedure.Parameters,
+			Modes:                procedure.Modes,
+			Method:               procedure.Method,
+			Components:           procedure.Components,
+			Connections:          procedure.Connections,
+			AttachedTo:           procedure.AttachedTo,
+			LocalReferenceFrames: procedure.LocalReferenceFrames,
+			LocalTimeFrames:      procedure.LocalTimeFrames,
+			ValidTime:            procedure.ValidTime,
+			Links:                procedure.Links,
 		}
 		features = append(features, feature)
 	}
@@ -109,9 +115,10 @@ func (f *ProcedureSensorMLFormatter) Deserialize(ctx context.Context, reader io.
 	procedure.Description = sensorML.Description
 
 	if sensorML.Definition != "" {
-		procedure.FeatureType = sensorML.Definition
-	} else if sensorML.Type != "" {
-		procedure.FeatureType = sensorML.Type
+		procedure.ProcedureType = sensorML.Definition
+	}
+	if sensorML.Type != "" {
+		procedure.ProcessType = sensorML.Type
 	}
 
 	procedure.Lang = sensorML.Lang
@@ -132,6 +139,12 @@ func (f *ProcedureSensorMLFormatter) Deserialize(ctx context.Context, reader io.
 	procedure.Outputs = sensorML.Outputs
 	procedure.Parameters = sensorML.Parameters
 	procedure.Modes = sensorML.Modes
+	procedure.Method = sensorML.Method
+	procedure.Components = sensorML.Components
+	procedure.Connections = sensorML.Connections
+	procedure.AttachedTo = sensorML.AttachedTo
+	procedure.LocalReferenceFrames = sensorML.LocalReferenceFrames
+	procedure.LocalTimeFrames = sensorML.LocalTimeFrames
 	procedure.ValidTime = sensorML.ValidTime
 
 	// Handle validTime from raw if not in structured form

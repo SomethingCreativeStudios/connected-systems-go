@@ -88,6 +88,7 @@ func parseID(locationHeader string, prefix string) string {
 	if len(parts) == 2 {
 		// strip any trailing slash or query
 		id := parts[1]
+		id = strings.TrimPrefix(id, "/")
 		if idx := strings.IndexAny(id, "?#/"); idx != -1 {
 			id = id[:idx]
 		}
