@@ -1,8 +1,6 @@
 package domains
 
 import (
-	"encoding/json"
-
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
@@ -24,6 +22,20 @@ type Deployment struct {
 
 	PlatformID *string `gorm:"type:varchar(255);index" json:"-"`
 
+	// Additional descriptive metadata from the SWE/System schema
+	Lang                *string                    `gorm:"type:varchar(10)" json:"lang,omitempty"`
+	Keywords            []string                   `gorm:"type:jsonb" json:"keywords,omitempty"`
+	Identifiers         common_shared.Terms        `gorm:"type:jsonb" json:"identifiers,omitempty"`
+	Classifiers         common_shared.Terms        `gorm:"type:jsonb" json:"classifiers,omitempty"`
+	SecurityConstraints []common_shared.Properties `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
+	LegalConstraints    []common_shared.Properties `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
+
+	Characteristics []common_shared.CharacteristicGroup `gorm:"type:jsonb" json:"characteristics,omitempty"`
+	Capabilities    []common_shared.CapabilityGroup     `gorm:"type:jsonb" json:"capabilities,omitempty"`
+	Contacts        []common_shared.ContactWrapper      `gorm:"type:jsonb" json:"contacts,omitempty"`
+	Documentation   common_shared.Documents             `gorm:"type:jsonb" json:"documentation,omitempty"`
+	History         common_shared.History               `gorm:"type:jsonb" json:"history,omitempty"`
+
 	// Platform link (when provided in payload)
 	Platform *common_shared.Link `gorm:"type:jsonb" json:"platform,omitempty"`
 
@@ -33,9 +45,7 @@ type Deployment struct {
 	// Links to related resources
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
 
-	// Additional properties
-	Properties common_shared.Properties `gorm:"type:jsonb" json:"properties,omitempty"`
-	Systems    []System                 `gorm:"many2many:system_deployments;"`
+	Systems []System `gorm:"many2many:system_deployments;"`
 }
 
 // TableName specifies the table name
@@ -65,16 +75,16 @@ type DeploymentGeoJSONProperties struct {
 	FeatureType     string                   `json:"featureType,omitempty"`
 	ValidTime       *common_shared.TimeRange `json:"validTime,omitempty"`
 	Definition      string                   `json:"definition,omitempty"`
-	Platform        *common_shared.Link      `json:"platform,omitempty"`
-	DeployedSystems []DeployedSystemItem     `json:"deployedSystems,omitempty"`
+	Platform        *common_shared.Link      `json:"platform@link,omitempty"`
+	DeployedSystems []DeployedSystemItem     `json:"deployedSystems@link,omitempty"`
 }
 
 // DeployedSystemItem represents an entry in the deployment's deployedSystems list
 type DeployedSystemItem struct {
-	Name          string             `json:"name"`
-	Description   string             `json:"description,omitempty"`
-	System        common_shared.Link `json:"system"`
-	Configuration json.RawMessage    `json:"configuration,omitempty"`
+	Name          string                              `json:"name"`
+	Description   string                              `json:"description,omitempty"`
+	System        common_shared.Link                  `json:"system"`
+	Configuration common_shared.ConfigurationSettings `json:"configuration,omitempty"`
 }
 
 // DeploymentSensorMLFeature represents a Deployment serialized in SensorML JSON format
@@ -89,4 +99,17 @@ type DeploymentSensorMLFeature struct {
 	Platform        *common_shared.Link      `json:"platform,omitempty"`
 	DeployedSystems []DeployedSystemItem     `json:"deployedSystems,omitempty"`
 	Links           common_shared.Links      `json:"links,omitempty"`
+
+	Lang                *string                    `gorm:"type:varchar(10)" json:"lang,omitempty"`
+	Keywords            []string                   `gorm:"type:jsonb" json:"keywords,omitempty"`
+	Identifiers         common_shared.Terms        `gorm:"type:jsonb" json:"identifiers,omitempty"`
+	Classifiers         common_shared.Terms        `gorm:"type:jsonb" json:"classifiers,omitempty"`
+	SecurityConstraints []common_shared.Properties `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
+	LegalConstraints    []common_shared.Properties `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
+
+	Characteristics []common_shared.CharacteristicGroup `gorm:"type:jsonb" json:"characteristics,omitempty"`
+	Capabilities    []common_shared.CapabilityGroup     `gorm:"type:jsonb" json:"capabilities,omitempty"`
+	Contacts        []common_shared.ContactWrapper      `gorm:"type:jsonb" json:"contacts,omitempty"`
+	Documentation   common_shared.Documents             `gorm:"type:jsonb" json:"documentation,omitempty"`
+	History         common_shared.History               `gorm:"type:jsonb" json:"history,omitempty"`
 }
