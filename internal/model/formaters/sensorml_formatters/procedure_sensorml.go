@@ -42,8 +42,92 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 	}
 
 	var features []domains.ProcedureSensorMLFeature
+
+	// typed process representations
+	type CommonProcess struct {
+		ID                   string
+		Type                 string
+		Label                string
+		Description          string
+		UniqueID             string
+		Definition           string
+		Lang                 *string
+		Keywords             []string
+		Identifiers          common_shared.Terms
+		Classifiers          common_shared.Terms
+		SecurityConstraints  []common_shared.Properties
+		LegalConstraints     []common_shared.Properties
+		Characteristics      []common_shared.CharacteristicGroup
+		Capabilities         []common_shared.CapabilityGroup
+		Contacts             []common_shared.ContactWrapper
+		Documentation        common_shared.Documents
+		History              common_shared.History
+		TypeOf               *common_shared.Link
+		Configuration        json.RawMessage
+		FeaturesOfInterest   common_shared.Links
+		Inputs               common_shared.IOList
+		Outputs              common_shared.IOList
+		Parameters           common_shared.IOList
+		Modes                json.RawMessage
+		Method               common_shared.Method
+		AttachedTo           *common_shared.Link
+		LocalReferenceFrames []common_shared.SpatialFrame
+		LocalTimeFrames      []common_shared.TemporalFrame
+		ValidTime            *common_shared.TimeRange
+		Links                common_shared.Links
+	}
+
+	type SimpleProcess struct{ CommonProcess }
+	type PhysicalComponent struct{ CommonProcess }
+	type AggregateProcess struct {
+		CommonProcess
+		Components  json.RawMessage
+		Connections json.RawMessage
+	}
+	type PhysicalSystem struct {
+		CommonProcess
+		Components  json.RawMessage
+		Connections json.RawMessage
+	}
+
+	// helper to map a CommonProcess (or specialized) back to ProcedureSensorMLFeature
+	toFeature := func(c CommonProcess) domains.ProcedureSensorMLFeature {
+		return domains.ProcedureSensorMLFeature{
+			ID:                   c.ID,
+			Type:                 c.Type,
+			Label:                c.Label,
+			Description:          c.Description,
+			UniqueID:             c.UniqueID,
+			Definition:           c.Definition,
+			Lang:                 c.Lang,
+			Keywords:             c.Keywords,
+			Identifiers:          c.Identifiers,
+			Classifiers:          c.Classifiers,
+			SecurityConstraints:  c.SecurityConstraints,
+			LegalConstraints:     c.LegalConstraints,
+			Characteristics:      c.Characteristics,
+			Capabilities:         c.Capabilities,
+			Contacts:             c.Contacts,
+			Documentation:        c.Documentation,
+			History:              c.History,
+			TypeOf:               c.TypeOf,
+			Configuration:        c.Configuration,
+			FeaturesOfInterest:   c.FeaturesOfInterest,
+			Inputs:               c.Inputs,
+			Outputs:              c.Outputs,
+			Parameters:           c.Parameters,
+			Modes:                c.Modes,
+			Method:               c.Method,
+			AttachedTo:           c.AttachedTo,
+			LocalReferenceFrames: c.LocalReferenceFrames,
+			LocalTimeFrames:      c.LocalTimeFrames,
+			ValidTime:            c.ValidTime,
+			Links:                c.Links,
+		}
+	}
+
 	for _, procedure := range procedures {
-		feature := domains.ProcedureSensorMLFeature{
+		base := CommonProcess{
 			ID:                   procedure.ID,
 			Type:                 procedure.ProcessType,
 			Label:                procedure.Name,
@@ -69,15 +153,40 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 			Parameters:           procedure.Parameters,
 			Modes:                procedure.Modes,
 			Method:               procedure.Method,
-			Components:           procedure.Components,
-			Connections:          procedure.Connections,
 			AttachedTo:           procedure.AttachedTo,
 			LocalReferenceFrames: procedure.LocalReferenceFrames,
 			LocalTimeFrames:      procedure.LocalTimeFrames,
 			ValidTime:            procedure.ValidTime,
 			Links:                procedure.Links,
 		}
-		features = append(features, feature)
+
+		switch procedure.ProcessType {
+		case "AggregateProcess":
+			ap := AggregateProcess{CommonProcess: base}
+			ap.Components = procedure.Components
+			ap.Connections = procedure.Connections
+			feat := toFeature(ap.CommonProcess)
+			feat.Components = ap.Components
+			feat.Connections = ap.Connections
+			features = append(features, feat)
+		case "PhysicalSystem":
+			ps := PhysicalSystem{CommonProcess: base}
+			ps.Components = procedure.Components
+			ps.Connections = procedure.Connections
+			feat := toFeature(ps.CommonProcess)
+			feat.Components = ps.Components
+			feat.Connections = ps.Connections
+			features = append(features, feat)
+		case "PhysicalComponent":
+			pc := PhysicalComponent{CommonProcess: base}
+			features = append(features, toFeature(pc.CommonProcess))
+		case "SimpleProcess":
+			sp := SimpleProcess{CommonProcess: base}
+			features = append(features, toFeature(sp.CommonProcess))
+		default:
+			// unknown type: emit base/common fields only
+			features = append(features, toFeature(base))
+		}
 	}
 	return features, nil
 }

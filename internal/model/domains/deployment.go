@@ -36,6 +36,8 @@ type Deployment struct {
 	Documentation   common_shared.Documents             `gorm:"type:jsonb" json:"documentation,omitempty"`
 	History         common_shared.History               `gorm:"type:jsonb" json:"history,omitempty"`
 
+	Properties common_shared.Properties `gorm:"type:jsonb" json:"properties,omitempty"`
+
 	// Platform link (when provided in payload)
 	Platform *common_shared.Link `gorm:"type:jsonb" json:"platform,omitempty"`
 

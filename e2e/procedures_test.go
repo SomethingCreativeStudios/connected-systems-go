@@ -12,8 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Schema path constant for procedure validation
-const ProcedureSchema = "sensorml/procedure-bundled.json"
+// Schema path constants for procedure validation
+const (
+	ProcedureSMLSchema = "sensorml/procedure-bundled.json"
+	ProcedureGeoSchema = "geojson/procedure-bundled.json"
+)
 
 // setupProcedureConformanceData creates test procedures for conformance testing
 func setupProcedureConformanceData(t *testing.T) []string {
@@ -198,9 +201,10 @@ func TestProcedureConformance(t *testing.T) {
 				// Test A.35: /conf/sensorml/procedure-schema
 				// Requirement: /req/sensorml/procedure-schema
 				// Procedure resources SHALL validate against the SensorML schema
+				// See: https://docs.ogc.org/is/23-001/23-001.html#_conf_sensorml_procedure-schema
 
 				for _, id := range createdProcedureIDs {
-					t.Run(fmt.Sprintf("validate-%s", id), func(t *testing.T) {
+					t.Run(fmt.Sprintf("validate-sml-%s", id), func(t *testing.T) {
 						url := fmt.Sprintf("%s/procedures/%s", testServer.URL, id)
 						req, err := http.NewRequest(http.MethodGet, url, nil)
 						require.NoError(t, err)
@@ -213,9 +217,27 @@ func TestProcedureConformance(t *testing.T) {
 						body, err := io.ReadAll(resp.Body)
 						require.NoError(t, err)
 
-						// Validate against schema
-						err = validateAgainstSchema(t, body, ProcedureSchema)
+						// Validate against SensorML schema
+						err = validateAgainstSchema(t, body, ProcedureSMLSchema)
 						assert.NoError(t, err, "Procedure resource must validate against SensorML schema")
+					})
+
+					t.Run(fmt.Sprintf("validate-geo-%s", id), func(t *testing.T) {
+						url := fmt.Sprintf("%s/procedures/%s", testServer.URL, id)
+						req, err := http.NewRequest(http.MethodGet, url, nil)
+						require.NoError(t, err)
+						req.Header.Set("Accept", "application/geo+json")
+
+						resp, err := http.DefaultClient.Do(req)
+						require.NoError(t, err)
+						defer resp.Body.Close()
+
+						body, err := io.ReadAll(resp.Body)
+						require.NoError(t, err)
+
+						// Validate against GeoJSON schema
+						err = validateAgainstSchema(t, body, ProcedureGeoSchema)
+						assert.NoError(t, err, "Procedure resource must validate against GeoJSON schema")
 					})
 				}
 			},
@@ -227,6 +249,7 @@ func TestProcedureConformance(t *testing.T) {
 				// Test A.36: /conf/sensorml/procedure-sml-class
 				// Requirement: /req/sensorml/procedure-sml-class
 				// Procedure resources SHALL be of type SimpleProcess, AggregateProcess, PhysicalSystem, or PhysicalComponent
+				// See: https://docs.ogc.org/is/23-001/23-001.html#_conf_sensorml_procedure-sml-class
 
 				validTypes := []string{"SimpleProcess", "AggregateProcess", "PhysicalSystem", "PhysicalComponent"}
 
@@ -259,6 +282,7 @@ func TestProcedureConformance(t *testing.T) {
 				// Test A.37: /conf/sensorml/procedure-mappings
 				// Requirement: /req/sensorml/procedure-mappings
 				// Procedure resources SHALL contain required fields like uniqueId, label, etc.
+				// See: https://docs.ogc.org/is/23-001/23-001.html#_conf_sensorml_procedure-mappings
 
 				for _, id := range createdProcedureIDs {
 					t.Run(fmt.Sprintf("check-mappings-%s", id), func(t *testing.T) {
@@ -284,6 +308,31 @@ func TestProcedureConformance(t *testing.T) {
 						}
 					})
 				}
+
+				// Also validate GeoJSON mappings per OGC GeoJSON requirements
+				// See: https://docs.ogc.org/is/23-001/23-001.html#_conf_geojson_procedure-mappings
+				for _, id := range createdProcedureIDs {
+					t.Run(fmt.Sprintf("check-geo-mappings-%s", id), func(t *testing.T) {
+						url := fmt.Sprintf("%s/procedures/%s", testServer.URL, id)
+						req, err := http.NewRequest(http.MethodGet, url, nil)
+						require.NoError(t, err)
+						req.Header.Set("Accept", "application/geo+json")
+
+						resp, err := http.DefaultClient.Do(req)
+						require.NoError(t, err)
+						defer resp.Body.Close()
+
+						var feat map[string]interface{}
+						err = json.NewDecoder(resp.Body).Decode(&feat)
+						require.NoError(t, err)
+
+						// Ensure GeoJSON Feature properties contain expected mappings
+						props, ok := feat["properties"].(map[string]interface{})
+						require.True(t, ok, "GeoJSON Feature must have properties object")
+						assert.NotEmpty(t, props["uid"], "GeoJSON properties must include uid")
+						assert.NotEmpty(t, props["name"], "GeoJSON properties must include name/label")
+					})
+				}
 			},
 		},
 	}
@@ -303,28 +352,67 @@ func TestProcedureConformance(t *testing.T) {
 func TestProcedureCRUD_Create(t *testing.T) {
 	cleanupDB(t)
 
-	payload := map[string]interface{}{
-		"type":        "SimpleProcess",
-		"uniqueId":    "urn:test:procedure:crud-001",
-		"label":       "CRUD Test Procedure",
-		"description": "Procedure for CRUD testing",
-		"definition":  "http://www.w3.org/ns/sosa/Procedure",
+	formats := []struct {
+		name        string
+		contentType string
+		makePayload func(suffix string) []byte
+	}{
+		{
+			name:        "sml+json",
+			contentType: "application/sml+json",
+			makePayload: func(suffix string) []byte {
+				payload := map[string]interface{}{
+					"type":        "SimpleProcess",
+					"uniqueId":    "urn:test:procedure:crud-" + suffix,
+					"label":       "CRUD Test Procedure",
+					"description": "Procedure for CRUD testing",
+					"definition":  "http://www.w3.org/ns/sosa/Procedure",
+				}
+				b, _ := json.Marshal(payload)
+				return b
+			},
+		},
+		{
+			name:        "geo+json",
+			contentType: "application/geo+json",
+			makePayload: func(suffix string) []byte {
+				feat := map[string]interface{}{
+					"type": "Feature",
+					"properties": map[string]interface{}{
+						"featureType": "http://www.w3.org/ns/sosa/Procedure",
+						"uid":         "urn:test:procedure:crud-" + suffix,
+						"name":        "CRUD Test Procedure (geo)",
+						"description": "Procedure for CRUD testing (geo)",
+					},
+				}
+				b, _ := json.Marshal(feat)
+				return b
+			},
+		},
 	}
 
-	body, _ := json.Marshal(payload)
-	req, err := http.NewRequest("POST", testServer.URL+"/procedures", bytes.NewReader(body))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/sml+json")
+	for i, f := range formats {
+		t.Run(f.name, func(t *testing.T) {
+			body := f.makePayload(fmt.Sprintf("%03d", i+1))
+			req, err := http.NewRequest("POST", testServer.URL+"/procedures", bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", f.contentType)
 
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-	location := resp.Header.Get("Location")
-	assert.NotEmpty(t, location)
-	id := parseID(location, "procedures")
-	assert.NotEmpty(t, id)
+			assert.Equal(t, http.StatusCreated, resp.StatusCode)
+			location := resp.Header.Get("Location")
+			assert.NotEmpty(t, location)
+			id := parseID(location, "procedures")
+			assert.NotEmpty(t, id)
+
+			// Cleanup created resource
+			reqDel, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/procedures/"+id, nil)
+			http.DefaultClient.Do(reqDel)
+		})
+	}
 }
 
 // Conformance Class: /conf/create-replace-delete/procedure
@@ -334,47 +422,115 @@ func TestProcedureCRUD_Create(t *testing.T) {
 func TestProcedureCRUD_Replace(t *testing.T) {
 	cleanupDB(t)
 
-	// First create
-	payload := map[string]interface{}{
-		"type":        "SimpleProcess",
-		"uniqueId":    "urn:test:procedure:update-001",
-		"label":       "Procedure to Update",
-		"description": "Original description",
+	formats := []struct {
+		name              string
+		contentType       string
+		makeCreatePayload func(suffix string) []byte
+		makeUpdatePayload func(suffix string) []byte
+	}{
+		{
+			name:        "sml+json",
+			contentType: "application/sml+json",
+			makeCreatePayload: func(suffix string) []byte {
+				payload := map[string]interface{}{
+					"type":        "SimpleProcess",
+					"uniqueId":    "urn:test:procedure:update-" + suffix,
+					"label":       "Procedure to Update",
+					"description": "Original description",
+				}
+				b, _ := json.Marshal(payload)
+				return b
+			},
+			makeUpdatePayload: func(suffix string) []byte {
+				payload := map[string]interface{}{
+					"type":        "SimpleProcess",
+					"uniqueId":    "urn:test:procedure:update-" + suffix,
+					"label":       "Updated Procedure",
+					"description": "Updated description",
+				}
+				b, _ := json.Marshal(payload)
+				return b
+			},
+		},
+		{
+			name:        "geo+json",
+			contentType: "application/geo+json",
+			makeCreatePayload: func(suffix string) []byte {
+				feat := map[string]interface{}{
+					"type": "Feature",
+					"properties": map[string]interface{}{
+						"featureType": "http://www.w3.org/ns/sosa/Procedure",
+						"uid":         "urn:test:procedure:update-" + suffix,
+						"name":        "Procedure to Update (geo)",
+						"description": "Original description",
+					},
+				}
+				b, _ := json.Marshal(feat)
+				return b
+			},
+			makeUpdatePayload: func(suffix string) []byte {
+				feat := map[string]interface{}{
+					"type": "Feature",
+					"properties": map[string]interface{}{
+						"featureType": "http://www.w3.org/ns/sosa/Procedure",
+						"uid":         "urn:test:procedure:update-" + suffix,
+						"name":        "Updated Procedure (geo)",
+						"description": "Updated description",
+					},
+				}
+				b, _ := json.Marshal(feat)
+				return b
+			},
+		},
 	}
-	body, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", testServer.URL+"/procedures", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/sml+json")
-	resp, _ := http.DefaultClient.Do(req)
-	location := resp.Header.Get("Location")
-	resp.Body.Close()
-	id := parseID(location, "procedures")
 
-	// Now update
-	updatePayload := map[string]interface{}{
-		"type":        "SimpleProcess",
-		"uniqueId":    "urn:test:procedure:update-001",
-		"label":       "Updated Procedure",
-		"description": "Updated description",
+	for i, f := range formats {
+		t.Run(f.name, func(t *testing.T) {
+			suffix := fmt.Sprintf("%03d", i+1)
+			// create
+			createBody := f.makeCreatePayload(suffix)
+			req, _ := http.NewRequest("POST", testServer.URL+"/procedures", bytes.NewReader(createBody))
+			req.Header.Set("Content-Type", f.contentType)
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			location := resp.Header.Get("Location")
+			resp.Body.Close()
+			id := parseID(location, "procedures")
+
+			// update
+			updateBody := f.makeUpdatePayload(suffix)
+			req, _ = http.NewRequest(http.MethodPut, testServer.URL+"/procedures/"+id, bytes.NewReader(updateBody))
+			req.Header.Set("Content-Type", f.contentType)
+
+			resp, err = http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+			// Verify update (GET using Accept = content type being tested for consistency)
+			req, _ = http.NewRequest("GET", location, nil)
+			req.Header.Set("Accept", f.contentType)
+			resp, _ = http.DefaultClient.Do(req)
+			defer resp.Body.Close()
+
+			var result map[string]interface{}
+			json.NewDecoder(resp.Body).Decode(&result)
+
+			// label field is named differently for GeoJSON properties
+			if f.contentType == "application/geo+json" {
+				props, ok := result["properties"].(map[string]interface{})
+				require.True(t, ok)
+				assert.Equal(t, "Updated Procedure (geo)", props["name"])
+			} else {
+				assert.Equal(t, "Updated Procedure", result["label"])
+			}
+
+			// cleanup
+			reqDel, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/procedures/"+id, nil)
+			http.DefaultClient.Do(reqDel)
+		})
 	}
-	updateBody, _ := json.Marshal(updatePayload)
-	req, _ = http.NewRequest(http.MethodPut, testServer.URL+"/procedures/"+id, bytes.NewReader(updateBody))
-	req.Header.Set("Content-Type", "application/sml+json")
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-
-	// Verify update
-	req, _ = http.NewRequest("GET", location, nil)
-	req.Header.Set("Accept", "application/sml+json")
-	resp, _ = http.DefaultClient.Do(req)
-	defer resp.Body.Close()
-
-	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
-	assert.Equal(t, "Updated Procedure", result["label"])
 }
 
 // Conformance Class: /conf/create-replace-delete/procedure
@@ -384,23 +540,28 @@ func TestProcedureCRUD_Replace(t *testing.T) {
 func TestProcedureCRUD_Delete(t *testing.T) {
 	cleanupDB(t)
 
-	// First create
+	// Delete behavior is content-type agnostic. Create a single procedure
+	// (using SML payload) and verify delete/gone semantics.
 	payload := map[string]interface{}{
 		"type":     "SimpleProcess",
 		"uniqueId": "urn:test:procedure:delete-001",
 		"label":    "Procedure to Delete",
 	}
-	body, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", testServer.URL+"/procedures", bytes.NewReader(body))
+	b, _ := json.Marshal(payload)
+
+	// create
+	req, _ := http.NewRequest("POST", testServer.URL+"/procedures", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/sml+json")
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
 	location := resp.Header.Get("Location")
 	resp.Body.Close()
 	id := parseID(location, "procedures")
+	require.NotEmpty(t, id)
 
 	// Delete
 	req, _ = http.NewRequest(http.MethodDelete, testServer.URL+"/procedures/"+id, nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
