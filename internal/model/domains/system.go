@@ -28,12 +28,12 @@ type System struct {
 	SystemKindID *string `gorm:"type:varchar(255);index" json:"-"`
 
 	// Additional SWE/System metadata mapped from the JSON Schema
-	Lang                *string                    `gorm:"type:varchar(10)" json:"lang,omitempty"`
-	Keywords            []string                   `gorm:"type:jsonb" json:"keywords,omitempty"`
-	Identifiers         common_shared.Terms        `gorm:"type:jsonb" json:"identifiers,omitempty"`
-	Classifiers         common_shared.Terms        `gorm:"type:jsonb" json:"classifiers,omitempty"`
-	SecurityConstraints []common_shared.Properties `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
-	LegalConstraints    []common_shared.Properties `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
+	Lang                *string                           `gorm:"type:varchar(10)" json:"lang,omitempty"`
+	Keywords            []string                          `gorm:"type:jsonb" json:"keywords,omitempty"`
+	Identifiers         common_shared.Terms               `gorm:"type:jsonb" json:"identifiers,omitempty"`
+	Classifiers         common_shared.Terms               `gorm:"type:jsonb" json:"classifiers,omitempty"`
+	SecurityConstraints common_shared.SecurityConstraints `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
+	LegalConstraints    common_shared.LegalConstraints    `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
 
 	// Documentation/contacts/history at top-level (also present in SMLProperties)
 	Contacts      []common_shared.ContactWrapper `gorm:"type:jsonb" json:"contacts,omitempty"`
@@ -129,31 +129,31 @@ type SystemGeoJSONProperties struct {
 
 // SystemSensorMLFeature represents a System serialized in SensorML JSON format
 type SystemSensorMLFeature struct {
-	ID                   string                         `json:"id"`
-	Type                 string                         `json:"type"`
-	Label                string                         `json:"label"`
-	Description          string                         `json:"description,omitempty"`
-	UniqueID             string                         `json:"uniqueId"`
-	Lang                 *string                        `json:"lang,omitempty"`
-	Keywords             []string                       `json:"keywords,omitempty"`
-	Identifiers          common_shared.Terms            `json:"identifiers,omitempty"`
-	Classifiers          common_shared.Terms            `json:"classifiers,omitempty"`
-	SecurityConstraints  []common_shared.Properties     `json:"securityConstraints,omitempty"`
-	LegalConstraints     []common_shared.Properties     `json:"legalConstraints,omitempty"`
-	Contacts             []common_shared.ContactWrapper `json:"contacts,omitempty"`
-	Documentation        common_shared.Documents        `json:"documentation,omitempty"`
-	History              common_shared.History          `json:"history,omitempty"`
-	Definition           string                         `json:"definition,omitempty"`
-	TypeOf               *common_shared.Link            `json:"typeOf,omitempty"`
-	Configuration        json.RawMessage                `json:"configuration,omitempty"`
-	FeaturesOfInterest   common_shared.Links            `json:"featuresOfInterest,omitempty"`
-	Inputs               common_shared.IOList           `json:"inputs,omitempty"`
-	Outputs              common_shared.IOList           `json:"outputs,omitempty"`
-	Parameters           common_shared.IOList           `json:"parameters,omitempty"`
-	Modes                json.RawMessage                `json:"modes,omitempty"`
-	Position             json.RawMessage                `json:"position,omitempty"`
-	AttachedTo           *common_shared.Link            `json:"attachedTo,omitempty"`
-	LocalReferenceFrames []common_shared.SpatialFrame   `json:"localReferenceFrames,omitempty"`
-	LocalTimeFrames      []common_shared.TemporalFrame  `json:"localTimeFrames,omitempty"`
-	Links                common_shared.Links            `json:"links,omitempty"`
+	ID                   string                            `json:"id"`
+	Type                 string                            `json:"type"`
+	Label                string                            `json:"label"`
+	Description          string                            `json:"description,omitempty"`
+	UniqueID             string                            `json:"uniqueId"`
+	Lang                 *string                           `json:"lang,omitempty"`
+	Keywords             []string                          `json:"keywords,omitempty"`
+	Identifiers          common_shared.Terms               `json:"identifiers,omitempty"`
+	Classifiers          common_shared.Terms               `json:"classifiers,omitempty"`
+	SecurityConstraints  common_shared.SecurityConstraints `json:"securityConstraints,omitempty"`
+	LegalConstraints     common_shared.LegalConstraints    `json:"legalConstraints,omitempty"`
+	Contacts             []common_shared.ContactWrapper    `json:"contacts,omitempty"`
+	Documentation        common_shared.Documents           `json:"documentation,omitempty"`
+	History              common_shared.History             `json:"history,omitempty"`
+	Definition           string                            `json:"definition,omitempty"`
+	TypeOf               *common_shared.Link               `json:"typeOf,omitempty"`
+	Configuration        json.RawMessage                   `json:"configuration,omitempty"`
+	FeaturesOfInterest   common_shared.Links               `json:"featuresOfInterest,omitempty"`
+	Inputs               common_shared.IOList              `json:"inputs,omitempty"`
+	Outputs              common_shared.IOList              `json:"outputs,omitempty"`
+	Parameters           common_shared.IOList              `json:"parameters,omitempty"`
+	Modes                json.RawMessage                   `json:"modes,omitempty"`
+	Position             json.RawMessage                   `json:"position,omitempty"`
+	AttachedTo           *common_shared.Link               `json:"attachedTo,omitempty"`
+	LocalReferenceFrames []common_shared.SpatialFrame      `json:"localReferenceFrames,omitempty"`
+	LocalTimeFrames      []common_shared.TemporalFrame     `json:"localTimeFrames,omitempty"`
+	Links                common_shared.Links               `json:"links,omitempty"`
 }

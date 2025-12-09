@@ -55,8 +55,8 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 		Keywords             []string
 		Identifiers          common_shared.Terms
 		Classifiers          common_shared.Terms
-		SecurityConstraints  []common_shared.Properties
-		LegalConstraints     []common_shared.Properties
+		SecurityConstraints  common_shared.SecurityConstraints
+		LegalConstraints     common_shared.LegalConstraints
 		Characteristics      []common_shared.CharacteristicGroup
 		Capabilities         []common_shared.CapabilityGroup
 		Contacts             []common_shared.ContactWrapper

@@ -19,12 +19,12 @@ type Procedure struct {
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
 
 	// Additional descriptive metadata from the SWE/System schema
-	Lang                *string                    `gorm:"type:varchar(10)" json:"lang,omitempty"`
-	Keywords            []string                   `gorm:"type:jsonb" json:"keywords,omitempty"`
-	Identifiers         common_shared.Terms        `gorm:"type:jsonb" json:"identifiers,omitempty"`
-	Classifiers         common_shared.Terms        `gorm:"type:jsonb" json:"classifiers,omitempty"`
-	SecurityConstraints []common_shared.Properties `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
-	LegalConstraints    []common_shared.Properties `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
+	Lang                *string                           `gorm:"type:varchar(10)" json:"lang,omitempty"`
+	Keywords            []string                          `gorm:"type:jsonb" json:"keywords,omitempty"`
+	Identifiers         common_shared.Terms               `gorm:"type:jsonb" json:"identifiers,omitempty"`
+	Classifiers         common_shared.Terms               `gorm:"type:jsonb" json:"classifiers,omitempty"`
+	SecurityConstraints common_shared.SecurityConstraints `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
+	LegalConstraints    common_shared.LegalConstraints    `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
 
 	Characteristics []common_shared.CharacteristicGroup `gorm:"type:jsonb" json:"characteristics,omitempty"`
 	Capabilities    []common_shared.CapabilityGroup     `gorm:"type:jsonb" json:"capabilities,omitempty"`
@@ -114,8 +114,8 @@ type ProcedureSensorMLFeature struct {
 	Keywords             []string                            `json:"keywords,omitempty"`
 	Identifiers          common_shared.Terms                 `json:"identifiers,omitempty"`
 	Classifiers          common_shared.Terms                 `json:"classifiers,omitempty"`
-	SecurityConstraints  []common_shared.Properties          `json:"securityConstraints,omitempty"`
-	LegalConstraints     []common_shared.Properties          `json:"legalConstraints,omitempty"`
+	SecurityConstraints  common_shared.SecurityConstraints   `json:"securityConstraints,omitempty"`
+	LegalConstraints     common_shared.LegalConstraints      `json:"legalConstraints,omitempty"`
 	Characteristics      []common_shared.CharacteristicGroup `json:"characteristics,omitempty"`
 	Capabilities         []common_shared.CapabilityGroup     `json:"capabilities,omitempty"`
 	Contacts             []common_shared.ContactWrapper      `json:"contacts,omitempty"`

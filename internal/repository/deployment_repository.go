@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
@@ -112,27 +111,7 @@ func (r *DeploymentRepository) GetBySystemIDs(ctx context.Context, systemIDs []s
 		if d == nil {
 			continue
 		}
-		if d.Properties == nil {
-			continue
-		}
 
-		// Look for deployedSystems@link which should be an array of objects with href
-		if raw, ok := d.Properties["deployedSystems@link"]; ok {
-			// marshal/unmarshal to normalize types
-			b, _ := json.Marshal(raw)
-			var arr []map[string]interface{}
-			if err := json.Unmarshal(b, &arr); err == nil {
-				for _, el := range arr {
-					if hrefVal, ok := el["href"].(string); ok {
-						for _, sid := range systemIDs {
-							if hrefVal == sid || contains(hrefVal, sid) {
-								result[sid] = append(result[sid], d)
-							}
-						}
-					}
-				}
-			}
-		}
 	}
 
 	return result, nil
