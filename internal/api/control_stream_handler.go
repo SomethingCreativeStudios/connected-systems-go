@@ -161,6 +161,13 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 // UpdateControlStream handles PUT /controlstreams/{id}
 func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
+	existing, err := h.repo.GetByID(id)
+	if err != nil {
+		h.logger.Error("Failed to get control stream before update", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusNotFound)
+		render.JSON(w, r, map[string]string{"error": "Control stream not found"})
+		return
+	}
 
 	contentType := r.Header.Get("Content-Type")
 	cs, err := h.fc.Deserialize(contentType, r.Body)
@@ -172,6 +179,10 @@ func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *htt
 	}
 
 	cs.ID = id
+	if cs.SystemLink == nil {
+		cs.SystemLink = existing.SystemLink
+		cs.SystemID = existing.SystemID
+	}
 	if err := h.repo.Update(cs); err != nil {
 		h.logger.Error("Failed to update control stream", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)

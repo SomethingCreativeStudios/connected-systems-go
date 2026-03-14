@@ -151,6 +151,13 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 
 func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
+	existing, err := h.repo.GetByID(id)
+	if err != nil {
+		h.logger.Error("Failed to get datastream before update", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusNotFound)
+		render.JSON(w, r, map[string]string{"error": "Datastream not found"})
+		return
+	}
 
 	contentType := r.Header.Get("Content-Type")
 	datastream, err := h.fc.Deserialize(contentType, r.Body)
@@ -162,6 +169,10 @@ func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Requ
 	}
 
 	datastream.ID = id
+	if datastream.SystemLink == nil {
+		datastream.SystemLink = existing.SystemLink
+		datastream.SystemID = existing.SystemID
+	}
 	if err := h.repo.Update(datastream); err != nil {
 		h.logger.Error("Failed to update datastream", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)

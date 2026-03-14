@@ -6,6 +6,8 @@ bin/
 *.dylib
 __debug*
 
+ptz-test/
+
 # Test binary
 *.test
 

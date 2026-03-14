@@ -20,7 +20,7 @@ type Procedure struct {
 
 	// Additional descriptive metadata from the SWE/System schema
 	Lang                *string                           `gorm:"type:varchar(10)" json:"lang,omitempty"`
-	Keywords            []string                          `gorm:"type:jsonb" json:"keywords,omitempty"`
+	Keywords            common_shared.StringArray         `gorm:"type:jsonb" json:"keywords,omitempty"`
 	Identifiers         common_shared.Terms               `gorm:"type:jsonb" json:"identifiers,omitempty"`
 	Classifiers         common_shared.Terms               `gorm:"type:jsonb" json:"classifiers,omitempty"`
 	SecurityConstraints common_shared.SecurityConstraints `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
