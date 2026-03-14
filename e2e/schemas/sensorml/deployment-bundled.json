@@ -418,7 +418,7 @@
                       },
                       "configuration": {
                         "description": "Configuration settings adjusted during the event.",
-                        "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration"
+                        "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration"
                       }
                     },
                     "required": [
@@ -561,7 +561,7 @@
                                         "const": "Count"
                                       },
                                       "constraint": {
-                                        "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
+                                        "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
                                       },
                                       "nilValues": {
                                         "type": "array",
@@ -616,7 +616,7 @@
                                         "$ref": "#/allOf/0/allOf/0/$defs/CapabilityList/allOf/1/properties/conditions/items/oneOf/2/allOf/1/properties/uom"
                                       },
                                       "constraint": {
-                                        "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
+                                        "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
                                       },
                                       "nilValues": {
                                         "$ref": "#/allOf/0/allOf/0/$defs/CapabilityList/allOf/1/properties/conditions/items/oneOf/2/allOf/1/properties/nilValues"
@@ -662,7 +662,7 @@
                                         "$ref": "#/allOf/0/allOf/0/$defs/CapabilityList/allOf/1/properties/conditions/items/oneOf/2/allOf/1/properties/uom"
                                       },
                                       "constraint": {
-                                        "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/2"
+                                        "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/2"
                                       },
                                       "nilValues": {
                                         "$ref": "#/allOf/0/allOf/0/$defs/CapabilityList/allOf/1/properties/conditions/items/oneOf/3/allOf/1/properties/nilValues"
@@ -699,7 +699,7 @@
                                         "format": "uri"
                                       },
                                       "constraint": {
-                                        "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/0"
+                                        "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/0"
                                       },
                                       "nilValues": {
                                         "$ref": "#/allOf/0/allOf/0/$defs/CapabilityList/allOf/1/properties/conditions/items/oneOf/1/allOf/1/properties/nilValues"
@@ -730,7 +730,7 @@
                                         "const": "Text"
                                       },
                                       "constraint": {
-                                        "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/0"
+                                        "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/0"
                                       },
                                       "nilValues": {
                                         "$ref": "#/allOf/0/allOf/0/$defs/CapabilityList/allOf/1/properties/conditions/items/oneOf/1/allOf/1/properties/nilValues"
@@ -790,7 +790,7 @@
                                     "const": "CountRange"
                                   },
                                   "constraint": {
-                                    "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
+                                    "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
                                   },
                                   "nilValues": {
                                     "type": "array",
@@ -885,7 +885,7 @@
                                     "unevaluatedProperties": false
                                   },
                                   "constraint": {
-                                    "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
+                                    "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
                                   },
                                   "nilValues": {
                                     "type": "array",
@@ -971,7 +971,7 @@
                                     "$ref": "#/allOf/0/allOf/0/$defs/CapabilityList/allOf/1/properties/conditions/items/oneOf/2/allOf/1/properties/uom"
                                   },
                                   "constraint": {
-                                    "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/2"
+                                    "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/2"
                                   },
                                   "nilValues": {
                                     "type": "array",
@@ -1042,7 +1042,7 @@
                                     "format": "uri"
                                   },
                                   "constraint": {
-                                    "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/0"
+                                    "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/0"
                                   },
                                   "nilValues": {
                                     "$ref": "#/allOf/0/allOf/0/$defs/CapabilityList/allOf/1/properties/conditions/items/oneOf/1/allOf/1/properties/nilValues"
@@ -1226,7 +1226,7 @@
                                               {
                                                 "properties": {
                                                   "constraint": {
-                                                    "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
+                                                    "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setConstraints/items/allOf/1/oneOf/1"
                                                   },
                                                   "value": {
                                                     "description": "Value is optional, to enable structure to act as a schema for values provided using other encodings",
@@ -1999,7 +1999,7 @@
                               "type": "object",
                               "properties": {
                                 "ref": {
-                                  "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setModes/items/properties/ref"
+                                  "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setModes/items/properties/ref"
                                 },
                                 "value": {
                                   "oneOf": [
@@ -2028,7 +2028,7 @@
                               "type": "object",
                               "properties": {
                                 "ref": {
-                                  "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setModes/items/properties/ref"
+                                  "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setModes/items/properties/ref"
                                 },
                                 "value": {
                                   "type": "array"
@@ -2070,7 +2070,7 @@
                                 {
                                   "properties": {
                                     "ref": {
-                                      "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setModes/items/properties/ref"
+                                      "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setModes/items/properties/ref"
                                     }
                                   }
                                 },
@@ -2227,7 +2227,7 @@
                               "type": "object",
                               "properties": {
                                 "ref": {
-                                  "$ref": "#/allOf/0/allOf/1/properties/platform/properties/configuration/properties/setModes/items/properties/ref"
+                                  "$ref": "#/allOf/0/allOf/1/properties/deployedSystems/items/allOf/1/properties/configuration/properties/setModes/items/properties/ref"
                                 },
                                 "value": {
                                   "type": "string",

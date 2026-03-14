@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -36,6 +37,37 @@ func GetSchemaValidator() *SchemaValidator {
 // NewSchemaValidator creates a new schema validator
 func NewSchemaValidator() *SchemaValidator {
 	compiler := jsonschema.NewCompiler()
+
+	// Preload all schema files under the schemas directory so that
+	// relative $ref references (e.g., "commonDefs.json") resolve.
+	schemaDir := getSchemaDir()
+	if schemaDir != "" {
+		_ = filepath.WalkDir(schemaDir, func(p string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(d.Name(), ".json") {
+				return nil
+			}
+			rel, err := filepath.Rel(schemaDir, p)
+			if err != nil {
+				return nil
+			}
+			data, err := os.ReadFile(p)
+			if err != nil {
+				return nil
+			}
+			// Add resource as raw bytes reader so the compiler can resolve
+			// internal json-pointers consistently.
+			url := "file:///" + filepath.ToSlash(rel)
+			_ = compiler.AddResource(url, bytes.NewReader(data))
+			return nil
+		})
+	}
+
 	return &SchemaValidator{
 		compiler: compiler,
 		schemas:  make(map[string]*jsonschema.Schema),
@@ -69,24 +101,16 @@ func (v *SchemaValidator) LoadSchema(schemaName string) (*jsonschema.Schema, err
 	}
 
 	schemaPath := filepath.Join(getSchemaDir(), schemaName)
-	schemaData, err := os.ReadFile(schemaPath)
-	if err != nil {
+	if _, err := os.Stat(schemaPath); err != nil {
 		return nil, fmt.Errorf("failed to read schema file %s: %w", schemaName, err)
 	}
 
-	// Parse the schema JSON
-	var schemaDoc any
-	schemaDoc, err = jsonschema.UnmarshalJSON(bytes.NewReader(schemaData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal schema JSON: %w", err)
-	}
-
-	// Add the schema to the compiler
-	schemaURL := "file:///" + schemaName
-	if err := v.compiler.AddResource(schemaURL, schemaDoc); err != nil {
-		return nil, fmt.Errorf("failed to add schema resource: %w", err)
-	}
-
+	// We preload schema resources during initialization; read the file and
+	// explicitly add this schema resource under the same URL to ensure
+	// any internal json-pointer references are available to the compiler.
+	schemaURL := "file://" + filepath.ToSlash(schemaPath)
+	// Compile using an absolute file URL so relative $ref references resolve
+	// against files on disk under the schemas directory.
 	schema, err := v.compiler.Compile(schemaURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile schema %s: %w", schemaName, err)
@@ -131,5 +155,5 @@ func (v *SchemaValidator) ValidateInterface(schemaName string, data interface{})
 
 // Schema file constants for OGC Connected Systems API
 const (
-	PropertySchema = "property-bundled.json"
+	PropertySchema = "sensorml/property-bundled.json"
 )

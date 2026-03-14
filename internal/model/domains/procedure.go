@@ -26,11 +26,11 @@ type Procedure struct {
 	SecurityConstraints common_shared.SecurityConstraints `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
 	LegalConstraints    common_shared.LegalConstraints    `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
 
-	Characteristics []common_shared.CharacteristicGroup `gorm:"type:jsonb" json:"characteristics,omitempty"`
-	Capabilities    []common_shared.CapabilityGroup     `gorm:"type:jsonb" json:"capabilities,omitempty"`
-	Contacts        []common_shared.ContactWrapper      `gorm:"type:jsonb" json:"contacts,omitempty"`
-	Documentation   common_shared.Documents             `gorm:"type:jsonb" json:"documentation,omitempty"`
-	History         common_shared.History               `gorm:"type:jsonb" json:"history,omitempty"`
+	Characteristics common_shared.CharacteristicGroups `gorm:"type:jsonb" json:"characteristics,omitempty"`
+	Capabilities    common_shared.CapabilityGroups     `gorm:"type:jsonb" json:"capabilities,omitempty"`
+	Contacts        common_shared.ContactWrappers      `gorm:"type:jsonb" json:"contacts,omitempty"`
+	Documentation   common_shared.Documents            `gorm:"type:jsonb" json:"documentation,omitempty"`
+	History         common_shared.History              `gorm:"type:jsonb" json:"history,omitempty"`
 
 	TypeOf        *common_shared.Link `gorm:"type:jsonb" json:"typeOf,omitempty"`
 	Configuration json.RawMessage     `gorm:"type:jsonb" json:"configuration,omitempty"`

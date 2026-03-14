@@ -65,6 +65,24 @@ func (ht HistoryTime) MarshalJSON() ([]byte, error) {
 	return json.Marshal(nil)
 }
 
+// Value implements driver.Valuer so HistoryTime can be stored as JSONB.
+func (ht HistoryTime) Value() (driver.Value, error) {
+	return json.Marshal(ht)
+}
+
+// Scan implements sql.Scanner so HistoryTime can be loaded from JSONB.
+func (ht *HistoryTime) Scan(value interface{}) error {
+	if value == nil {
+		*ht = HistoryTime{}
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("cannot scan type %T into HistoryTime", value)
+	}
+	return json.Unmarshal(b, ht)
+}
+
 // HistoryEvent represents a time-tagged event with optional metadata and
 // additional properties. It mirrors the OpenAPI `history` item definition
 // but keeps component `properties` flexible by reusing ComponentWrapper.

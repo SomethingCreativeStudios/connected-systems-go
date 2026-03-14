@@ -12,6 +12,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	serializers "github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters/geojson_formatters"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters/json_formatters"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters/sensorml_formatters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
@@ -33,7 +34,7 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
-		ExposedHeaders:   []string{"Link"},
+		ExposedHeaders:   []string{"Link", "Location"},
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
@@ -49,15 +50,22 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	samplingFeatureFormatterCollection := buildSamplingFeatureFormatterCollection(repos)
 	propertyFormatterCollection := buildPropertyFormatterCollection(repos)
 	featureFormatterCollection := buildFeatureFormatterCollection(repos)
+	datastreamFormatterCollection := buildDatastreamFormatterCollection(repos)
 	collectionFormatterCollection := buildCollectionFormatterCollection(repos)
+	controlStreamFormatterCollection := buildControlStreamFormatterCollection(repos)
 
 	collectionHandler := NewCollectionHandler(cfg, logger, repos.Collection, collectionFormatterCollection)
 	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentFormatterCollection)
-	systemHandler := NewSystemHandler(cfg, logger, repos.System, systemFormatterCollection, repos.Deployment, deploymentFormatterCollection)
+	systemHandler := NewSystemHandler(cfg, logger, repos.System, repos.SystemHistory, systemFormatterCollection, repos.Deployment, deploymentFormatterCollection)
 	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureFormatterCollection)
 	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, samplingFeatureFormatterCollection)
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertyFormatterCollection)
 	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureFormatterCollection)
+	datastreamHandler := NewDatastreamHandler(cfg, logger, repos.Datastream, datastreamFormatterCollection)
+	observationHandler := NewObservationHandler(cfg, logger, repos.Observation, repos.Datastream)
+	controlStreamHandler := NewControlStreamHandler(cfg, logger, repos.ControlStream, controlStreamFormatterCollection)
+	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream)
+	systemEventHandler := NewSystemEventHandler(cfg, logger, repos.SystemEvent, repos.System)
 
 	// Routes
 
@@ -101,9 +109,89 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 			// Associated resource endpoint
 			r.Get("/deployments", systemHandler.GetDeployments)
 			r.Get("/samplingFeatures", samplingFeatureHandler.GetSystemSamplingFeatures)
+			r.Get("/datastreams", datastreamHandler.ListSystemDatastreams)
+			r.Get("/controlstreams", controlStreamHandler.ListSystemControlStreams)
+			r.Get("/events", systemEventHandler.ListEventsBySystem)
+			r.Post("/events", systemEventHandler.CreateEventBySystem)
+			r.Get("/history", systemHandler.ListSystemHistory)
 
 			// Sampling Features endpoint
 			r.Post("/samplingFeatures", samplingFeatureHandler.CreateSamplingFeature)
+			r.Post("/datastreams", datastreamHandler.CreateDatastream)
+			r.Post("/controlstreams", controlStreamHandler.CreateControlStream)
+
+			r.Route("/events/{eventId}", func(r chi.Router) {
+				r.Get("/", systemEventHandler.GetEventByID)
+				r.Put("/", systemEventHandler.UpdateEventByID)
+				r.Delete("/", systemEventHandler.DeleteEventByID)
+			})
+
+			r.Route("/history/{revId}", func(r chi.Router) {
+				r.Get("/", systemHandler.GetSystemHistoryRevision)
+				r.Put("/", systemHandler.UpdateSystemHistoryRevision)
+				r.Delete("/", systemHandler.DeleteSystemHistoryRevision)
+			})
+		})
+	})
+
+	// System Events
+	r.Route("/systemEvents", func(r chi.Router) {
+		r.Get("/", systemEventHandler.ListSystemEvents)
+	})
+
+	// Datastreams (Part 2: Dynamic Data)
+	r.Route("/datastreams", func(r chi.Router) {
+		r.Get("/", datastreamHandler.ListDatastreams)
+
+		r.Route("/{dataStreamId}", func(r chi.Router) {
+			r.Get("/", datastreamHandler.GetDatastream)
+			r.Put("/", datastreamHandler.UpdateDatastream)
+			r.Delete("/", datastreamHandler.DeleteDatastream)
+
+			r.Get("/schema", datastreamHandler.GetDatastreamSchema)
+			r.Put("/schema", datastreamHandler.UpdateDatastreamSchema)
+
+			r.Get("/observations", observationHandler.ListDatastreamObservations)
+			r.Post("/observations", observationHandler.CreateDatastreamObservation)
+		})
+	})
+
+	// Control Streams (Part 2: Dynamic Data - Tasking)
+	r.Route("/controlstreams", func(r chi.Router) {
+		r.Get("/", controlStreamHandler.ListControlStreams)
+
+		r.Route("/{controlStreamId}", func(r chi.Router) {
+			r.Get("/", controlStreamHandler.GetControlStream)
+			r.Put("/", controlStreamHandler.UpdateControlStream)
+			r.Delete("/", controlStreamHandler.DeleteControlStream)
+
+			r.Get("/schema", controlStreamHandler.GetControlStreamSchema)
+			r.Put("/schema", controlStreamHandler.UpdateControlStreamSchema)
+
+			r.Get("/commands", commandHandler.ListControlStreamCommands)
+			r.Post("/commands", commandHandler.CreateControlStreamCommand)
+		})
+	})
+
+	// Commands (Part 2: Dynamic Data - Tasking)
+	r.Route("/commands", func(r chi.Router) {
+		r.Get("/", commandHandler.ListCommands)
+
+		r.Route("/{cmdId}", func(r chi.Router) {
+			r.Get("/", commandHandler.GetCommand)
+			r.Put("/", commandHandler.UpdateCommand)
+			r.Delete("/", commandHandler.DeleteCommand)
+		})
+	})
+
+	// Observations (Part 2: Dynamic Data)
+	r.Route("/observations", func(r chi.Router) {
+		r.Get("/", observationHandler.ListObservations)
+
+		r.Route("/{obsId}", func(r chi.Router) {
+			r.Get("/", observationHandler.GetObservation)
+			r.Put("/", observationHandler.UpdateObservation)
+			r.Delete("/", observationHandler.DeleteObservation)
 		})
 	})
 
@@ -282,6 +370,26 @@ func buildCollectionFormatterCollection(repos *repository.Repositories) *seriali
 
 	// Set default (SensorML is the default for properties per OGC Connected Systems)
 	serializers.RegisterFormatterTypedDefault(collection, geoJSONFormatter, "application/geo+json")
+
+	return collection
+}
+
+func buildDatastreamFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Datastream] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Datastream]("application/json")
+
+	jsonFormatter := json_formatters.NewDatastreamJSONFormatter()
+	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
+	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
+
+	return collection
+}
+
+func buildControlStreamFormatterCollection(_ *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.ControlStream] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.ControlStream]("application/json")
+
+	jsonFormatter := json_formatters.NewControlStreamJSONFormatter()
+	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
+	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
 
 	return collection
 }

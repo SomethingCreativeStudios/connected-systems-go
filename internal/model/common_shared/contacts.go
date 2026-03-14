@@ -1,7 +1,12 @@
 package common_shared
 
 import (
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 // ContactInfo holds nested contact details such as phone and address.
@@ -104,3 +109,50 @@ func (c *ContactWrapper) GetDisplayName() string {
 	}
 	return ""
 }
+
+// MarshalJSON implements json.Marshaler to serialize the correct variant.
+func (c ContactWrapper) MarshalJSON() ([]byte, error) {
+	if len(c.Raw) > 0 {
+		return c.Raw, nil
+	}
+	if c.Person != nil {
+		return json.Marshal(c.Person)
+	}
+	if c.LinkRef != nil {
+		return json.Marshal(c.LinkRef)
+	}
+	return []byte("{}"), nil
+}
+
+// ContactWrappers is a JSONB-backed slice of ContactWrapper for GORM
+type ContactWrappers []ContactWrapper
+
+// Value implements driver.Valuer for JSONB storage
+func (c ContactWrappers) Value() (driver.Value, error) {
+	if c == nil {
+		return []byte("[]"), nil
+	}
+	b, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// Scan implements sql.Scanner for JSONB retrieval
+func (c *ContactWrappers) Scan(value interface{}) error {
+	if value == nil {
+		*c = nil
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("cannot scan type %T into ContactWrappers", value)
+	}
+	return json.Unmarshal(b, c)
+}
+
+// Gorm data type hints
+func (ContactWrappers) GormDataType() string { return "jsonb" }
+
+func (ContactWrappers) GormDBDataType(db *gorm.DB, _ *schema.Field) string { return "jsonb" }

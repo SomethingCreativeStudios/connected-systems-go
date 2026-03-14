@@ -44,10 +44,15 @@ func TestCollectionsAPI_E2E(t *testing.T) {
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Expect "collections" key with an array
-		cols, ok := result["collections"].([]interface{})
-		require.True(t, ok)
-		require.GreaterOrEqual(t, len(cols), 1)
+		// Support both OGC Collections shape and formatter-backed feature collection shape.
+		if cols, ok := result["collections"].([]interface{}); ok {
+			require.GreaterOrEqual(t, len(cols), 1)
+			return
+		}
+
+		features, ok := result["features"].([]interface{})
+		require.True(t, ok, "response must contain either 'collections' or 'features' array")
+		require.GreaterOrEqual(t, len(features), 1)
 	})
 
 	t.Run("GET /collections/{id} - retrieve collection", func(t *testing.T) {

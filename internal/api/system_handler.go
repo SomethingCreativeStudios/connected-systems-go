@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -16,21 +17,23 @@ import (
 
 // SystemHandler handles System resource requests
 type SystemHandler struct {
-	cfg    *config.Config
-	logger *zap.Logger
-	repo   *repository.SystemRepository
-	fc     *formaters.MultiFormatFormatterCollection[*domains.System]
+	cfg         *config.Config
+	logger      *zap.Logger
+	repo        *repository.SystemRepository
+	historyRepo *repository.SystemHistoryRepository
+	fc          *formaters.MultiFormatFormatterCollection[*domains.System]
 	// deployment dependencies for server-side reuse
 	deploymentRepo *repository.DeploymentRepository
 	deploymentFC   *formaters.MultiFormatFormatterCollection[*domains.Deployment]
 }
 
 // NewSystemHandler creates a new SystemHandler
-func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, fc *formaters.MultiFormatFormatterCollection[*domains.System], deploymentRepo *repository.DeploymentRepository, deploymentFC *formaters.MultiFormatFormatterCollection[*domains.Deployment]) *SystemHandler {
+func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, historyRepo *repository.SystemHistoryRepository, fc *formaters.MultiFormatFormatterCollection[*domains.System], deploymentRepo *repository.DeploymentRepository, deploymentFC *formaters.MultiFormatFormatterCollection[*domains.Deployment]) *SystemHandler {
 	return &SystemHandler{
 		cfg:            cfg,
 		logger:         logger,
 		repo:           repo,
+		historyRepo:    historyRepo,
 		fc:             fc,
 		deploymentRepo: deploymentRepo,
 		deploymentFC:   deploymentFC,
@@ -99,18 +102,13 @@ func (h *SystemHandler) CreateSystem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, system)
-	if err != nil {
-		h.logger.Error("Failed to serialize system", zap.String("id", system.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize system"})
-		return
+	if _, err := h.historyRepo.CreateFromSystem(system); err != nil {
+		h.logger.Warn("Failed to create initial system history snapshot", zap.String("systemId", system.ID), zap.Error(err))
 	}
 
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, serialized)
+	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/systems/" + system.ID
+	w.Header().Set("Location", location)
+	w.WriteHeader(http.StatusCreated)
 }
 
 // UpdateSystem updates a system (PUT)
@@ -134,17 +132,11 @@ func (h *SystemHandler) UpdateSystem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, system)
-	if err != nil {
-		h.logger.Error("Failed to serialize system", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize system"})
-		return
+	if _, err := h.historyRepo.CreateFromSystem(system); err != nil {
+		h.logger.Warn("Failed to create system history snapshot after update", zap.String("systemId", system.ID), zap.Error(err))
 	}
 
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, serialized)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // DeleteSystem deletes a system
@@ -189,9 +181,10 @@ func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 
 	// Build optional pagination params from request
 	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r)
+	params.System = append(params.System, id)
 
 	// Use deployment repository helper to find deployments associated with this system
-	deployments, total, err := h.deploymentRepo.List(params)
+	deployments, total, err := h.deploymentRepo.List(params, nil)
 	if err != nil {
 		h.logger.Error("Failed to get deployments for system", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -232,16 +225,11 @@ func (h *SystemHandler) AddSubsystem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, system)
-	if err != nil {
-		h.logger.Error("Failed to serialize system", zap.String("id", system.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize system"})
-		return
+	if _, err := h.historyRepo.CreateFromSystem(system); err != nil {
+		h.logger.Warn("Failed to create subsystem history snapshot", zap.String("systemId", system.ID), zap.Error(err))
 	}
 
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, serialized)
+	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/systems/" + system.ID
+	w.Header().Set("Location", location)
+	w.WriteHeader(http.StatusCreated)
 }

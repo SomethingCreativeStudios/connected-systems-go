@@ -20,32 +20,30 @@ type Deployment struct {
 	// Associations
 	ParentDeploymentID *string `gorm:"type:varchar(255);index" json:"-"`
 
-	// Platform link (when provided in payload)
-	Platform   *common_shared.Link `gorm:"type:jsonb" json:"platform,omitempty"`
-	PlatformID *string             `gorm:"type:varchar(255);index" json:"-"`
-
 	// Additional descriptive metadata from the SWE/System schema
 	Lang                *string                           `gorm:"type:varchar(10)" json:"lang,omitempty"`
-	Keywords            []string                          `gorm:"type:jsonb" json:"keywords,omitempty"`
+	Keywords            common_shared.StringArray         `gorm:"type:jsonb" json:"keywords,omitempty"`
 	Identifiers         common_shared.Terms               `gorm:"type:jsonb" json:"identifiers,omitempty"`
 	Classifiers         common_shared.Terms               `gorm:"type:jsonb" json:"classifiers,omitempty"`
 	SecurityConstraints common_shared.SecurityConstraints `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
 	LegalConstraints    common_shared.LegalConstraints    `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
 
-	Characteristics []common_shared.CharacteristicGroup `gorm:"type:jsonb" json:"characteristics,omitempty"`
-	Capabilities    []common_shared.CapabilityGroup     `gorm:"type:jsonb" json:"capabilities,omitempty"`
-	Contacts        []common_shared.ContactWrapper      `gorm:"type:jsonb" json:"contacts,omitempty"`
-	Documentation   common_shared.Documents             `gorm:"type:jsonb" json:"documents,omitempty"`
-	History         common_shared.History               `gorm:"type:jsonb" json:"history,omitempty"`
+	Characteristics common_shared.CharacteristicGroups `gorm:"type:jsonb" json:"characteristics,omitempty"`
+	Capabilities    common_shared.CapabilityGroups     `gorm:"type:jsonb" json:"capabilities,omitempty"`
+	Contacts        common_shared.ContactWrappers      `gorm:"type:jsonb" json:"contacts,omitempty"`
+	Documentation   common_shared.Documents            `gorm:"type:jsonb" json:"documents,omitempty"`
+	History         common_shared.History              `gorm:"type:jsonb" json:"history,omitempty"`
 
 	// DeployedSystems: list of systems deployed with optional configuration
-	SystemIds       *[]string            `gorm:"-" json:"systemIds,omitempty"`
-	DeployedSystems []DeployedSystemItem `gorm:"type:jsonb" json:"deployedSystems,omitempty"`
+	SystemIds       *common_shared.StringArray `gorm:"type:jsonb" json:"systemIds,omitempty"`
+	DeployedSystems DeployedSystemItems        `gorm:"type:jsonb" json:"deployedSystems,omitempty"`
+
+	// Platform link (when provided in payload)
+	Platform   *DeployedSystemItem `gorm:"type:jsonb" json:"platform,omitempty"`
+	PlatformID *string             `gorm:"type:varchar(255);index" json:"-"`
 
 	// Links to related resources
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
-
-	Systems []System `gorm:"many2many:system_deployments;"`
 }
 
 // TableName specifies the table name
@@ -55,7 +53,7 @@ func (Deployment) TableName() string {
 
 // DeploymentType constant (SOSA/SSN)
 const (
-	DeploymentTypeDeployment = "http://www.w3.org/ns/ssn/Deployment"
+	DeploymentTypeDeployment = "http://www.w3.org/ns/sosa/Deployment"
 )
 
 // DeploymentGeoJSONFeature converts Deployment to GeoJSON Feature format
@@ -76,7 +74,7 @@ type DeploymentGeoJSONProperties struct {
 	ValidTime       *common_shared.TimeRange `json:"validTime,omitempty"`
 	Definition      string                   `json:"definition,omitempty"`
 	Platform        *common_shared.Link      `json:"platform@link,omitempty"`
-	DeployedSystems []DeployedSystemItem     `json:"deployedSystems@link,omitempty"`
+	DeployedSystems common_shared.Links      `json:"deployedSystems@link,omitempty"`
 }
 
 // DeployedSystemItem represents an entry in the deployment's deployedSystems list
@@ -96,20 +94,20 @@ type DeploymentSensorMLFeature struct {
 	UniqueID        string                   `json:"uniqueId"`
 	Definition      string                   `json:"definition,omitempty"`
 	ValidTime       *common_shared.TimeRange `json:"validTime,omitempty"`
-	Platform        *common_shared.Link      `json:"platform,omitempty"`
+	Platform        *DeployedSystemItem      `json:"platform,omitempty"`
 	DeployedSystems []DeployedSystemItem     `json:"deployedSystems,omitempty"`
 	Links           common_shared.Links      `json:"links,omitempty"`
 
-	Lang                *string                           `gorm:"type:varchar(10)" json:"lang,omitempty"`
-	Keywords            []string                          `gorm:"type:jsonb" json:"keywords,omitempty"`
-	Identifiers         common_shared.Terms               `gorm:"type:jsonb" json:"identifiers,omitempty"`
-	Classifiers         common_shared.Terms               `gorm:"type:jsonb" json:"classifiers,omitempty"`
-	SecurityConstraints common_shared.SecurityConstraints `gorm:"type:jsonb" json:"securityConstraints,omitempty"`
-	LegalConstraints    common_shared.LegalConstraints    `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
+	Lang                *string                           `json:"lang,omitempty"`
+	Keywords            []string                          `json:"keywords,omitempty"`
+	Identifiers         common_shared.Terms               `json:"identifiers,omitempty"`
+	Classifiers         common_shared.Terms               `json:"classifiers,omitempty"`
+	SecurityConstraints common_shared.SecurityConstraints `json:"securityConstraints,omitempty"`
+	LegalConstraints    common_shared.LegalConstraints    `json:"legalConstraints,omitempty"`
 
-	Characteristics []common_shared.CharacteristicGroup `gorm:"type:jsonb" json:"characteristics,omitempty"`
-	Capabilities    []common_shared.CapabilityGroup     `gorm:"type:jsonb" json:"capabilities,omitempty"`
-	Contacts        []common_shared.ContactWrapper      `gorm:"type:jsonb" json:"contacts,omitempty"`
-	Documentation   common_shared.Documents             `gorm:"type:jsonb" json:"documentation,omitempty"`
-	History         common_shared.History               `gorm:"type:jsonb" json:"history,omitempty"`
+	Characteristics []common_shared.CharacteristicGroup `json:"characteristics,omitempty"`
+	Capabilities    []common_shared.CapabilityGroup     `json:"capabilities,omitempty"`
+	Contacts        []common_shared.ContactWrapper      `json:"contacts,omitempty"`
+	Documentation   common_shared.Documents             `json:"documentation,omitempty"`
+	History         common_shared.History               `json:"history,omitempty"`
 }

@@ -13,6 +13,8 @@ type Repositories struct {
 	Procedure       *repository.ProcedureRepository
 	SamplingFeature *repository.SamplingFeatureRepository
 	Property        *repository.PropertyRepository
+	Datastream      *repository.DatastreamRepository
+	Observation     *repository.ObservationRepository
 }
 
 // NewRepositories creates new repository instances
@@ -23,6 +25,8 @@ func NewRepositories(db *gorm.DB) *Repositories {
 		Procedure:       repository.NewProcedureRepository(db),
 		SamplingFeature: repository.NewSamplingFeatureRepository(db),
 		Property:        repository.NewPropertyRepository(db),
+		Datastream:      repository.NewDatastreamRepository(db),
+		Observation:     repository.NewObservationRepository(db),
 	}
 }
 
@@ -34,5 +38,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&domains.Procedure{},
 		&domains.SamplingFeature{},
 		&domains.Property{},
+		&domains.Datastream{},
+		&domains.Observation{},
 	)
 }

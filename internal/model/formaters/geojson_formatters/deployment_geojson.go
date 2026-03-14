@@ -3,7 +3,9 @@ package geojson_formatters
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
@@ -29,9 +31,16 @@ func (f *DeploymentGeoJSONFormatter) ContentType() string {
 // --- Serialization ---
 
 func (f *DeploymentGeoJSONFormatter) Serialize(ctx context.Context, deployment *domains.Deployment) (domains.DeploymentGeoJSONFeature, error) {
+	if deployment == nil {
+		return domains.DeploymentGeoJSONFeature{}, fmt.Errorf("deployment cannot be nil")
+	}
+
 	features, err := f.SerializeAll(ctx, []*domains.Deployment{deployment})
 	if err != nil {
 		return domains.DeploymentGeoJSONFeature{}, err
+	}
+	if len(features) == 0 {
+		return domains.DeploymentGeoJSONFeature{}, fmt.Errorf("deployment serialization produced no features")
 	}
 	return features[0], nil
 }
@@ -43,6 +52,21 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 
 	var features []domains.DeploymentGeoJSONFeature
 	for _, deployment := range deployments {
+		if deployment == nil {
+			continue
+		}
+
+		var systemLinks common_shared.Links
+		for _, ds := range deployment.DeployedSystems {
+			systemLinks = append(systemLinks, ds.System)
+		}
+
+		var platformLink *common_shared.Link
+		if deployment.Platform != nil {
+			platform := deployment.Platform.System
+			platformLink = &platform
+		}
+
 		feature := domains.DeploymentGeoJSONFeature{
 			Type:     "Feature",
 			ID:       deployment.ID,
@@ -54,8 +78,8 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 				FeatureType:     deployment.DeploymentType,
 				ValidTime:       deployment.ValidTime,
 				Definition:      deployment.DeploymentType,
-				Platform:        deployment.Platform,
-				DeployedSystems: deployment.DeployedSystems,
+				Platform:        platformLink,
+				DeployedSystems: systemLinks,
 			},
 			Links: deployment.Links,
 		}
@@ -93,22 +117,37 @@ func (f *DeploymentGeoJSONFormatter) Deserialize(ctx context.Context, reader io.
 	deployment.UniqueIdentifier = domains.UniqueID(geoJSON.Properties.UID)
 	deployment.Name = geoJSON.Properties.Name
 	deployment.Description = geoJSON.Properties.Description
-
-	// Prefer explicit definition when present (matches schema semantics)
-	if geoJSON.Properties.Definition != "" {
-		deployment.DeploymentType = geoJSON.Properties.Definition
-	} else {
-		deployment.DeploymentType = geoJSON.Properties.FeatureType
-	}
+	deployment.DeploymentType = geoJSON.Properties.FeatureType
 
 	deployment.ValidTime = geoJSON.Properties.ValidTime
 
 	// Platform and DeployedSystems
 	if geoJSON.Properties.Platform != nil {
-		deployment.Platform = geoJSON.Properties.Platform
+		deployment.PlatformID = geoJSON.Properties.Platform.GetId("systems")
+		var platformItem domains.DeployedSystemItem
+		platformItem.System = *geoJSON.Properties.Platform
+		deployment.Platform = &platformItem
 	}
+
 	if len(geoJSON.Properties.DeployedSystems) > 0 {
-		deployment.DeployedSystems = geoJSON.Properties.DeployedSystems
+		var systemIDs common_shared.StringArray
+		for _, ds := range geoJSON.Properties.DeployedSystems {
+			systemID := ds.GetId("systems")
+			if systemID == nil {
+				continue
+			}
+
+			systemIDs = append(systemIDs, *systemID)
+
+			var deployedItem domains.DeployedSystemItem
+			deployedItem.Name = "System_" + strings.ReplaceAll(*systemID, "-", "_")
+			deployedItem.System = ds
+			deployment.DeployedSystems = append(deployment.DeployedSystems, deployedItem)
+		}
+
+		if len(systemIDs) > 0 {
+			deployment.SystemIds = &systemIDs
+		}
 	}
 
 	return deployment, nil

@@ -45,7 +45,7 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 	for _, deployment := range deployments {
 		feature := domains.DeploymentSensorMLFeature{
 			ID:              deployment.ID,
-			Type:            deployment.DeploymentType,
+			Type:            "Deployment",
 			Label:           deployment.Name,
 			Description:     deployment.Description,
 			UniqueID:        string(deployment.UniqueIdentifier),
@@ -54,6 +54,18 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 			Platform:        deployment.Platform,
 			DeployedSystems: deployment.DeployedSystems,
 			Links:           deployment.Links,
+
+			Lang:                deployment.Lang,
+			Keywords:            deployment.Keywords,
+			Identifiers:         deployment.Identifiers,
+			Classifiers:         deployment.Classifiers,
+			Contacts:            deployment.Contacts,
+			Characteristics:     deployment.Characteristics,
+			Capabilities:        deployment.Capabilities,
+			SecurityConstraints: deployment.SecurityConstraints,
+			LegalConstraints:    deployment.LegalConstraints,
+			Documentation:       deployment.Documentation,
+			History:             deployment.History,
 		}
 		features = append(features, feature)
 	}
@@ -82,6 +94,20 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 		Links: sensorML.Links,
 	}
 
+	if sensorML.Platform != nil {
+		deployment.Platform = sensorML.Platform
+		deployment.PlatformID = sensorML.Platform.System.GetId("systems")
+	}
+
+	if len(sensorML.DeployedSystems) > 0 {
+		deployment.DeployedSystems = sensorML.DeployedSystems
+		var systemIDs common_shared.StringArray
+		for _, ds := range sensorML.DeployedSystems {
+			systemIDs = append(systemIDs, *ds.System.GetId("systems"))
+		}
+		deployment.SystemIds = &systemIDs
+	}
+
 	deployment.UniqueIdentifier = domains.UniqueID(sensorML.UniqueID)
 	deployment.Name = sensorML.Label
 	deployment.Description = sensorML.Description
@@ -93,8 +119,17 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 	}
 
 	deployment.ValidTime = sensorML.ValidTime
-	deployment.Platform = sensorML.Platform
-	deployment.DeployedSystems = sensorML.DeployedSystems
+	deployment.Lang = sensorML.Lang
+	deployment.Keywords = sensorML.Keywords
+	deployment.Identifiers = sensorML.Identifiers
+	deployment.Classifiers = sensorML.Classifiers
+	deployment.SecurityConstraints = sensorML.SecurityConstraints
+	deployment.LegalConstraints = sensorML.LegalConstraints
+	deployment.Characteristics = sensorML.Characteristics
+	deployment.Capabilities = sensorML.Capabilities
+	deployment.Contacts = sensorML.Contacts
+	deployment.Documentation = sensorML.Documentation
+	deployment.History = sensorML.History
 
 	// Handle geometry from position field if present
 	if geomObj, ok := raw["position"]; ok {

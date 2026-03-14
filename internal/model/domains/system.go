@@ -36,9 +36,9 @@ type System struct {
 	LegalConstraints    common_shared.LegalConstraints    `gorm:"type:jsonb" json:"legalConstraints,omitempty"`
 
 	// Documentation/contacts/history at top-level (also present in SMLProperties)
-	Contacts      []common_shared.ContactWrapper `gorm:"type:jsonb" json:"contacts,omitempty"`
-	Documentation common_shared.Documents        `gorm:"type:jsonb" json:"documentation,omitempty"`
-	History       common_shared.History          `gorm:"type:jsonb" json:"history,omitempty"`
+	Contacts      common_shared.ContactWrappers `gorm:"type:jsonb" json:"contacts,omitempty"`
+	Documentation common_shared.Documents       `gorm:"type:jsonb" json:"documentation,omitempty"`
+	History       common_shared.History         `gorm:"type:jsonb" json:"history,omitempty"`
 
 	// Process-level fields (also mirrored inside SensorML properties)
 	TypeOf             *common_shared.Link  `gorm:"type:jsonb" json:"typeOf,omitempty"`

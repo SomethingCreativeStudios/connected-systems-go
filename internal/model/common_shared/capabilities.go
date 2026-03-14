@@ -1,6 +1,13 @@
 package common_shared
 
-import "encoding/json"
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+)
 
 // CapabilityGroup models the "capabilities" group from the OpenAPI SWE-style
 // schema. It largely mirrors CharacteristicGroup: identification metadata,
@@ -44,3 +51,36 @@ func (cg *CapabilityGroup) RawJSON(i int) json.RawMessage {
 	}
 	return cg.Capabilities[i].Raw
 }
+
+// CapabilityGroups is a JSONB-backed slice of CapabilityGroup for GORM
+type CapabilityGroups []CapabilityGroup
+
+// Value implements driver.Valuer for JSONB storage
+func (c CapabilityGroups) Value() (driver.Value, error) {
+	if c == nil {
+		return []byte("[]"), nil
+	}
+	b, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// Scan implements sql.Scanner for JSONB retrieval
+func (c *CapabilityGroups) Scan(value interface{}) error {
+	if value == nil {
+		*c = nil
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("cannot scan type %T into CapabilityGroups", value)
+	}
+	return json.Unmarshal(b, c)
+}
+
+// Gorm data type hints
+func (CapabilityGroups) GormDataType() string { return "jsonb" }
+
+func (CapabilityGroups) GormDBDataType(db *gorm.DB, _ *schema.Field) string { return "jsonb" }

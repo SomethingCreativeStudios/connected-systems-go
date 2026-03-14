@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -29,7 +30,7 @@ func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Request) {
 	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r)
 
-	deployments, total, err := h.repo.List(params)
+	deployments, total, err := h.repo.List(params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list deployments", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -86,18 +87,9 @@ func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, deployment)
-	if err != nil {
-		h.logger.Error("Failed to serialize deployment", zap.String("id", deployment.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize deployment"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, serialized)
+	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/deployments/" + deployment.ID
+	w.Header().Set("Location", location)
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (h *DeploymentHandler) UpdateDeployment(w http.ResponseWriter, r *http.Request) {
@@ -120,18 +112,7 @@ func (h *DeploymentHandler) UpdateDeployment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, deployment)
-	if err != nil {
-		h.logger.Error("Failed to serialize deployment", zap.String("id", deployment.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize deployment"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, serialized)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Request) {
@@ -149,9 +130,10 @@ func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Requ
 
 // List all subdeployments
 func (h *DeploymentHandler) ListSubdeployments(w http.ResponseWriter, r *http.Request) {
+	parentID := chi.URLParam(r, "id")
 	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r)
 
-	deployments, total, err := h.repo.List(params)
+	deployments, total, err := h.repo.List(params, &parentID)
 	if err != nil {
 		h.logger.Error("Failed to list subdeployments", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -188,16 +170,7 @@ func (h *DeploymentHandler) AddSubdeployment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, subdeployment)
-	if err != nil {
-		h.logger.Error("Failed to serialize subdeployment", zap.String("id", subdeployment.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize subdeployment"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, serialized)
+	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/deployments/" + subdeployment.ID
+	w.Header().Set("Location", location)
+	w.WriteHeader(http.StatusCreated)
 }

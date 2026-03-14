@@ -47,6 +47,17 @@ func (h *ConformanceHandler) GetConformance(w http.ResponseWriter, r *http.Reque
 			"http://www.opengis.net/spec/ogcapi-connectedsystems-1/1.0/conf/property",
 			"http://www.opengis.net/spec/ogcapi-connectedsystems-1/1.0/conf/advanced-filtering",
 			"http://www.opengis.net/spec/ogcapi-connectedsystems-1/1.0/conf/geojson",
+
+			// OGC API - Connected Systems - Part 2 (Dynamic Data)
+			"http://www.opengis.net/spec/ogcapi-connectedsystems-2/1.0/conf/api-common",
+			"http://www.opengis.net/spec/ogcapi-connectedsystems-2/1.0/conf/datastream",
+			"http://www.opengis.net/spec/ogcapi-connectedsystems-2/1.0/conf/observation",
+			"http://www.opengis.net/spec/ogcapi-connectedsystems-2/1.0/conf/controlstream",
+			"http://www.opengis.net/spec/ogcapi-connectedsystems-2/1.0/conf/command",
+			"http://www.opengis.net/spec/ogcapi-connectedsystems-2/1.0/conf/system-event",
+			"http://www.opengis.net/spec/ogcapi-connectedsystems-2/1.0/conf/system-history",
+			"http://www.opengis.net/spec/ogcapi-connectedsystems-2/1.0/conf/json",
+			"http://www.opengis.net/spec/ogcapi-connectedsystems-2/1.0/conf/create-replace-delete",
 		},
 	}
 

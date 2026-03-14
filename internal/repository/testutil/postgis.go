@@ -120,7 +120,14 @@ func DefaultSystemModels() []interface{} {
 		&domains.SamplingFeature{},
 		&domains.Property{},
 		&domains.Feature{},
+		&domains.Datastream{},
+		&domains.Observation{},
 		&domains.Collection{},
+		&domains.DeploymentClosure{},
+		&domains.ControlStream{},
+		&domains.Command{},
+		&domains.SystemEvent{},
+		&domains.SystemHistoryRevision{},
 	}
 }
 
@@ -133,7 +140,14 @@ func AllModels() []interface{} {
 		&domains.SamplingFeature{},
 		&domains.Property{},
 		&domains.Feature{},
+		&domains.Datastream{},
+		&domains.Observation{},
 		&domains.Collection{},
+		&domains.DeploymentClosure{},
+		&domains.ControlStream{},
+		&domains.Command{},
+		&domains.SystemEvent{},
+		&domains.SystemHistoryRevision{},
 	}
 }
 

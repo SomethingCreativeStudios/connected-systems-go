@@ -114,8 +114,7 @@ func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	render.Status(r, http.StatusNoContent)
-	render.NoContent(w, r)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *ProcedureHandler) DeleteProcedure(w http.ResponseWriter, r *http.Request) {

@@ -6,9 +6,9 @@ import (
 )
 
 type LegalConstraint struct {
-	AccessConstraints CodeLists `json:"accessConstraints"`
-	UseConstraints    CodeLists `json:"useConstraints"`
-	OtherConstraints  Terms     `json:"otherConstraints"`
+	AccessConstraints CodeLists `json:"accessConstraints,omitempty"`
+	UseConstraints    CodeLists `json:"useConstraints,omitempty"`
+	OtherConstraints  Terms     `json:"otherConstraints,omitempty"`
 	UserLimitations   *string   `json:"userLimitations,omitempty"`
 }
 

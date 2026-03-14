@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -110,7 +111,8 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 	}
 
 	// Per spec: return 201 Created with Location header and no response body
-	w.Header().Set("Location", h.cfg.API.BaseURL+"/samplingFeatures/"+sampledFeature.ID)
+	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/samplingFeatures/" + sampledFeature.ID
+	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusCreated)
 }
 

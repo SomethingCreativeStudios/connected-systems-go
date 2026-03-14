@@ -31,13 +31,13 @@ func setupSamplingFeatureConformanceData(t *testing.T) (string, []string) {
 	sysBody, _ := json.Marshal(sysPayload)
 	sysResp, err := http.Post(testServer.URL+"/systems", "application/geo+json", bytes.NewReader(sysBody))
 	require.NoError(t, err)
-	defer sysResp.Body.Close()
 	require.Equal(t, http.StatusCreated, sysResp.StatusCode, "failed to create parent system")
 
-	var sysCreated map[string]interface{}
-	err = json.NewDecoder(sysResp.Body).Decode(&sysCreated)
-	require.NoError(t, err)
-	systemID := sysCreated["id"].(string)
+	location := sysResp.Header.Get("Location")
+	sysResp.Body.Close()
+	require.NotEmpty(t, location, "expected Location header on system create")
+	systemID := parseID(location, "/systems/")
+	require.NotEmpty(t, systemID, "unable to parse system id from Location header: %s", location)
 
 	// Test sampling features with different geometry types
 	testSamplingFeatures := []map[string]interface{}{

@@ -86,10 +86,52 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(dep1))
 
+	depWithSubdep := &domains.Deployment{
+		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:get2", Name: "Deployment 2"},
+		DeploymentType: "Mobile",
+		SystemIds:      &common_shared.StringArray{"urn:test:get1"},
+		Links: []common_shared.Link{
+			{
+				Href: "systems/urn:test:get1",
+				Rel:  "deployedSystems",
+				UID:  testutil.PtrStr("urn:test:get1"),
+			},
+		},
+	}
+	require.NoError(t, repo.Create(depWithSubdep))
+
+	subdep := &domains.Deployment{
+		CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:get3", Name: "Subdeployment of Deployment 2"},
+		DeploymentType:     "Fixed",
+		ParentDeploymentID: &depWithSubdep.ID,
+		SystemIds:          &common_shared.StringArray{"urn:test:subSystem1"},
+		Links: []common_shared.Link{
+			{
+				Href: "systems/urn:test:subSystem1",
+				Rel:  "deployedSystems",
+				UID:  testutil.PtrStr("urn:test:subSystem1"),
+			},
+			{
+				Href: "features/some-feature",
+				Rel:  "samplingFeatures",
+				UID:  testutil.PtrStr("some-feature"),
+			},
+			{
+				Href: "features/some-foi",
+				Rel:  "featuresOfInterest",
+				UID:  testutil.PtrStr("some-foi"),
+			},
+		},
+	}
+	require.NoError(t, repo.Create(subdep))
+
+	// Manually create parent-child relationship for testing
+
 	tests := []struct {
 		name     string
 		id       string
 		wantName string
+		isParent bool
 		wantErr  bool
 	}{
 		{
@@ -97,11 +139,20 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 			id:       dep1.ID,
 			wantName: "Deployment 1",
 			wantErr:  false,
+			isParent: false,
+		},
+		{
+			name:     "get parent deployment with subdeployment associations",
+			id:       depWithSubdep.ID,
+			wantName: "Deployment 2",
+			isParent: true,
+			wantErr:  false,
 		},
 		{
 			name:     "get non-existent deployment",
 			id:       "non-existent-id",
 			wantName: "",
+			isParent: false,
 			wantErr:  true,
 		},
 	}
@@ -115,6 +166,27 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.wantName, got.Name)
+
+			if tt.isParent {
+				foundSamplingFeature := false
+				foundFOI := false
+				foundDeployedSystem := false
+
+				for _, link := range got.Links {
+					if link.Rel == "samplingFeatures" && link.UID != nil && *link.UID == "some-feature" {
+						foundSamplingFeature = true
+					}
+					if link.Rel == "featuresOfInterest" && link.UID != nil && *link.UID == "some-foi" {
+						foundFOI = true
+					}
+					if link.Rel == "deployedSystems" && link.UID != nil && *link.UID == "urn:test:subSystem1" {
+						foundDeployedSystem = true
+					}
+				}
+				require.True(t, foundSamplingFeature, "Expected samplingFeatures link not found")
+				require.True(t, foundFOI, "Expected featuresOfInterest link not found")
+				require.True(t, foundDeployedSystem, "Expected deployedSystems link not found")
+			}
 		})
 	}
 }
@@ -237,7 +309,7 @@ func TestDeploymentRepository_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deployments, total, err := repo.List(tt.params)
+			deployments, total, err := repo.List(tt.params, nil)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantTotal, total, "total count mismatch")
 			require.Len(t, deployments, tt.wantCount, "result count mismatch")
@@ -332,22 +404,111 @@ func TestDeploymentRepository_Delete(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		setupFunc func() string
-		checkFunc func(t *testing.T, id string)
+		setupFunc func() []string
+		checkFunc func(t *testing.T, id []string)
 	}{
 		{
 			name: "delete existing deployment",
-			setupFunc: func() string {
+			setupFunc: func() []string {
 				dep := &domains.Deployment{
 					CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:del1", Name: "Delete Me"},
 					DeploymentType: "Fixed",
 				}
 				require.NoError(t, repo.Create(dep))
-				return dep.ID
+				return []string{dep.ID}
 			},
-			checkFunc: func(t *testing.T, id string) {
-				_, err := repo.GetByID(id)
+			checkFunc: func(t *testing.T, id []string) {
+				_, err := repo.GetByID(id[0])
 				require.Error(t, err)
+			},
+		},
+		{
+			name: "delete deployment with sub-deployments - Reparent to parent",
+			setupFunc: func() []string {
+				dep := &domains.Deployment{
+					CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:del1", Name: "Delete Me"},
+					DeploymentType: "Fixed",
+				}
+				require.NoError(t, repo.Create(dep))
+
+				child := &domains.Deployment{
+					CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:del2", Name: "Child Deployment"},
+					DeploymentType:     "Mobile",
+					ParentDeploymentID: &dep.ID,
+				}
+				require.NoError(t, repo.Create(child))
+
+				grandChild := &domains.Deployment{
+					CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:del3", Name: "Grandchild Deployment"},
+					DeploymentType:     "Fixed",
+					ParentDeploymentID: &child.ID,
+				}
+				require.NoError(t, repo.Create(grandChild))
+
+				// Delete child, grandChild should be reparented to dep
+				return []string{dep.ID, child.ID, grandChild.ID}
+			},
+			checkFunc: func(t *testing.T, id []string) {
+				parentId := id[0]
+				childId := id[1]
+				grandChildId := id[2]
+
+				// Verify parent is deleted
+				_, err := repo.GetByID(parentId)
+				require.Error(t, err)
+
+				// Verify child is now orphaned (no parent)
+				child, err := repo.GetByID(childId)
+				require.NoError(t, err)
+				require.Nil(t, child.ParentDeploymentID)
+
+				// Verify grandChild is did not change parent (still child)
+				grandChild, err := repo.GetByID(grandChildId)
+				require.NoError(t, err)
+				require.NotNil(t, grandChild.ParentDeploymentID)
+				require.Equal(t, childId, *grandChild.ParentDeploymentID)
+			},
+		},
+		{
+			name: "delete child deployment - Reparent to parent",
+			setupFunc: func() []string {
+				dep := &domains.Deployment{
+					CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:del1", Name: "Delete Me"},
+					DeploymentType: "Fixed",
+				}
+				require.NoError(t, repo.Create(dep))
+
+				child := &domains.Deployment{
+					CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:del2", Name: "Child Deployment"},
+					DeploymentType:     "Mobile",
+					ParentDeploymentID: &dep.ID,
+				}
+				require.NoError(t, repo.Create(child))
+
+				grandChild := &domains.Deployment{
+					CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:del3", Name: "Grandchild Deployment"},
+					DeploymentType:     "Fixed",
+					ParentDeploymentID: &child.ID,
+				}
+				require.NoError(t, repo.Create(grandChild))
+
+				// Delete child, grandChild should be reparented to dep
+				return []string{child.ID, grandChild.ID, dep.ID}
+			},
+			checkFunc: func(t *testing.T, id []string) {
+				childId := id[0]
+				grandChildId := id[1]
+				parentId := id[2]
+
+				// Verify child is deleted
+				_, err := repo.GetByID(childId)
+				require.Error(t, err)
+
+				// Verify grandChild is now child of parent
+				grandChild, err := repo.GetByID(grandChildId)
+				require.NoError(t, err)
+				require.NotNil(t, grandChild.ParentDeploymentID)
+				require.Equal(t, parentId, *grandChild.ParentDeploymentID)
 			},
 		},
 	}
@@ -355,9 +516,11 @@ func TestDeploymentRepository_Delete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id := tt.setupFunc()
-			err := repo.Delete(id)
+			err := repo.Delete(id[0])
 			require.NoError(t, err)
 			tt.checkFunc(t, id)
+
+			repo.DeleteAll()
 		})
 	}
 }

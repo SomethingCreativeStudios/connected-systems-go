@@ -1,0 +1,651 @@
+openapi: 3.1.0
+info:
+  title: 'OGC API - Connected Systems - Part 2: Dynamic Data'
+  version: 0.0.1
+  description: Example OpenAPI specification for part 2 of [OGC API - Connected Systems](https://github.com/opengeospatial/connected_systems).
+  contact:
+    name: OGC API Support
+    url: https://www.ogc.org/contact
+    email: info@ogc.org
+  license:
+    name: OGC License
+    url: https://www.ogc.org/ogc/Document
+  x-logo:
+    url: https://www.ogc.org/wp-content/uploads/2023/03/OGC-1.svg
+    backgroundColor: '#FFFFFF'
+    altText: OGC logo
+    href: https://www.ogc.org
+servers:
+  - url: https://api.georobotix.io/ogc/t18/api
+    description: OGC Testbed Demo Server
+  - url: http://localhost:8181/sensorhub/api
+    description: Local test server
+tags:
+  - name: Data Streams
+    description: |-
+      Datastreams allow access to observations produced by systems, in various formats.
+      They also provide metadata describing the exact meaning of properties included in the observations.
+
+      API clients can act both as sender of receiver of observations.
+  - name: Observations
+    description: Access to historical and real-time observations.
+  - name: Control Streams
+    description: |-
+      Control channels (or control streams) allow sending commands to systems, in various formats.
+      They also provide metadata describing the exact meaning and content of command messages.
+
+      API clients can act both as sender or receiver of commands.
+  - name: Commands
+    description: Access to historical and real-time commands.
+  - name: System Events
+    description: System events are used to notify users of changes to one or more systems.
+  - name: System History
+    description: Advanced access to historical system descriptions.
+paths:
+  /observations:
+    get:
+      summary: List all available observations
+      description: List or search all observations available from this server endpoint.
+      tags:
+        - Observations
+      parameters:
+        - $ref: '#/components/parameters/idList'
+        - $ref: '#/components/parameters/phenomenonTime'
+        - $ref: '#/components/parameters/resultTime'
+        - $ref: '#/components/parameters/dataStreamIdList'
+        - $ref: '#/components/parameters/systemIdList'
+        - $ref: '#/components/parameters/foiIdList'
+        - $ref: '#/components/parameters/obsPropIdList'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/observationCollection'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        5XX:
+          $ref: '#/components/responses/5XX'
+  /datastreams/{dataStreamId}/observations:
+    parameters:
+      - $ref: '#/components/parameters/dataStreamId'
+    get:
+      summary: List observations from a specific datastream
+      description: List or search all observations available from a datastream.
+      tags:
+        - Observations
+      parameters:
+        - $ref: '#/components/parameters/idList'
+        - $ref: '#/components/parameters/phenomenonTime'
+        - $ref: '#/components/parameters/resultTime'
+        - $ref: '#/components/parameters/foiIdList'
+        - $ref: '#/components/parameters/obsPropIdList'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/observationCollection'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        5XX:
+          $ref: '#/components/responses/5XX'
+    post:
+      summary: Add an observation
+      description: Add a new observation to an existing datastream.
+      tags:
+        - Observations
+      requestBody:
+        $ref: '#/components/requestBodies/observation'
+      responses:
+        '201':
+          $ref: '#/components/responses/201'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        5XX:
+          $ref: '#/components/responses/5XX'
+  /observations/{obsId}:
+    parameters:
+      - $ref: '#/components/parameters/obsId'
+    get:
+      summary: Get an observation by ID
+      description: null
+      tags:
+        - Observations
+      responses:
+        '200':
+          $ref: '#/components/responses/observation'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        5XX:
+          $ref: '#/components/responses/5XX'
+    put:
+      summary: Update an observation
+      description: null
+      tags:
+        - Observations
+      requestBody:
+        $ref: '#/components/requestBodies/observation'
+      responses:
+        '204':
+          $ref: '#/components/responses/204_PUT'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        5XX:
+          $ref: '#/components/responses/5XX'
+    delete:
+      summary: Delete an observation
+      description: This will delete the observation and remove it from all collections it is associated to.
+      tags:
+        - Observations
+      responses:
+        '204':
+          $ref: '#/components/responses/204_DELETE'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '409':
+          $ref: '#/components/responses/409_DELETE'
+        5XX:
+          $ref: '#/components/responses/5XX'
+components:
+  schemas:
+    idListSchema:
+      description: List of resource local IDs or unique identifiers (URIs).
+      oneOf:
+        - type: array
+          title: Local IDs
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+        - type: array
+          title: Unique IDs
+          minItems: 1
+          items:
+            type: string
+            format: uri
+    datetimeSchema:
+      oneOf:
+        - title: Time Instant
+          description: |-
+            ISO 8601 encoded time instant or special value.
+            Examples:
+              * A time instant: "2020-02-12T23:20:50Z" or "2020-01-15Z"
+              * Special indeterminate value: "now", "latest"
+          oneOf:
+            - title: ISO Date
+              type: string
+              format: date
+            - title: ISO Date/Time
+              type: string
+              format: date-time
+            - title: Special Value
+              type: string
+              enum:
+                - now
+                - latest
+        - title: Time Period
+          description: |-
+            ISO 8601 encoded time period that can include special values.
+            Examples:
+              * A closed interval: "2020-02-12T00:00:00Z/2020-03-18T12:31:12Z" or "2020-01-15Z/2020-02-16Z"
+              * An open interval: "2020-02-12T00:00:00Z/.." or "../2020-03-18T12:31:12Z"
+              * An interval with indeterminate value: "2020-02-12T00:00:00Z/now", "2020-02-12T00:00:00Z/latest" or "now/.."
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            oneOf:
+              - title: ISO Date
+                type: string
+                format: date
+              - title: ISO Date/Time
+                type: string
+                format: date-time
+              - title: Special Value
+                type: string
+                enum:
+                  - now
+                  - latest
+    link:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      title: Link
+      description: Link object following standard Web Linking conventions (see RFC5988 and RFC6690)
+      type: object
+      required:
+        - href
+      properties:
+        href:
+          description: URL of target resource
+          type: string
+          format: uri
+          examples:
+            - https://data.example.com/link/to/resource
+        rel:
+          description: Link relation type
+          type: string
+          examples:
+            - alternate
+            - self
+            - http://www.opengis.net/def/rel/ogc/1.0/conformance
+        type:
+          description: Media type of target resource
+          type: string
+          examples:
+            - application/json
+            - image/tiff; application=geotiff
+        hreflang:
+          description: Language tag of target resource (2-letter language code, followed by optional 2-letter region code)
+          type: string
+          minLength: 1
+          pattern: ^([a-z]{2}(-[A-Z]{2})?)|x-default$
+          examples:
+            - en-US
+            - fr-FR
+            - de
+        title:
+          description: Title of target resource
+          type: string
+          minLength: 1
+          examples:
+            - Resource Name
+        uid:
+          description: Unique identifier of target resource
+          type: string
+          format: uri
+          examples:
+            - urn:x-org:resourceType:0001
+        rt:
+          description: Semantic type of target resource (RFC 6690)
+          type: string
+          format: uri
+          examples:
+            - http://www.example.org/uri/of/concept
+        if:
+          description: Interface used to access target resource (RFC 6690)
+          type: string
+          format: uri
+          examples:
+            - http://www.opengis.net/spec/spec-id/version
+    timeInstant:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      title: Time Instant
+      type: string
+      format: date-time
+    observation:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      type: object
+      properties:
+        id:
+          description: Local ID of the observation
+          type: string
+          minLength: 1
+          readOnly: true
+        datastream@id:
+          description: Local ID of the datastream that the observation is part of
+          type: string
+          minLength: 1
+          readOnly: true
+        samplingFeature@id:
+          description: Local ID of the sampling feature that is the target of the observation
+          type: string
+          minLength: 1
+        procedure@link:
+          description: Link to the procedure/method used to make the observation
+          $ref: '#/components/schemas/link'
+        phenomenonTime:
+          description: Time at which the observation result is a valid estimate of the sampling feature property(ies). Defaults to the same value as `resultTime`.
+          $ref: '#/components/schemas/timeInstant'
+        resultTime:
+          description: Time at which the observation result was generated.
+          $ref: '#/components/schemas/timeInstant'
+        parameters:
+          description: Parameters of the observation. Must be valid according to the parameters schema provided in the datastream metadata.
+          type: object
+        result:
+          description: Result of the observation. Must be valid according to the result schema provided in the datastream metadata.
+        result@link:
+          description: Link to external result data (e.g., large raster dataset served by a tiling service)
+          $ref: '#/components/schemas/link'
+      required:
+        - id
+        - datastream@id
+        - resultTime
+      oneOf:
+        - title: Inline result
+          required:
+            - result
+        - title: Link to external result
+          required:
+            - result@link
+    links:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      title: Link Collection
+      type: array
+      minItems: 1
+      items:
+        $ref: '#/components/schemas/link'
+    observationCollection:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/observation'
+        links:
+          description: Links to related resources (including paging)
+          $ref: '#/components/schemas/links'
+      required:
+        - items
+  parameters:
+    idList:
+      name: id
+      description: |-
+        List of resource local IDs or unique IDs (URI).
+        Only resources that have one of the provided identifiers are selected.
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/idListSchema'
+      explode: false
+      examples:
+        id:
+          summary: Local IDs
+          value: RES_ID1,RES_ID2,RES_ID63
+        uri:
+          summary: Unique IDs
+          value: urn:example:resource:001,urn:example:resource:033
+    phenomenonTime:
+      name: phenomenonTime
+      in: query
+      description: |-
+        Either a date-time or an interval. Date and time expressions adhere to RFC 3339. 
+        Intervals may be bounded or half-bounded (double-dots at start or end).
+
+        Only resources with a `phenomenonTime` property that intersects the value of the
+        `phenomenonTime` parameter are selected.
+      required: false
+      schema:
+        $ref: '#/components/schemas/datetimeSchema'
+      style: form
+      explode: false
+      examples:
+        instant:
+          summary: Time instant
+          value: '2018-02-12T23:20:50Z'
+        now:
+          summary: Current time
+          value: now
+        period:
+          summary: Bounded interval
+          value: 2018-02-12T00:00:00Z/2018-03-18T12:31:12Z
+        period2:
+          summary: Half-bounded interval
+          value: 2018-02-12T00:00:00Z/..
+        period3:
+          summary: From date/time to now
+          value: 2018-02-12T00:00:00Z/now
+        period4:
+          summary: From now to date/time
+          value: now/2018-02-12T00:00:00Z
+        period5:
+          summary: Anything up to now
+          value: ../now
+        period6:
+          summary: Anything from now on
+          value: now/..
+        latest:
+          summary: Latest
+          value: latest
+    resultTime:
+      name: resultTime
+      in: query
+      description: |-
+        Either a date-time or an interval. Date and time expressions adhere to RFC 3339. 
+        Intervals may be bounded or half-bounded (double-dots at start or end).
+
+        Only resources with a `resultTime` property that intersects the value of the
+        `resultTime` parameter are selected.
+      required: false
+      schema:
+        $ref: '#/components/schemas/datetimeSchema'
+      style: form
+      explode: false
+      examples:
+        instant:
+          summary: Time instant
+          value: '2018-02-12T23:20:50Z'
+        now:
+          summary: Current time
+          value: now
+        period:
+          summary: Bounded interval
+          value: 2018-02-12T00:00:00Z/2018-03-18T12:31:12Z
+        period2:
+          summary: Half-bounded interval
+          value: 2018-02-12T00:00:00Z/..
+        period3:
+          summary: From date/time to now
+          value: 2018-02-12T00:00:00Z/now
+        period4:
+          summary: From now to date/time
+          value: now/2018-02-12T00:00:00Z
+        period5:
+          summary: Anything up to now
+          value: ../now
+        period6:
+          summary: Anything from now on
+          value: now/..
+        latest:
+          summary: Latest
+          value: latest
+    dataStreamIdList:
+      name: dataStream
+      description: |-
+        List of data stream local IDs or unique IDs (URI).
+        Only resources that are associated to a data stream that has one of the provided identifiers are selected.
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/idListSchema'
+      explode: false
+    systemIdList:
+      name: system
+      description: |-
+        List of system local IDs or unique IDs (URI).
+        Only resources that are associated to a System that has one of the provided identifiers are selected.
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/idListSchema'
+      explode: false
+    foiIdList:
+      name: foi
+      description: |-
+        List of feature local IDs or unique IDs (URI).
+        Only resources that are associated to a feature of interest that has one of the provided identifiers are selected.
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/idListSchema'
+      explode: false
+    obsPropIdList:
+      name: observedProperty
+      description: |-
+        List of property local IDs or unique IDs (URI).
+        Only resources that are associated to an observable property that has one of the provided identifiers are selected.
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/idListSchema'
+      explode: false
+    limit:
+      name: limit
+      in: query
+      description: |-
+        This parameter limits the number of items that are presented in the response document.
+
+        Only items that are on the first level of the collection in the response document are counted.
+        Nested objects contained within the explicitly requested items shall not be counted.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 10000
+        default: 10
+      style: form
+      explode: false
+    dataStreamId:
+      name: dataStreamId
+      in: path
+      description: Local identifier of a Datastream
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    obsId:
+      name: obsId
+      in: path
+      description: Local identifier of an Observation
+      required: true
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    '201':
+      description: Success. New resource created.
+      headers:
+        Location:
+          schema:
+            type: string
+          description: URI of newly created resource
+    '400':
+      description: Bad request. Either the query parameters or the content body are invalid.
+    '401':
+      description: No authentication information was provided.
+    '403':
+      description: The user doesn't have the necessary permissions to access the resource.
+    '404':
+      description: No resource was found with the specified URL.
+    observationCollection:
+      description: OK. Successful request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/observationCollection'
+        application/swe+json:
+          schema:
+            type: object
+            required: items
+            properties:
+              items:
+                type: array
+                items:
+                  type: object
+              links:
+                description: Links to related resources (including paging)
+                $ref: '#/components/schemas/links'
+    5XX:
+      description: Unexpected server error. Only retry on 502 and 503.
+    observation:
+      description: OK. Successful request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/observation'
+            properties:
+              links:
+                description: Links to related resources
+                $ref: ../schemas/common/commonDefs.json#/$defs/Links
+          examples:
+            simple:
+              summary: Scalar Observation (Measure)
+              value:
+                $ref: ../examples/observations/obs-simple.json
+            location:
+              summary: Vector Observation (Location)
+              value:
+                $ref: ../examples/observations/obs-location.json
+            geopose:
+              summary: GeoPose Observation
+              value:
+                $ref: ../examples/observations/obs-geopose.json
+            profile:
+              summary: Profile Observation
+              value:
+                $ref: ../examples/observations/obs-profile.json
+            link:
+              summary: Observation with link to external result
+              value:
+                $ref: ../examples/observations/obs-link.json
+            inline-image:
+              summary: Observation with an PNG image encoded using the data URI schema
+              value:
+                $ref: ../examples/observations/obs-link-inline-image.json
+        application/swe+json:
+          schema:
+            type: object
+        application/swe+csv:
+          example: 2023-04-03T12:45:56Z,20.3,1013.25
+    204_PUT:
+      description: Success. Resource updated.
+    204_DELETE:
+      description: Success. Resource deleted.
+    409_DELETE:
+      description: The resource cannot be deleted because other resources depend on it.
+  requestBodies:
+    observation:
+      description: A single `Observation` resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/observation'
+          examples:
+            inline:
+              id: '1'
+              resultTime: '2023-01-01T12:45:56Z'
+              result: 123
+            external:
+              id: '2'
+              resultTime: '2024-01-01T12:45:56Z'
+              result@link:
+                href: https://data.example.com/link/to/result
+                uid: bbf3623c-8ec0-444e-bc7c-7f51d2a046e1
+        application/swe+json:
+          schema:
+            type: object
+        application/swe+csv:
+          example: 2023-04-03T12:45:56Z,20.3,1013.25

@@ -3,7 +3,43 @@ package common_shared
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
+
+type CharacteristicGroups []CharacteristicGroup
+
+// Value implements driver.Valuer for JSONB storage
+func (c CharacteristicGroups) Value() (driver.Value, error) {
+	if c == nil {
+		return nil, nil
+	}
+	return json.Marshal(c)
+}
+
+// Scan implements sql.Scanner for JSONB retrieval
+func (c *CharacteristicGroups) Scan(value interface{}) error {
+	if value == nil {
+		*c = nil
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("cannot scan type %T into CharacteristicGroups", value)
+	}
+	return json.Unmarshal(b, c)
+}
+
+// Gorm data type hints
+func (CharacteristicGroups) GormDataType() string {
+	return "jsonb"
+}
+
+func (CharacteristicGroups) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
+	return "jsonb"
+}
 
 // CharacteristicGroup models a characteristics array item from the OpenAPI
 // SWE-style schema. It contains identification metadata and lists of
