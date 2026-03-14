@@ -1,198 +1,220 @@
-WORK IN PROGRESS
+# OGC API - Connected Systems (Go)
 
-Mostly IGNORE for now
+Go implementation of OGC API - Connected Systems, including:
 
-# OGC Connected Systems API - Part 1: Feature Resources
-
-Go implementation of the OGC API - Connected Systems Standard (Part 1).
+- Part 1: Feature Resources
+- Part 2: Dynamic Data
 
 ## Overview
 
-This API provides access to Connected Systems metadata and feature resources following the OGC API - Connected Systems - Part 1: Feature Resources Standard (OGC 23-001).
+This API provides metadata and dynamic data endpoints for connected systems such as sensors, actuators, platforms, and procedures.
 
-The OGC API - Connected Systems Standard defines API building blocks for interacting with Connected Systems - any kind of system that can transmit data via communication networks, including sensors, actuators, platforms, robots, drones, and more.
+Current implementation includes canonical Connected Systems resources plus dynamic data resources (datastreams, observations, control streams, commands, system events, and system history).
 
-## Features
+## Implemented Resource Types
 
-This implementation supports the following resource types:
+Part 1 resources:
 
-- **Systems**: Sensors, actuators, samplers, platforms, and other observing systems
-- **Deployments**: Deployment descriptions of systems for specific purposes
-- **Procedures**: Datasheets, methodologies, and system type descriptions
-- **Sampling Features**: Sampling strategies and geometries
-- **Properties**: Observable and controllable property definitions
-
-## Standards Compliance
-
-Implements the following conformance classes:
-
-- Common (Requirements Class)
-- System Features
-- Subsystems
-- Deployment Features
-- Procedure Features
+- Systems
+- Deployments
+- Procedures
 - Sampling Features
-- Property Definitions
-- Advanced Filtering
-- GeoJSON Format
-- SensorML Format (optional)
+- Properties
+- Features (via OGC API - Features collection items)
+- Collections
 
-Based on:
-- OGC API - Features - Part 1: Core
-- OGC API - Common - Part 1: Core
-- W3C Semantic Sensor Network Ontology (SOSA/SSN)
-- OGC SensorML 3.0
+Part 2 resources:
 
-## API Structure
+- Datastreams
+- Observations
+- Control Streams
+- Commands
+- System Events
+- System History
 
-### Canonical Endpoints
+## Conformance
+
+The conformance declaration is available at `GET /conformance`.
+
+Implemented conformance URIs include:
+
+- OGC API - Common: core, landing page, JSON, collections
+- OGC API - Features: core, GeoJSON
+- OGC API - Connected Systems Part 1: api-common, system, subsystem, deployment, procedure, sampling feature, property, advanced-filtering, GeoJSON
+- OGC API - Connected Systems Part 2: api-common, datastream, observation, controlstream, command, system-event, system-history, JSON, create-replace-delete
+
+## API Endpoints
+
+Core:
 
 - `GET /` - Landing page
 - `GET /conformance` - Conformance declaration
-- `GET /collections` - Available collections
-- `GET /systems` - All systems
-- `GET /systems/{id}` - Specific system
-- `GET /systems/{id}/subsystems` - System subsystems
-- `GET /deployments` - All deployments
-- `GET /deployments/{id}` - Specific deployment
-- `GET /procedures` - All procedures
-- `GET /procedures/{id}` - Specific procedure
-- `GET /samplingFeatures` - All sampling features
-- `GET /samplingFeatures/{id}` - Specific sampling feature
-- `GET /properties` - All properties
-- `GET /properties/{id}` - Specific property
+- `GET /api` - Minimal OpenAPI metadata document
 
-### Query Parameters
+Collections and features:
 
-Common filters:
+- `POST /collections`
+- `GET /collections`
+- `GET /collections/{collectionId}`
+- `GET /collections/{collectionId}/items`
+- `POST /collections/{collectionId}/items`
+- `GET /collections/{collectionId}/items/{featureId}`
+- `PUT /collections/{collectionId}/items/{featureId}`
+- `DELETE /collections/{collectionId}/items/{featureId}`
+
+Systems and related resources:
+
+- `GET /systems`
+- `POST /systems`
+- `GET /systems/{id}`
+- `PUT /systems/{id}`
+- `DELETE /systems/{id}`
+- `GET /systems/{id}/subsystems`
+- `POST /systems/{id}/subsystems`
+- `GET /systems/{id}/deployments`
+- `GET /systems/{id}/samplingFeatures`
+- `POST /systems/{id}/samplingFeatures`
+- `GET /systems/{id}/datastreams`
+- `POST /systems/{id}/datastreams`
+- `GET /systems/{id}/controlstreams`
+- `POST /systems/{id}/controlstreams`
+- `GET /systems/{id}/events`
+- `POST /systems/{id}/events`
+- `GET /systems/{id}/events/{eventId}`
+- `PUT /systems/{id}/events/{eventId}`
+- `DELETE /systems/{id}/events/{eventId}`
+- `GET /systems/{id}/history`
+- `GET /systems/{id}/history/{revId}`
+- `PUT /systems/{id}/history/{revId}`
+- `DELETE /systems/{id}/history/{revId}`
+
+Deployments:
+
+- `GET /deployments`
+- `POST /deployments`
+- `GET /deployments/{id}`
+- `PUT /deployments/{id}`
+- `DELETE /deployments/{id}`
+- `GET /deployments/{id}/subdeployments`
+- `POST /deployments/{id}/subdeployments`
+
+Procedures:
+
+- `GET /procedures`
+- `POST /procedures`
+- `GET /procedures/{id}`
+- `PUT /procedures/{id}`
+- `DELETE /procedures/{id}`
+
+Sampling Features:
+
+- `GET /samplingFeatures`
+- `GET /samplingFeatures/{id}`
+- `PUT /samplingFeatures/{id}`
+- `DELETE /samplingFeatures/{id}`
+
+Properties:
+
+- `GET /properties`
+- `POST /properties`
+- `GET /properties/{id}`
+- `PUT /properties/{id}`
+- `DELETE /properties/{id}`
+
+Part 2 dynamic data endpoints:
+
+- `GET /datastreams`
+- `GET /datastreams/{dataStreamId}`
+- `PUT /datastreams/{dataStreamId}`
+- `DELETE /datastreams/{dataStreamId}`
+- `GET /datastreams/{dataStreamId}/schema`
+- `PUT /datastreams/{dataStreamId}/schema`
+- `GET /datastreams/{dataStreamId}/observations`
+- `POST /datastreams/{dataStreamId}/observations`
+- `GET /observations`
+- `GET /observations/{obsId}`
+- `PUT /observations/{obsId}`
+- `DELETE /observations/{obsId}`
+- `GET /controlstreams`
+- `GET /controlstreams/{controlStreamId}`
+- `PUT /controlstreams/{controlStreamId}`
+- `DELETE /controlstreams/{controlStreamId}`
+- `GET /controlstreams/{controlStreamId}/schema`
+- `PUT /controlstreams/{controlStreamId}/schema`
+- `GET /controlstreams/{controlStreamId}/commands`
+- `POST /controlstreams/{controlStreamId}/commands`
+- `GET /commands`
+- `GET /commands/{cmdId}`
+- `PUT /commands/{cmdId}`
+- `DELETE /commands/{cmdId}`
+- `GET /systemEvents`
+
+## Content Types
+
+- Part 1 resources primarily support `application/geo+json`
+- Properties default to `application/sml+json`
+- Part 2 resources use `application/json`
+
+## Query Parameters
+
+Common query parameters across list endpoints:
+
 - `id` - Filter by resource ID or UID
-- `bbox` - Bounding box filter
-- `datetime` - Time filter
-- `limit` - Result limit
 - `q` - Full-text search
+- `limit` - Page size
+- `offset` - Page offset
 
-Resource-specific filters:
-- `parent` - Filter by parent system/deployment
-- `procedure` - Filter systems by procedure
-- `foi` - Filter by feature of interest
-- `observedProperty` - Filter by observed property
-- `controlledProperty` - Filter by controlled property
-- `geom` - WKT geometry filter
-- `recursive` - Include nested subsystems
+Examples of resource-specific filters currently implemented:
 
-## Technology Stack
-
-- Go 1.21+
-- Chi Router
-- PostgreSQL with PostGIS
-- GORM ORM
-- Uber Zap Logger
-- Viper Configuration
-
-## Project Structure
-
-```
-connected-systems-go/
-├── cmd/
-│   └── server/          # Main application entry point
-├── internal/
-│   ├── api/            # HTTP handlers and routing
-│   ├── model/          # Domain models (SOSA/SSN concepts)
-│   ├── repository/     # Data access layer
-│   ├── service/        # Business logic
-│   └── config/         # Configuration management
-├── pkg/
-│   ├── geojson/        # GeoJSON encoding/decoding
-│   ├── sensorml/       # SensorML encoding/decoding
-│   └── filter/         # Query parameter parsing
-├── migrations/         # Database migrations
-├── docs/              # API documentation
-└── test/              # Integration tests
-```
+- `parent`, `procedure` on systems
+- `parent` on deployments
+- `system`, `foi`, `observedProperty`, `phenomenonTime`, `resultTime` on datastreams
+- `datastream`, `featureOfInterest`, `phenomenonTime`, `resultTime` on observations
+- `controlstream`, `status`, `sender`, `issueTime` on commands
 
 ## Getting Started
 
-### Prerequisites
+Prerequisites:
 
-- Go 1.21 or higher
-- PostgreSQL 14+ with PostGIS extension
-- Docker (optional, for development)
+- Go 1.24+
+- PostgreSQL with PostGIS
+- Docker (recommended for local database/test workflows)
 
-### Installation
+Run locally:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/connected-systems-go
-cd connected-systems-go
-
-# Install dependencies
 go mod download
-
-# Set up configuration
 cp config.example.yaml config.yaml
-
-# Run database migrations
-make migrate
-
-# Start the server
 make run
 ```
 
-### Configuration
-
-Edit `config.yaml`:
-
-```yaml
-server:
-  port: 8080
-  host: localhost
-
-database:
-  host: localhost
-  port: 5432
-  name: connected_systems
-  user: postgres
-  password: password
-
-api:
-  base_url: http://localhost:8080
-  title: "OGC Connected Systems API"
-  version: "1.0.0"
-```
-
-## Development
+Build and test:
 
 ```bash
-# Run tests
-make test
-
-# Run linter
-make lint
-
-# Build
 make build
-
-# Run with hot reload
-make watch
+make test
+make test-coverage
 ```
 
-## API Documentation
+## Project Layout
 
-API documentation is available at:
-- OpenAPI 3.0 Spec: `/api` (application/vnd.oai.openapi+json;version=3.0)
-- Swagger UI: `/docs`
+```text
+connected-systems-go/
+├── cmd/server/               # Server entrypoint
+├── internal/api/             # HTTP handlers and router
+├── internal/model/           # Domain models, formatters, query params
+├── internal/repository/      # GORM repositories and persistence logic
+├── internal/config/          # Configuration loading
+├── e2e/                      # End-to-end and conformance-oriented tests
+├── examples/                 # Example payloads
+├── docker-compose.yml        # Local services
+└── Makefile                  # Build/test/run commands
+```
 
-## Contributing
-
-Contributions are welcome! Please read our contributing guidelines.
-
-## License
-
-This project is licensed under the MIT License - see LICENSE file for details.
 
 ## References
 
-- [OGC API - Connected Systems - Part 1 Standard](https://docs.ogc.org/is/23-001/23-001.html)
-- [OGC API - Features Standard](https://ogcapi.ogc.org/features/)
-- [W3C SOSA/SSN Ontology](https://www.w3.org/TR/vocab-ssn/)
-- [OGC SensorML](https://www.ogc.org/standards/sensorml)
+- OGC API - Connected Systems Part 1: https://docs.ogc.org/is/23-001/23-001.html
+- OGC API - Connected Systems Part 2: https://docs.ogc.org/is/24-008/24-008.html
+- OGC API - Features: https://ogcapi.ogc.org/features/
+- W3C SOSA/SSN: https://www.w3.org/TR/vocab-ssn/
