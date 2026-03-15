@@ -78,7 +78,7 @@ func (f *ProcedureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.R
 	}
 
 	procedure := &domains.Procedure{
-		Links: geoJSON.Links,
+		Links: common_shared.StripAssociationLinks(geoJSON.Links),
 	}
 
 	// Extract properties

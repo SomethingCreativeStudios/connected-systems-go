@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 )
@@ -27,7 +28,9 @@ func (f *ControlStreamJSONFormatter) Serialize(ctx context.Context, cs *domains.
 	if cs == nil {
 		return domains.ControlStream{}, fmt.Errorf("control stream cannot be nil")
 	}
-	return *cs, nil
+	out := *cs
+	out.Links = appendControlStreamAssociationLinks(cs)
+	return out, nil
 }
 
 func (f *ControlStreamJSONFormatter) SerializeAll(ctx context.Context, controlStreams []*domains.ControlStream) ([]domains.ControlStream, error) {
@@ -39,7 +42,9 @@ func (f *ControlStreamJSONFormatter) SerializeAll(ctx context.Context, controlSt
 		if cs == nil {
 			continue
 		}
-		items = append(items, *cs)
+		out := *cs
+		out.Links = appendControlStreamAssociationLinks(cs)
+		items = append(items, out)
 	}
 	return items, nil
 }
@@ -50,4 +55,25 @@ func (f *ControlStreamJSONFormatter) Deserialize(ctx context.Context, reader io.
 		return nil, err
 	}
 	return &cs, nil
+}
+
+func appendControlStreamAssociationLinks(cs *domains.ControlStream) common_shared.Links {
+	links := append(common_shared.Links{}, cs.Links...)
+
+	if cs.ID == "" {
+		return links
+	}
+
+	commandLink := common_shared.Link{
+		Rel:  common_shared.OGCRel("commands"),
+		Href: "/controlstreams/" + cs.ID + "/commands",
+	}
+
+	for _, link := range links {
+		if common_shared.RelEquals(link.Rel, commandLink.Rel) && link.Href == commandLink.Href {
+			return links
+		}
+	}
+
+	return append(links, commandLink)
 }

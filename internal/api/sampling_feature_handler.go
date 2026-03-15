@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
@@ -94,13 +93,6 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 	if parentID := chi.URLParam(r, "id"); parentID != "" {
 		sampledFeature.ParentSystemID = &parentID
 
-		// add a parentSystem link so the serialized response reflects the relationship
-		parentLink := common_shared.Link{
-			Rel:  "parentSystem",
-			Href: "systems/" + parentID,
-			Type: "application/geo+json",
-		}
-		sampledFeature.Links = append(sampledFeature.Links, parentLink)
 	}
 
 	if err := h.repo.Create(sampledFeature); err != nil {

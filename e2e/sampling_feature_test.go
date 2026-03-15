@@ -803,7 +803,7 @@ func TestSamplingFeatureSystemLinks(t *testing.T) {
 				if !ok {
 					continue
 				}
-				if rel, ok := link["rel"].(string); ok && rel == "parentSystem" {
+				if rel, ok := link["rel"].(string); ok && (rel == "ogc-rel:parentSystem" || rel == "parentSystem") {
 					foundParentSystemLink = true
 					break
 				}
@@ -897,7 +897,7 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 				"href":  fmt.Sprintf("samplingFeatures/%s", parentID),
 				"type":  "application/geo+json",
 				"title": "Parent Surface Feature",
-				"rel":   "sampleOf",
+				"rel":   "ogc-rel:sampleOf",
 			}
 			childFeatureWithLink["links"] = []map[string]interface{}{sampleOfLink}
 
@@ -923,7 +923,7 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 			var sampleOfLinkRetrieved map[string]interface{}
 			for _, link := range childLinks {
 				linkMap, ok := link.(map[string]interface{})
-				if ok && linkMap["rel"] == "sampleOf" {
+				if ok && (linkMap["rel"] == "ogc-rel:sampleOf" || linkMap["rel"] == "sampleOf") {
 					sampleOfLinkRetrieved = linkMap
 					break
 				}

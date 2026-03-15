@@ -185,7 +185,8 @@ func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Requ
 
 func (h *DatastreamHandler) DeleteDatastream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
-	if err := h.repo.Delete(id); err != nil {
+	cascade := r.URL.Query().Get("cascade") == "true"
+	if err := h.repo.Delete(id, cascade); err != nil {
 		h.logger.Error("Failed to delete datastream", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, map[string]string{"error": "Failed to delete datastream"})

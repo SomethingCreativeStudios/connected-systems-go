@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 )
@@ -29,7 +30,9 @@ func (f *DatastreamJSONFormatter) Serialize(ctx context.Context, datastream *dom
 	if datastream == nil {
 		return domains.Datastream{}, fmt.Errorf("datastream cannot be nil")
 	}
-	return *datastream, nil
+	out := *datastream
+	out.Links = appendDatastreamAssociationLinks(datastream)
+	return out, nil
 }
 
 func (f *DatastreamJSONFormatter) SerializeAll(ctx context.Context, datastreams []*domains.Datastream) ([]domains.Datastream, error) {
@@ -42,7 +45,9 @@ func (f *DatastreamJSONFormatter) SerializeAll(ctx context.Context, datastreams 
 		if ds == nil {
 			continue
 		}
-		items = append(items, *ds)
+		out := *ds
+		out.Links = appendDatastreamAssociationLinks(ds)
+		items = append(items, out)
 	}
 	return items, nil
 }
@@ -53,4 +58,25 @@ func (f *DatastreamJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 		return nil, err
 	}
 	return &datastream, nil
+}
+
+func appendDatastreamAssociationLinks(ds *domains.Datastream) common_shared.Links {
+	links := append(common_shared.Links{}, ds.Links...)
+
+	if ds.ID == "" {
+		return links
+	}
+
+	observationLink := common_shared.Link{
+		Rel:  common_shared.OGCRel("observations"),
+		Href: "/datastreams/" + ds.ID + "/observations",
+	}
+
+	for _, link := range links {
+		if common_shared.RelEquals(link.Rel, observationLink.Rel) && link.Href == observationLink.Href {
+			return links
+		}
+	}
+
+	return append(links, observationLink)
 }

@@ -196,7 +196,8 @@ func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *htt
 // DeleteControlStream handles DELETE /controlstreams/{id}
 func (h *ControlStreamHandler) DeleteControlStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
-	if err := h.repo.Delete(id); err != nil {
+	cascade := r.URL.Query().Get("cascade") == "true"
+	if err := h.repo.Delete(id, cascade); err != nil {
 		h.logger.Error("Failed to delete control stream", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
 		render.JSON(w, r, map[string]string{"error": "Failed to delete control stream"})

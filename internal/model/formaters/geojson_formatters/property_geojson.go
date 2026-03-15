@@ -83,7 +83,7 @@ func (f *PropertyGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Re
 	}
 
 	property := &domains.Property{
-		Links: geoJSON.Links,
+		Links: common_shared.StripAssociationLinks(geoJSON.Links),
 	}
 
 	// Extract properties

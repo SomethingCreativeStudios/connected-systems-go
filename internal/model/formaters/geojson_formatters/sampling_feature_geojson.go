@@ -12,8 +12,8 @@ import (
 )
 
 var associations = []string{
-	"parentSystem",
-	"sampleOf",
+	common_shared.OGCRel("parentSystem"),
+	common_shared.OGCRel("sampleOf"),
 }
 
 // SamplingFeatureGeoJSONFormatter handles serialization and deserialization of SamplingFeature objects in GeoJSON format
@@ -78,7 +78,7 @@ func serializeLinks(sf *domains.SamplingFeature) common_shared.Links {
 
 	if sf.ParentSystemID != nil {
 		link := common_shared.Link{
-			Rel:  "parentSystem",
+			Rel:  common_shared.OGCRel("parentSystem"),
 			Href: "/systems/" + *sf.ParentSystemID,
 		}
 		if sf.ParentSystemUID != nil {
@@ -111,11 +111,10 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 		return nil, err
 	}
 
-	associationedLinks := geoJSON.Links.FilterByRels(associations, true)
-	nonAssociationedLinks := geoJSON.Links.FilterByRels(associations, false)
+	associationLinks := geoJSON.Links.FilterByRels(associations, true)
 
 	sf := &domains.SamplingFeature{
-		Links: nonAssociationedLinks,
+		Links: common_shared.StripAssociationLinks(geoJSON.Links),
 	}
 
 	// Assign geometry
@@ -136,41 +135,47 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 		sf.SampledFeatureID = geoJSON.Properties.SampledFeatureLink.GetId("samplingFeatures")
 	}
 
-	f.handleLinks(associationedLinks, sf)
+	f.handleAssociationLinks(associationLinks, sf)
 
 	return sf, nil
 }
 
-func (f *SamplingFeatureGeoJSONFormatter) handleLinks(sfLinks common_shared.Links, sf *domains.SamplingFeature) {
-	sampleIds := []string{}
-	sampleUids := []string{}
+func (f *SamplingFeatureGeoJSONFormatter) handleAssociationLinks(sfLinks common_shared.Links, sf *domains.SamplingFeature) {
+	if len(sfLinks) == 0 {
+		return
+	}
 
-	sf.SampleOf = &common_shared.Links{}
+	sampleIDs := []string{}
+	sampleUIDs := []string{}
+	sampleOfLinks := common_shared.Links{}
 
 	for _, link := range sfLinks {
-		if link.Rel == "parentSystem" {
+		if common_shared.RelEquals(link.Rel, common_shared.OGCRel("parentSystem")) {
 			sf.ParentSystemID = link.GetId("systems")
 			if link.UID != nil {
 				sf.ParentSystemUID = link.UID
 			}
+			continue
 		}
 
-		if link.Rel == "sampleOf" {
-			*sf.SampleOf = append(*sf.SampleOf, link)
-
+		if common_shared.RelEquals(link.Rel, common_shared.OGCRel("sampleOf")) {
+			sampleOfLinks = append(sampleOfLinks, link)
 			if id := link.GetId("samplingFeatures"); id != nil {
-				sampleIds = append(sampleIds, *id)
+				sampleIDs = append(sampleIDs, *id)
 			}
 			if link.UID != nil {
-				sampleUids = append(sampleUids, *link.UID)
+				sampleUIDs = append(sampleUIDs, *link.UID)
 			}
 		}
 	}
 
-	if len(sampleIds) > 0 {
-		sf.SampleOfIDs = &sampleIds
+	if len(sampleOfLinks) > 0 {
+		sf.SampleOf = &sampleOfLinks
 	}
-	if len(sampleUids) > 0 {
-		sf.SampleOfUIDs = &sampleUids
+	if len(sampleIDs) > 0 {
+		sf.SampleOfIDs = &sampleIDs
+	}
+	if len(sampleUIDs) > 0 {
+		sf.SampleOfUIDs = &sampleUIDs
 	}
 }

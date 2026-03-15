@@ -105,7 +105,7 @@ func (f *DeploymentGeoJSONFormatter) Deserialize(ctx context.Context, reader io.
 	}
 
 	deployment := &domains.Deployment{
-		Links: geoJSON.Links,
+		Links: common_shared.StripAssociationLinks(geoJSON.Links),
 	}
 
 	// Assign geometry

@@ -6,7 +6,30 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"strings"
 )
+
+const OGCRelPrefix = "ogc-rel:"
+
+var associationRels = map[string]struct{}{
+	"parentSystem":        {},
+	"subsystems":          {},
+	"subdeployments":      {},
+	"deployedSystems":     {},
+	"samplingFeatures":    {},
+	"featuresOfInterest":  {},
+	"systemKind":          {},
+	"sampleOf":            {},
+	"datastreams":         {},
+	"controlstreams":      {},
+	"observations":        {},
+	"commands":            {},
+	"procedures":          {},
+	"deployments":         {},
+	"implementingSystems": {},
+	"implementedBy":       {},
+	"usedProcedures":      {},
+}
 
 type Link struct {
 	Href  string  `json:"href"`
@@ -86,14 +109,49 @@ func (l Links) FilterByRels(rels []string, match bool) Links {
 	var filtered Links
 	relSet := make(map[string]struct{})
 	for _, rel := range rels {
-		relSet[rel] = struct{}{}
+		relSet[CanonicalRel(rel)] = struct{}{}
 	}
 
 	for _, link := range l {
-		if _, exists := relSet[link.Rel]; exists == match {
+		if _, exists := relSet[CanonicalRel(link.Rel)]; exists == match {
 			filtered = append(filtered, link)
 		}
 	}
 
 	return filtered
+}
+
+// CanonicalRel normalizes OGC relation aliases (e.g. "ogc-rel:parentSystem" -> "parentSystem").
+func CanonicalRel(rel string) string {
+	return strings.TrimPrefix(rel, OGCRelPrefix)
+}
+
+// OGCRel converts an association rel to the normative OGC form (e.g. "parentSystem" -> "ogc-rel:parentSystem").
+func OGCRel(rel string) string {
+	if strings.HasPrefix(rel, OGCRelPrefix) {
+		return rel
+	}
+	return OGCRelPrefix + rel
+}
+
+// RelEquals compares rel values while treating prefixed and unprefixed OGC rels as equivalent.
+func RelEquals(actual, expected string) bool {
+	return CanonicalRel(actual) == CanonicalRel(expected)
+}
+
+// StripAssociationLinks removes association links while preserving any non-association user links.
+func StripAssociationLinks(links Links) Links {
+	if len(links) == 0 {
+		return nil
+	}
+
+	kept := make(Links, 0, len(links))
+	for _, link := range links {
+		if _, isAssociation := associationRels[CanonicalRel(link.Rel)]; isAssociation {
+			continue
+		}
+		kept = append(kept, link)
+	}
+
+	return kept
 }

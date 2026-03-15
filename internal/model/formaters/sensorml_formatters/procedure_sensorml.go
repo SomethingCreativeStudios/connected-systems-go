@@ -210,7 +210,7 @@ func (f *ProcedureSensorMLFormatter) Deserialize(ctx context.Context, reader io.
 	}
 
 	procedure := &domains.Procedure{
-		Links: sensorML.Links,
+		Links: common_shared.StripAssociationLinks(sensorML.Links),
 	}
 
 	procedure.UniqueIdentifier = domains.UniqueID(sensorML.UniqueID)

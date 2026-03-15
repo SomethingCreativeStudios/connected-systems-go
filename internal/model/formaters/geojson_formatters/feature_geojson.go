@@ -68,7 +68,7 @@ func (f *FeatureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 
 	// Convert GeoJSON properties to Feature model
 	feature := domains.Feature{
-		Links:      geoJSON.Links,
+		Links:      common_shared.StripAssociationLinks(geoJSON.Links),
 		Properties: geoJSON.Properties,
 	}
 	// assign geometry (decoded directly into GoGeom)

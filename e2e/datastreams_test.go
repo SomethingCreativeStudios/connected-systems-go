@@ -212,8 +212,27 @@ func TestDatastream_CreateUnderSystem_AndSchemaRoundTrip(t *testing.T) {
 	href, _ := systemLink["href"].(string)
 	assert.Contains(t, href, systemID)
 
+	links, ok := created["links"].([]interface{})
+	require.True(t, ok, "expected links array on datastream")
+
+	foundObservationsLink := false
+	for _, rawLink := range links {
+		link, ok := rawLink.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		rel, _ := link["rel"].(string)
+		if rel == "ogc-rel:observations" || rel == "observations" {
+			obsHref, _ := link["href"].(string)
+			assert.Equal(t, "/datastreams/"+datastreamID+"/observations", obsHref)
+			foundObservationsLink = true
+			break
+		}
+	}
+	assert.True(t, foundObservationsLink, "expected observations association link on datastream")
+
 	updatedSchema := map[string]interface{}{
-		"obsFormat": "application/x-protobuf",
+		"obsFormat":     "application/x-protobuf",
 		"messageSchema": "syntax = \"proto3\"; message ObservationResult { double value = 1; }",
 	}
 
@@ -243,4 +262,46 @@ func TestDatastream_CreateUnderSystem_AndSchemaRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "application/x-protobuf", returnedSchema["obsFormat"])
 	assert.NotEmpty(t, returnedSchema["messageSchema"])
+}
+
+// =============================================================================
+// Conformance Class: /conf/create-replace-delete/datastream
+// Requirement: /req/create-replace-delete/datastream
+// DELETE /datastreams/{id}?cascade=true must delete the datastream and its observations.
+// =============================================================================
+func TestDatastream_DeleteCascade_RemovesObservations(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := uuid.NewString()
+	datastreamID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", baseDatastreamPayload())
+
+	obsPayload := map[string]interface{}{
+		"resultTime": "2026-03-14T12:00:00Z",
+		"result": map[string]interface{}{
+			"temperature": 20.5,
+			"humidity":    48.1,
+		},
+	}
+	obsID := createObservationViaAPI(t, datastreamID, obsPayload)
+
+	delReq, err := http.NewRequest(http.MethodDelete, testServer.URL+"/datastreams/"+datastreamID+"?cascade=true", nil)
+	require.NoError(t, err)
+	delResp, err := http.DefaultClient.Do(delReq)
+	require.NoError(t, err)
+	defer delResp.Body.Close()
+	require.Equal(t, http.StatusNoContent, delResp.StatusCode)
+
+	getDatastreamReq, err := http.NewRequest(http.MethodGet, testServer.URL+"/datastreams/"+datastreamID, nil)
+	require.NoError(t, err)
+	getDatastreamResp, err := http.DefaultClient.Do(getDatastreamReq)
+	require.NoError(t, err)
+	defer getDatastreamResp.Body.Close()
+	assert.Equal(t, http.StatusNotFound, getDatastreamResp.StatusCode)
+
+	getObsReq, err := http.NewRequest(http.MethodGet, testServer.URL+"/observations/"+obsID, nil)
+	require.NoError(t, err)
+	getObsResp, err := http.DefaultClient.Do(getObsReq)
+	require.NoError(t, err)
+	defer getObsResp.Body.Close()
+	assert.Equal(t, http.StatusNotFound, getObsResp.StatusCode)
 }

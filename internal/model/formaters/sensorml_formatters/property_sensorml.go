@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 
+	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/repository"
@@ -68,7 +69,7 @@ func (f *PropertySensorMLFormatter) Deserialize(ctx context.Context, reader io.R
 	}
 
 	property := &domains.Property{
-		Links: sensorML.Links,
+		Links: common_shared.StripAssociationLinks(sensorML.Links),
 	}
 
 	property.UniqueIdentifier = domains.UniqueID(sensorML.UniqueID)

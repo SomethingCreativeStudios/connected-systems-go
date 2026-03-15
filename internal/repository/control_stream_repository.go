@@ -64,8 +64,18 @@ func (r *ControlStreamRepository) Update(cs *domains.ControlStream) error {
 }
 
 // Delete deletes a control stream.
-func (r *ControlStreamRepository) Delete(id string) error {
-	return r.db.Delete(&domains.ControlStream{}, "id = ?", id).Error
+// If cascade is true, all commands associated with the control stream are deleted first.
+func (r *ControlStreamRepository) Delete(id string, cascade bool) error {
+	if !cascade {
+		return r.db.Delete(&domains.ControlStream{}, "id = ?", id).Error
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("control_stream_id = ?", id).Delete(&domains.Command{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&domains.ControlStream{}, "id = ?", id).Error
+	})
 }
 
 // GetSchema retrieves only the schema for a control stream.

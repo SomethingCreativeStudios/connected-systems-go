@@ -79,7 +79,7 @@ func (f *SamplingFeatureSensorMLFormatter) Deserialize(ctx context.Context, read
 	}
 
 	sf := &domains.SamplingFeature{
-		Links: sensorML.Links,
+		Links: common_shared.StripAssociationLinks(sensorML.Links),
 	}
 
 	sf.UniqueIdentifier = domains.UniqueID(sensorML.UniqueID)
@@ -115,35 +115,6 @@ func (f *SamplingFeatureSensorMLFormatter) Deserialize(ctx context.Context, read
 				sf.Geometry = &gg
 			}
 		}
-	}
-
-	// Process links for parent system and sampleOf relationships
-	sampleIds := []string{}
-	sampleUids := []string{}
-
-	for _, link := range sf.Links {
-		if link.Rel == "parentSystem" {
-			sf.ParentSystemID = link.GetId("systems")
-			if link.UID != nil {
-				sf.ParentSystemUID = link.UID
-			}
-		}
-
-		if link.Rel == "sampleOf" {
-			if id := link.GetId("samplingFeatures"); id != nil {
-				sampleIds = append(sampleIds, *id)
-			}
-			if link.UID != nil {
-				sampleUids = append(sampleUids, *link.UID)
-			}
-		}
-	}
-
-	if len(sampleIds) > 0 {
-		sf.SampleOfIDs = &sampleIds
-	}
-	if len(sampleUids) > 0 {
-		sf.SampleOfUIDs = &sampleUids
 	}
 
 	return sf, nil

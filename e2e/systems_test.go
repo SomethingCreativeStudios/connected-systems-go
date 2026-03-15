@@ -251,6 +251,68 @@ func TestSubsystemConformance_Collection(t *testing.T) {
 }
 
 // =============================================================================
+// Conformance Class: /conf/system
+// Requirement: association links on systems must expose subsystem relationships.
+// =============================================================================
+func TestSystem_AssociationLinks_Subsystems(t *testing.T) {
+	cleanupDB(t)
+
+	parentID := createSystemViaAPI(t, "/systems", baseSystemPayload("Association Parent"))
+	_ = createSystemViaAPI(t, "/systems/"+parentID+"/subsystems", baseSystemPayload("Association Child"))
+	_ = createDatastreamViaAPI(t, "/systems/"+parentID+"/datastreams", baseDatastreamPayload())
+	_ = createControlStreamViaAPI(t, parentID, baseControlStreamPayload())
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systems/"+parentID, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var feature map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
+
+	links, ok := feature["links"].([]interface{})
+	require.True(t, ok, "system must expose a links array when associations exist")
+
+	foundSubsystems := false
+	foundDatastreams := false
+	foundControlStreams := false
+	for _, rawLink := range links {
+		link, ok := rawLink.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		rel, _ := link["rel"].(string)
+		href, _ := link["href"].(string)
+
+		if rel == "ogc-rel:subsystems" || rel == "subsystems" {
+			assert.Equal(t, "/systems/"+parentID+"/subsystems", href)
+			foundSubsystems = true
+			continue
+		}
+
+		if rel == "ogc-rel:datastreams" || rel == "datastreams" {
+			assert.Equal(t, "/systems/"+parentID+"/datastreams", href)
+			foundDatastreams = true
+			continue
+		}
+
+		if rel == "ogc-rel:controlstreams" || rel == "controlstreams" {
+			assert.Equal(t, "/systems/"+parentID+"/controlstreams", href)
+			foundControlStreams = true
+			continue
+		}
+	}
+
+	assert.True(t, foundSubsystems, "system must expose a subsystems association link")
+	assert.True(t, foundDatastreams, "system must expose a datastreams association link")
+	assert.True(t, foundControlStreams, "system must expose a controlstreams association link")
+}
+
+// =============================================================================
 // Conformance Class: /conf/subsystem
 // Requirements: /req/subsystem/recursive-search-systems and /req/subsystem/recursive-search-subsystems
 // Abstract Tests: /conf/subsystem/recursive-search-systems (A.15), /conf/subsystem/recursive-search-subsystems (A.16)

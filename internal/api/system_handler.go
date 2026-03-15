@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
@@ -70,6 +69,8 @@ func (h *SystemHandler) GetSystem(w http.ResponseWriter, r *http.Request) {
 		render.JSON(w, r, map[string]string{"error": "System not found"})
 		return
 	}
+
+	system.Links = append(system.Links, h.repo.BuildSystemAssociations(id)...)
 
 	acceptHeader := r.Header.Get("Accept")
 	serialized, err := h.fc.Serialize(acceptHeader, system)
@@ -213,10 +214,6 @@ func (h *SystemHandler) AddSubsystem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	system.ParentSystemID = &parentID
-	system.Links = append(system.Links, common_shared.Link{
-		Rel:  "parent",
-		Href: h.cfg.API.BaseURL + "/systems/" + parentID,
-	})
 
 	if err := h.repo.Create(system); err != nil {
 		h.logger.Error("Failed to create subsystem", zap.Error(err))

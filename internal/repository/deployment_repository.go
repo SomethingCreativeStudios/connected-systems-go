@@ -166,7 +166,6 @@ func (r *DeploymentRepository) applyFilters(query *gorm.DB, params *queryparams.
 	} else {
 		if params.Recursive {
 			// Canonical recursive search should include top-level deployments and all descendants.
-			query = query
 		} else {
 			query = query.Where("parent_deployment_id IS NULL OR parent_deployment_id = ''")
 		}
@@ -187,9 +186,9 @@ func (r *DeploymentRepository) findAssociations(deployment *domains.Deployment) 
 		allSubLinks = append(allSubLinks, subDeployment.Links...)
 	}
 
-	samplingFeatures := findLinks("samplingFeatures", allSubLinks)
-	featuresOfInterest := findLinks("featuresOfInterest", allSubLinks)
-	deployedSystems := findLinks("deployedSystems", allSubLinks)
+	samplingFeatures := findLinks(common_shared.OGCRel("samplingFeatures"), allSubLinks)
+	featuresOfInterest := findLinks(common_shared.OGCRel("featuresOfInterest"), allSubLinks)
+	deployedSystems := findLinks(common_shared.OGCRel("deployedSystems"), allSubLinks)
 
 	deployment.Links = append(deployment.Links, samplingFeatures...)
 	deployment.Links = append(deployment.Links, featuresOfInterest...)
@@ -204,7 +203,7 @@ func (r *DeploymentRepository) findAssociations(deployment *domains.Deployment) 
 func findLinks(rel string, links common_shared.Links) []common_shared.Link {
 	var results []common_shared.Link
 	for _, link := range links {
-		if link.Rel == rel {
+		if common_shared.RelEquals(link.Rel, rel) {
 			results = append(results, link)
 		}
 	}

@@ -95,7 +95,9 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 	var sml domains.SystemSensorMLFeature
 	_ = json.Unmarshal(body, &sml)
 
-	system := &domains.System{}
+	system := &domains.System{
+		Links: common_shared.StripAssociationLinks(sml.Links),
+	}
 
 	if v, ok := raw["label"].(string); ok && v != "" {
 		system.Name = v
@@ -164,10 +166,6 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 	system.Contacts = sml.Contacts
 	system.Documentation = sml.Documentation
 	system.History = sml.History
-
-	if sml.FeaturesOfInterest != nil && len(sml.FeaturesOfInterest) > 0 {
-		system.Links = append(system.Links, sml.FeaturesOfInterest...)
-	}
 
 	return system, nil
 }

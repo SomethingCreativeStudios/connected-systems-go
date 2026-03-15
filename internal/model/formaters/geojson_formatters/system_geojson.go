@@ -70,7 +70,7 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 			if proc, ok := kindMap[*system.SystemKindID]; ok {
 				kindLink = &common_shared.Link{
 					Href:  "procedures/" + proc.ID,
-					Rel:   "systemKind",
+					Rel:   common_shared.OGCRel("systemKind"),
 					Type:  GeoJSONContentType,
 					Title: proc.Name,
 					UID:   (*string)(&proc.UniqueIdentifier),
@@ -133,7 +133,7 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 	}
 
 	system := &domains.System{
-		Links: geoJSON.Links,
+		Links: common_shared.StripAssociationLinks(geoJSON.Links),
 	}
 
 	// Assign geometry

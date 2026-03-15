@@ -91,7 +91,7 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 	}
 
 	deployment := &domains.Deployment{
-		Links: sensorML.Links,
+		Links: common_shared.StripAssociationLinks(sensorML.Links),
 	}
 
 	if sensorML.Platform != nil {

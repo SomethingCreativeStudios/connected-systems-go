@@ -165,6 +165,41 @@ func TestDeploymentConformance_CanonicalURL(t *testing.T) {
 }
 
 // =============================================================================
+// Conformance Class: /conf/deployment
+// Requirement: association links on deployments must expose deployed systems.
+// =============================================================================
+func TestDeployment_AssociationLinks_DeployedSystems(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Deployment Association System"))
+	depID := createDeploymentViaAPI(t, "/deployments", baseDeploymentPayload("Deployment Association", systemID))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/deployments/"+depID, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var feature map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
+
+	properties, ok := feature["properties"].(map[string]interface{})
+	require.True(t, ok, "deployment must expose properties")
+
+	deployedSystems, ok := properties["deployedSystems@link"].([]interface{})
+	require.True(t, ok, "deployment must expose deployedSystems@link")
+	require.Len(t, deployedSystems, 1, "expected one deployed system link")
+
+	deployedSystem, ok := deployedSystems[0].(map[string]interface{})
+	require.True(t, ok)
+	href, _ := deployedSystem["href"].(string)
+	assert.Contains(t, href, "/systems/"+systemID, "deployedSystems@link href must reference the deployed system")
+}
+
+// =============================================================================
 // Conformance Class: /conf/geojson and /conf/sensorml
 // Requirements: /req/geojson/deployment-schema and /req/sensorml/deployment-schema
 // Abstract Tests: /conf/geojson/deployment-schema (A.90), /conf/sensorml/deployment-schema (A.104)

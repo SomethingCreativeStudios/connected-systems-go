@@ -211,6 +211,25 @@ func TestControlStream_SystemLink(t *testing.T) {
 	require.True(t, ok, "control stream must have a 'system@link' object")
 	href, _ := systemLink["href"].(string)
 	assert.Contains(t, href, systemID, "system@link href must reference the parent system ID")
+
+	links, ok := cs["links"].([]interface{})
+	require.True(t, ok, "control stream must expose a links array")
+
+	foundCommandsLink := false
+	for _, rawLink := range links {
+		link, ok := rawLink.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		rel, _ := link["rel"].(string)
+		if rel == "ogc-rel:commands" || rel == "commands" {
+			commandHref, _ := link["href"].(string)
+			assert.Equal(t, "/controlstreams/"+csID+"/commands", commandHref)
+			foundCommandsLink = true
+			break
+		}
+	}
+	assert.True(t, foundCommandsLink, "control stream must expose a commands association link")
 }
 
 // =============================================================================
@@ -338,6 +357,47 @@ func TestControlStreamCRUD(t *testing.T) {
 	require.NoError(t, err)
 	defer getResp3.Body.Close()
 	assert.Equal(t, http.StatusNotFound, getResp3.StatusCode)
+}
+
+// =============================================================================
+// Conformance Class: /conf/create-replace-delete/control-stream
+// Requirement: /req/create-replace-delete/control-stream
+// DELETE /controlstreams/{id}?cascade=true must delete the control stream and its commands.
+// =============================================================================
+func TestControlStream_DeleteCascade_RemovesCommands(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemForControlStreamTest(t)
+	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
+
+	commandBody, err := json.Marshal(baseCommandPayload())
+	require.NoError(t, err)
+	createCommandReq, err := http.NewRequest(http.MethodPost, testServer.URL+"/controlstreams/"+csID+"/commands", bytes.NewReader(commandBody))
+	require.NoError(t, err)
+	createCommandReq.Header.Set("Content-Type", "application/json")
+
+	createCommandResp, err := http.DefaultClient.Do(createCommandReq)
+	require.NoError(t, err)
+	defer createCommandResp.Body.Close()
+	require.Equal(t, http.StatusCreated, createCommandResp.StatusCode)
+
+	commandID := parseID(createCommandResp.Header.Get("Location"), "/commands/")
+	require.NotEmpty(t, commandID)
+
+	deleteReq, err := http.NewRequest(http.MethodDelete, testServer.URL+"/controlstreams/"+csID+"?cascade=true", nil)
+	require.NoError(t, err)
+	deleteResp, err := http.DefaultClient.Do(deleteReq)
+	require.NoError(t, err)
+	defer deleteResp.Body.Close()
+	require.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
+
+	getControlStreamResp := doGet(t, "/controlstreams/"+csID)
+	defer getControlStreamResp.Body.Close()
+	assert.Equal(t, http.StatusNotFound, getControlStreamResp.StatusCode)
+
+	getCommandResp := doGet(t, "/commands/"+commandID)
+	defer getCommandResp.Body.Close()
+	assert.Equal(t, http.StatusNotFound, getCommandResp.StatusCode)
 }
 
 // =============================================================================

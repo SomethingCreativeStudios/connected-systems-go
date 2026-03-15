@@ -93,7 +93,7 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 		Links: []common_shared.Link{
 			{
 				Href: "systems/urn:test:get1",
-				Rel:  "deployedSystems",
+				Rel:  common_shared.OGCRel("deployedSystems"),
 				UID:  testutil.PtrStr("urn:test:get1"),
 			},
 		},
@@ -108,17 +108,17 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 		Links: []common_shared.Link{
 			{
 				Href: "systems/urn:test:subSystem1",
-				Rel:  "deployedSystems",
+				Rel:  common_shared.OGCRel("deployedSystems"),
 				UID:  testutil.PtrStr("urn:test:subSystem1"),
 			},
 			{
 				Href: "features/some-feature",
-				Rel:  "samplingFeatures",
+				Rel:  common_shared.OGCRel("samplingFeatures"),
 				UID:  testutil.PtrStr("some-feature"),
 			},
 			{
 				Href: "features/some-foi",
-				Rel:  "featuresOfInterest",
+				Rel:  common_shared.OGCRel("featuresOfInterest"),
 				UID:  testutil.PtrStr("some-foi"),
 			},
 		},
@@ -173,13 +173,13 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 				foundDeployedSystem := false
 
 				for _, link := range got.Links {
-					if link.Rel == "samplingFeatures" && link.UID != nil && *link.UID == "some-feature" {
+					if common_shared.RelEquals(link.Rel, common_shared.OGCRel("samplingFeatures")) && link.UID != nil && *link.UID == "some-feature" {
 						foundSamplingFeature = true
 					}
-					if link.Rel == "featuresOfInterest" && link.UID != nil && *link.UID == "some-foi" {
+					if common_shared.RelEquals(link.Rel, common_shared.OGCRel("featuresOfInterest")) && link.UID != nil && *link.UID == "some-foi" {
 						foundFOI = true
 					}
-					if link.Rel == "deployedSystems" && link.UID != nil && *link.UID == "urn:test:subSystem1" {
+					if common_shared.RelEquals(link.Rel, common_shared.OGCRel("deployedSystems")) && link.UID != nil && *link.UID == "urn:test:subSystem1" {
 						foundDeployedSystem = true
 					}
 				}

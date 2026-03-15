@@ -64,8 +64,18 @@ func (r *DatastreamRepository) Update(datastream *domains.Datastream) error {
 }
 
 // Delete deletes a datastream.
-func (r *DatastreamRepository) Delete(id string) error {
-	return r.db.Delete(&domains.Datastream{}, "id = ?", id).Error
+// If cascade is true, all observations associated with the datastream are deleted first.
+func (r *DatastreamRepository) Delete(id string, cascade bool) error {
+	if !cascade {
+		return r.db.Delete(&domains.Datastream{}, "id = ?", id).Error
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("datastream_id = ?", id).Delete(&domains.Observation{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&domains.Datastream{}, "id = ?", id).Error
+	})
 }
 
 // GetSchema retrieves only the schema for a datastream.

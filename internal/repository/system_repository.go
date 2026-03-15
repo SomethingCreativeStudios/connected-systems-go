@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -26,8 +27,36 @@ func (r *SystemRepository) BuildSystemAssociations(systemID string) common_share
 
 	if has, err := r.HasSubsystems(systemID); err == nil && has {
 		links = append(links, common_shared.Link{
-			Rel:  "subsystems",
+			Rel:  common_shared.OGCRel("subsystems"),
 			Href: "/systems/" + systemID + "/subsystems",
+		})
+	}
+
+	if has, err := r.HasSamplingFeatures(systemID); err == nil && has {
+		links = append(links, common_shared.Link{
+			Rel:  common_shared.OGCRel("samplingFeatures"),
+			Href: "/systems/" + systemID + "/samplingFeatures",
+		})
+	}
+
+	if has, err := r.HasDatastreams(systemID); err == nil && has {
+		links = append(links, common_shared.Link{
+			Rel:  common_shared.OGCRel("datastreams"),
+			Href: "/systems/" + systemID + "/datastreams",
+		})
+	}
+
+	if has, err := r.HasControlStreams(systemID); err == nil && has {
+		links = append(links, common_shared.Link{
+			Rel:  common_shared.OGCRel("controlstreams"),
+			Href: "/systems/" + systemID + "/controlstreams",
+		})
+	}
+
+	if has, err := r.HasDeployments(systemID); err == nil && has {
+		links = append(links, common_shared.Link{
+			Rel:  common_shared.OGCRel("deployments"),
+			Href: "/systems/" + systemID + "/deployments",
 		})
 	}
 
@@ -122,25 +151,185 @@ func (r *SystemRepository) Update(systemId string, system *domains.System) error
 
 // Delete deletes a system
 func (r *SystemRepository) Delete(id string, cascade bool) error {
-	if cascade {
-		// Delete subsystems first
-		if err := r.db.Where("parent_system_id = ?", id).Delete(&domains.System{}).Error; err != nil {
+	if !cascade {
+		return r.db.Delete(&domains.System{}, "id = ?", id).Error
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return r.deleteCascade(tx, id)
+	})
+}
+
+func (r *SystemRepository) deleteCascade(tx *gorm.DB, systemID string) error {
+	var childIDs []string
+	if err := tx.Model(&domains.System{}).Where("parent_system_id = ?", systemID).Pluck("id", &childIDs).Error; err != nil {
+		return err
+	}
+
+	for _, childID := range childIDs {
+		if err := r.deleteCascade(tx, childID); err != nil {
 			return err
 		}
 	}
-	return r.db.Delete(&domains.System{}, "id = ?", id).Error
+
+	if err := tx.Where("parent_system_id = ?", systemID).Delete(&domains.SamplingFeature{}).Error; err != nil {
+		return err
+	}
+
+	if err := r.deleteSystemDatastreams(tx, systemID); err != nil {
+		return err
+	}
+
+	if err := r.deleteSystemControlStreams(tx, systemID); err != nil {
+		return err
+	}
+
+	if err := tx.Where("system_id = ?", systemID).Delete(&domains.SystemHistoryRevision{}).Error; err != nil {
+		return err
+	}
+
+	if err := r.removeSystemFromDeployments(tx, systemID); err != nil {
+		return err
+	}
+
+	if err := tx.Exec("DELETE FROM system_deployments WHERE system_id = ?", systemID).Error; err != nil {
+		return err
+	}
+	if err := tx.Exec("DELETE FROM system_procedures WHERE system_id = ?", systemID).Error; err != nil {
+		return err
+	}
+
+	return tx.Delete(&domains.System{}, "id = ?", systemID).Error
+}
+
+func (r *SystemRepository) deleteSystemDatastreams(tx *gorm.DB, systemID string) error {
+	var datastreamIDs []string
+	if err := tx.Model(&domains.Datastream{}).Where("system_id = ?", systemID).Pluck("id", &datastreamIDs).Error; err != nil {
+		return err
+	}
+
+	if len(datastreamIDs) > 0 {
+		if err := tx.Where("datastream_id IN ?", datastreamIDs).Delete(&domains.Observation{}).Error; err != nil {
+			return err
+		}
+	}
+
+	return tx.Where("system_id = ?", systemID).Delete(&domains.Datastream{}).Error
+}
+
+func (r *SystemRepository) deleteSystemControlStreams(tx *gorm.DB, systemID string) error {
+	var controlStreamIDs []string
+	if err := tx.Model(&domains.ControlStream{}).Where("system_id = ?", systemID).Pluck("id", &controlStreamIDs).Error; err != nil {
+		return err
+	}
+
+	if len(controlStreamIDs) > 0 {
+		if err := tx.Where("control_stream_id IN ?", controlStreamIDs).Delete(&domains.Command{}).Error; err != nil {
+			return err
+		}
+	}
+
+	return tx.Where("system_id = ?", systemID).Delete(&domains.ControlStream{}).Error
+}
+
+func (r *SystemRepository) removeSystemFromDeployments(tx *gorm.DB, systemID string) error {
+	needle, err := json.Marshal([]string{systemID})
+	if err != nil {
+		return err
+	}
+
+	var deployments []*domains.Deployment
+	if err := tx.Where("system_ids @> ?::jsonb", string(needle)).Find(&deployments).Error; err != nil {
+		return err
+	}
+
+	for _, deployment := range deployments {
+		changed := false
+
+		if deployment.SystemIds != nil {
+			filteredSystemIDs := make(common_shared.StringArray, 0, len(*deployment.SystemIds))
+			for _, id := range *deployment.SystemIds {
+				if id != systemID {
+					filteredSystemIDs = append(filteredSystemIDs, id)
+				}
+			}
+			if len(filteredSystemIDs) != len(*deployment.SystemIds) {
+				changed = true
+				if len(filteredSystemIDs) == 0 {
+					deployment.SystemIds = nil
+				} else {
+					deployment.SystemIds = &filteredSystemIDs
+				}
+			}
+		}
+
+		if len(deployment.DeployedSystems) > 0 {
+			filteredDeployedSystems := make(domains.DeployedSystemItems, 0, len(deployment.DeployedSystems))
+			for _, item := range deployment.DeployedSystems {
+				itemSystemID := item.System.GetId("systems")
+				if itemSystemID != nil && *itemSystemID == systemID {
+					changed = true
+					continue
+				}
+				filteredDeployedSystems = append(filteredDeployedSystems, item)
+			}
+			deployment.DeployedSystems = filteredDeployedSystems
+		}
+
+		if deployment.Platform != nil {
+			platformSystemID := deployment.Platform.System.GetId("systems")
+			if platformSystemID != nil && *platformSystemID == systemID {
+				changed = true
+				deployment.Platform = nil
+				deployment.PlatformID = nil
+			}
+		}
+
+		if changed {
+			if err := tx.Save(deployment).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // Checks if a system has subsystems
 func (r *SystemRepository) HasSubsystems(systemID string) (bool, error) {
+	return r.hasAssociatedRecords(&domains.System{}, "parent_system_id = ?", systemID)
+}
+
+func (r *SystemRepository) HasSamplingFeatures(systemID string) (bool, error) {
+	return r.hasAssociatedRecords(&domains.SamplingFeature{}, "parent_system_id = ?", systemID)
+}
+
+func (r *SystemRepository) HasDatastreams(systemID string) (bool, error) {
+	return r.hasAssociatedRecords(&domains.Datastream{}, "system_id = ?", systemID)
+}
+
+func (r *SystemRepository) HasControlStreams(systemID string) (bool, error) {
+	return r.hasAssociatedRecords(&domains.ControlStream{}, "system_id = ?", systemID)
+}
+
+func (r *SystemRepository) HasDeployments(systemID string) (bool, error) {
 	var count int64
-
-	err := r.db.Model(&domains.System{}).Where("parent_system_id = ?", systemID).Count(&count).Error
-
+	err := r.db.Model(&domains.Deployment{}).
+		Where("system_ids @> ?::jsonb", "[\""+systemID+"\"]").
+		Or("platform_id = ?", systemID).
+		Count(&count).Error
 	if err != nil {
 		return false, err
 	}
+	return count > 0, nil
+}
 
+func (r *SystemRepository) hasAssociatedRecords(model interface{}, query string, args ...interface{}) (bool, error) {
+	var count int64
+	err := r.db.Model(model).Where(query, args...).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
 	return count > 0, nil
 }
 
