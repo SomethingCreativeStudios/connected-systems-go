@@ -53,7 +53,7 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 			ValidTime:       deployment.ValidTime,
 			Platform:        deployment.Platform,
 			DeployedSystems: deployment.DeployedSystems,
-			Links:           deployment.Links,
+			Links:           formaters.AppendDeploymentAssociationLinks(deployment),
 
 			Lang:                deployment.Lang,
 			Keywords:            deployment.Keywords,
@@ -89,6 +89,8 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 	if err := json.Unmarshal(body, &sensorML); err != nil {
 		return nil, err
 	}
+
+	associationLinks := formaters.DeploymentAssociationLinks(sensorML.Links)
 
 	deployment := &domains.Deployment{
 		Links: common_shared.StripAssociationLinks(sensorML.Links),
@@ -140,6 +142,8 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 			}
 		}
 	}
+
+	formaters.ApplyDeploymentAssociationLinks(deployment, associationLinks)
 
 	return deployment, nil
 }

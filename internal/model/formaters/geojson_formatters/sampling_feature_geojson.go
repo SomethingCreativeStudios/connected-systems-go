@@ -11,11 +11,6 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
-var associations = []string{
-	common_shared.OGCRel("parentSystem"),
-	common_shared.OGCRel("sampleOf"),
-}
-
 // SamplingFeatureGeoJSONFormatter handles serialization and deserialization of SamplingFeature objects in GeoJSON format
 type SamplingFeatureGeoJSONFormatter struct {
 	formaters.Formatter[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature]
@@ -60,7 +55,7 @@ func (f *SamplingFeatureGeoJSONFormatter) SerializeAll(ctx context.Context, samp
 				ValidTime:          sf.ValidTime,
 				SampledFeatureLink: sf.SampledFeatureLink,
 			},
-			Links: serializeLinks(sf),
+			Links: formaters.AppendSamplingFeatureGeoJSONAssociationLinks(sf),
 		}
 
 		features = append(features, feature)
@@ -69,39 +64,11 @@ func (f *SamplingFeatureGeoJSONFormatter) SerializeAll(ctx context.Context, samp
 	return features, nil
 }
 
-func serializeLinks(sf *domains.SamplingFeature) common_shared.Links {
-	links := common_shared.Links{}
-
-	if sf.Links != nil {
-		links = sf.Links.FilterByRels(associations, false)
-	}
-
-	if sf.ParentSystemID != nil {
-		link := common_shared.Link{
-			Rel:  common_shared.OGCRel("parentSystem"),
-			Href: "/systems/" + *sf.ParentSystemID,
-		}
-		if sf.ParentSystemUID != nil {
-			link.UID = sf.ParentSystemUID
-		}
-		links = append(links, link)
-	}
-
-	if sf.SampleOf != nil {
-		for _, link := range *sf.SampleOf {
-			links = append(links, link)
-		}
-	}
-
-	return links
-}
-
 // --- Deserialization ---
 
 func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Reader) (*domains.SamplingFeature, error) {
 	var geoJSON struct {
 		Type       string                                   `json:"type"`
-		ID         string                                   `json:"id,omitempty"`
 		Properties domains.SamplingFeatureGeoJSONProperties `json:"properties"`
 		Geometry   *common_shared.GoGeom                    `json:"geometry,omitempty"`
 		Links      common_shared.Links                      `json:"links,omitempty"`
@@ -111,7 +78,7 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 		return nil, err
 	}
 
-	associationLinks := geoJSON.Links.FilterByRels(associations, true)
+	associationLinks := formaters.SamplingFeatureGeoJSONAssociationLinks(geoJSON.Links)
 
 	sf := &domains.SamplingFeature{
 		Links: common_shared.StripAssociationLinks(geoJSON.Links),
@@ -135,47 +102,7 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 		sf.SampledFeatureID = geoJSON.Properties.SampledFeatureLink.GetId("samplingFeatures")
 	}
 
-	f.handleAssociationLinks(associationLinks, sf)
+	formaters.ApplySamplingFeatureGeoJSONAssociationLinks(sf, associationLinks)
 
 	return sf, nil
-}
-
-func (f *SamplingFeatureGeoJSONFormatter) handleAssociationLinks(sfLinks common_shared.Links, sf *domains.SamplingFeature) {
-	if len(sfLinks) == 0 {
-		return
-	}
-
-	sampleIDs := []string{}
-	sampleUIDs := []string{}
-	sampleOfLinks := common_shared.Links{}
-
-	for _, link := range sfLinks {
-		if common_shared.RelEquals(link.Rel, common_shared.OGCRel("parentSystem")) {
-			sf.ParentSystemID = link.GetId("systems")
-			if link.UID != nil {
-				sf.ParentSystemUID = link.UID
-			}
-			continue
-		}
-
-		if common_shared.RelEquals(link.Rel, common_shared.OGCRel("sampleOf")) {
-			sampleOfLinks = append(sampleOfLinks, link)
-			if id := link.GetId("samplingFeatures"); id != nil {
-				sampleIDs = append(sampleIDs, *id)
-			}
-			if link.UID != nil {
-				sampleUIDs = append(sampleUIDs, *link.UID)
-			}
-		}
-	}
-
-	if len(sampleOfLinks) > 0 {
-		sf.SampleOf = &sampleOfLinks
-	}
-	if len(sampleIDs) > 0 {
-		sf.SampleOfIDs = &sampleIDs
-	}
-	if len(sampleUIDs) > 0 {
-		sf.SampleOfUIDs = &sampleUIDs
-	}
 }

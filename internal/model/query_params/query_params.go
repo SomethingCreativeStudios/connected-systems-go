@@ -9,6 +9,24 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
+func buildURLWithQuery(baseURL string, params url.Values) string {
+	encoded := params.Encode()
+	if encoded == "" {
+		return baseURL
+	}
+	return baseURL + "?" + encoded
+}
+
+func cloneURLValues(params url.Values) url.Values {
+	cloned := url.Values{}
+	for key, values := range params {
+		copied := make([]string, len(values))
+		copy(copied, values)
+		cloned[key] = copied
+	}
+	return cloned
+}
+
 type QueryParams struct {
 	IDs []string
 	Q   []string // Full-text search
@@ -57,21 +75,21 @@ func (qp *QueryParams) BuildPagintationLinks(baseURL string, params url.Values, 
 	}
 
 	links := common_shared.Links{
-		common_shared.Link{Href: baseURL + "?" + params.Encode(), Rel: "self"},
+		common_shared.Link{Href: buildURLWithQuery(baseURL, params), Rel: "self"},
 	}
 
 	if (currentOffset + returned) < *total {
-		nextLink := params
+		nextLink := cloneURLValues(params)
 		nextLink.Set("offset", strconv.Itoa(currentOffset+returned))
 
 		links = append(links, common_shared.Link{
 			Rel:  "next",
-			Href: baseURL + "?" + nextLink.Encode(),
+			Href: buildURLWithQuery(baseURL, nextLink),
 		})
 	}
 
 	if currentOffset > 0 {
-		prevLink := params
+		prevLink := cloneURLValues(params)
 		if currentOffset-qp.Limit <= 0 {
 			prevLink.Del("offset")
 		} else {
@@ -80,7 +98,7 @@ func (qp *QueryParams) BuildPagintationLinks(baseURL string, params url.Values, 
 
 		links = append(links, common_shared.Link{
 			Rel:  "prev",
-			Href: baseURL + "?" + prevLink.Encode(),
+			Href: buildURLWithQuery(baseURL, prevLink),
 		})
 	}
 

@@ -14,6 +14,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func createProcedureViaAPI(t *testing.T, payload map[string]interface{}) string {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/procedures", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/geo+json")
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	location := resp.Header.Get("Location")
+	require.NotEmpty(t, location)
+	id := parseID(location, "/procedures/")
+	require.NotEmpty(t, id)
+	return id
+}
+
+func baseSamplingFeaturePayload(name string) map[string]interface{} {
+	return map[string]interface{}{
+		"type": "Feature",
+		"properties": map[string]interface{}{
+			"uid":         "urn:uuid:" + uuid.NewString(),
+			"name":        name,
+			"description": "Sampling feature for system association link tests",
+			"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
+		},
+		"geometry": map[string]interface{}{
+			"type":        "Point",
+			"coordinates": []float64{-117.1625, 32.715},
+		},
+	}
+}
+
+func createSamplingFeatureViaAPI(t *testing.T, systemID string, payload map[string]interface{}) string {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/systems/"+systemID+"/samplingFeatures", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/geo+json")
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	location := resp.Header.Get("Location")
+	require.NotEmpty(t, location)
+	id := parseID(location, "/samplingFeatures/")
+	require.NotEmpty(t, id)
+	return id
+}
+
 const (
 	SystemGeoSchema = "geojson/system-bundled.json"
 	SystemSMLSchema = "sensorml/system-bundled.json"
@@ -257,8 +317,28 @@ func TestSubsystemConformance_Collection(t *testing.T) {
 func TestSystem_AssociationLinks_Subsystems(t *testing.T) {
 	cleanupDB(t)
 
-	parentID := createSystemViaAPI(t, "/systems", baseSystemPayload("Association Parent"))
+	procedureID := createProcedureViaAPI(t, map[string]interface{}{
+		"type": "Feature",
+		"properties": map[string]interface{}{
+			"uid":         "urn:uuid:" + uuid.NewString(),
+			"name":        "Association Procedure",
+			"featureType": "http://www.w3.org/ns/sosa/Procedure",
+		},
+	})
+	require.NotEmpty(t, procedureID)
+
+	parentPayload := baseSystemPayload("Association Parent")
+	parentProps, ok := parentPayload["properties"].(map[string]interface{})
+	require.True(t, ok)
+	parentProps["systemKind@link"] = map[string]interface{}{
+		"href": "/procedures/" + procedureID,
+		"rel":  "ogc-rel:systemKind",
+	}
+
+	parentID := createSystemViaAPI(t, "/systems", parentPayload)
 	_ = createSystemViaAPI(t, "/systems/"+parentID+"/subsystems", baseSystemPayload("Association Child"))
+	_ = createDeploymentViaAPI(t, "/deployments", baseDeploymentPayload("Association Deployment", parentID))
+	_ = createSamplingFeatureViaAPI(t, parentID, baseSamplingFeaturePayload("Association Sampling Feature"))
 	_ = createDatastreamViaAPI(t, "/systems/"+parentID+"/datastreams", baseDatastreamPayload())
 	_ = createControlStreamViaAPI(t, parentID, baseControlStreamPayload())
 
@@ -278,6 +358,9 @@ func TestSystem_AssociationLinks_Subsystems(t *testing.T) {
 	require.True(t, ok, "system must expose a links array when associations exist")
 
 	foundSubsystems := false
+	foundSamplingFeatures := false
+	foundDeployments := false
+	foundProcedures := false
 	foundDatastreams := false
 	foundControlStreams := false
 	for _, rawLink := range links {
@@ -289,27 +372,143 @@ func TestSystem_AssociationLinks_Subsystems(t *testing.T) {
 		href, _ := link["href"].(string)
 
 		if rel == "ogc-rel:subsystems" || rel == "subsystems" {
-			assert.Equal(t, "/systems/"+parentID+"/subsystems", href)
+			assert.True(t, strings.HasSuffix(href, "/systems/"+parentID+"/subsystems"))
 			foundSubsystems = true
 			continue
 		}
 
+		if rel == "ogc-rel:samplingFeatures" || rel == "samplingFeatures" {
+			assert.True(t, strings.HasSuffix(href, "/systems/"+parentID+"/samplingFeatures"))
+			foundSamplingFeatures = true
+			continue
+		}
+
+		if rel == "ogc-rel:deployments" || rel == "deployments" {
+			assert.True(t, strings.HasSuffix(href, "/systems/"+parentID+"/deployments"))
+			foundDeployments = true
+			continue
+		}
+
+		if rel == "ogc-rel:procedures" || rel == "procedures" {
+			assert.True(t, strings.HasSuffix(href, "/systems/"+parentID+"/procedures"))
+			foundProcedures = true
+			continue
+		}
+
 		if rel == "ogc-rel:datastreams" || rel == "datastreams" {
-			assert.Equal(t, "/systems/"+parentID+"/datastreams", href)
+			assert.True(t, strings.HasSuffix(href, "/systems/"+parentID+"/datastreams"))
 			foundDatastreams = true
 			continue
 		}
 
 		if rel == "ogc-rel:controlstreams" || rel == "controlstreams" {
-			assert.Equal(t, "/systems/"+parentID+"/controlstreams", href)
+			assert.True(t, strings.HasSuffix(href, "/systems/"+parentID+"/controlstreams"))
 			foundControlStreams = true
 			continue
 		}
 	}
 
 	assert.True(t, foundSubsystems, "system must expose a subsystems association link")
+	assert.True(t, foundSamplingFeatures, "system must expose a samplingFeatures association link")
+	assert.True(t, foundDeployments, "system must expose a deployments association link")
+	assert.True(t, foundProcedures, "system must expose a procedures association link")
 	assert.True(t, foundDatastreams, "system must expose a datastreams association link")
 	assert.True(t, foundControlStreams, "system must expose a controlstreams association link")
+}
+
+func TestSystem_AssociationLinks_OnlyWhenAssociationExists(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Association Empty"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systems/"+systemID, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var feature map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
+
+	if linksRaw, ok := feature["links"]; ok {
+		links, ok := linksRaw.([]interface{})
+		require.True(t, ok)
+
+		for _, rawLink := range links {
+			link, ok := rawLink.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			rel, _ := link["rel"].(string)
+			assert.NotContains(t, []string{
+				"ogc-rel:subsystems", "subsystems",
+				"ogc-rel:samplingFeatures", "samplingFeatures",
+				"ogc-rel:deployments", "deployments",
+				"ogc-rel:procedures", "procedures",
+				"ogc-rel:datastreams", "datastreams",
+				"ogc-rel:controlstreams", "controlstreams",
+			}, rel)
+		}
+	}
+}
+
+func TestSystem_AssociationLinks_AppearInSystemCollection(t *testing.T) {
+	cleanupDB(t)
+
+	parentID := createSystemViaAPI(t, "/systems", baseSystemPayload("Association Collection Parent"))
+	_ = createControlStreamViaAPI(t, parentID, baseControlStreamPayload())
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systems", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var collection map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
+
+	features, ok := collection["features"].([]interface{})
+	require.True(t, ok, "system collection must contain features")
+
+	var target map[string]interface{}
+	for _, rawFeature := range features {
+		feature, ok := rawFeature.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		id, _ := feature["id"].(string)
+		if id == parentID {
+			target = feature
+			break
+		}
+	}
+
+	require.NotNil(t, target, "created system must be present in /systems collection")
+
+	links, ok := target["links"].([]interface{})
+	require.True(t, ok, "system collection item must expose links when associations exist")
+
+	foundControlStreams := false
+	for _, rawLink := range links {
+		link, ok := rawLink.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		rel, _ := link["rel"].(string)
+		href, _ := link["href"].(string)
+		if rel == "ogc-rel:controlstreams" || rel == "controlstreams" {
+			assert.True(t, strings.HasSuffix(href, "/systems/"+parentID+"/controlstreams"))
+			foundControlStreams = true
+		}
+	}
+
+	assert.True(t, foundControlStreams, "system collection item must expose a controlstreams association link")
 }
 
 // =============================================================================

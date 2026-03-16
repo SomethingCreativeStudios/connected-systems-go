@@ -72,7 +72,7 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 			AttachedTo:           system.AttachedTo,
 			LocalReferenceFrames: system.LocalReferenceFrames,
 			LocalTimeFrames:      system.LocalTimeFrames,
-			Links:                system.Links,
+			Links:                formaters.AppendSensorMLSystemAssociationLinks(system),
 		}
 		features = append(features, feature)
 	}
@@ -163,6 +163,9 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 	system.LocalReferenceFrames = sml.LocalReferenceFrames
 	system.LocalTimeFrames = sml.LocalTimeFrames
 	system.Position = sml.Position
+	if sml.AttachedTo != nil {
+		system.ParentSystemID = sml.AttachedTo.GetId("systems")
+	}
 	system.Contacts = sml.Contacts
 	system.Documentation = sml.Documentation
 	system.History = sml.History

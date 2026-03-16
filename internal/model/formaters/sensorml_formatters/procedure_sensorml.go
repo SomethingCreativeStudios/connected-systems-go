@@ -157,7 +157,7 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 			LocalReferenceFrames: procedure.LocalReferenceFrames,
 			LocalTimeFrames:      procedure.LocalTimeFrames,
 			ValidTime:            procedure.ValidTime,
-			Links:                procedure.Links,
+			Links:                formaters.AppendProcedureAssociationLinks(procedure),
 		}
 
 		switch procedure.ProcessType {

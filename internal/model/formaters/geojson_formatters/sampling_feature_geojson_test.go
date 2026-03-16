@@ -53,6 +53,8 @@ func TestSamplingFeatureDeserialize_StripsOnlyAssociationLinks(t *testing.T) {
 }
 
 func TestSamplingFeatureSerialize_ShowsAssociationLinksToEndUser(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
 	formatter := NewSamplingFeatureGeoJSONFormatter(nil)
 
 	parentID := "sys-123"

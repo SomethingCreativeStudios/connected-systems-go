@@ -13,6 +13,7 @@ const OGCRelPrefix = "ogc-rel:"
 
 var associationRels = map[string]struct{}{
 	"parentSystem":        {},
+	"parentDeployment":    {},
 	"subsystems":          {},
 	"subdeployments":      {},
 	"deployedSystems":     {},

@@ -57,6 +57,32 @@ func (r *ProcedureRepository) List(params *queryparams.ProceduresQueryParams) ([
 	return procedures, total, err
 }
 
+// ListBySystem retrieves procedures associated with a specific system.
+func (r *ProcedureRepository) ListBySystem(systemID string, params *queryparams.ProceduresQueryParams) ([]*domains.Procedure, int64, error) {
+	var procedures []*domains.Procedure
+	var total int64
+
+	query := r.db.Model(&domains.Procedure{}).
+		Joins("JOIN system_procedures ON procedures.id = system_procedures.procedure_id").
+		Where("system_procedures.system_id = ?", systemID)
+
+	query = r.applyFilters(query, params)
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if params.Limit > 0 {
+		query = query.Limit(params.Limit)
+	}
+	if params.Offset > 0 {
+		query = query.Offset(params.Offset)
+	}
+
+	err := query.Find(&procedures).Error
+	return procedures, total, err
+}
+
 // Update updates a procedure
 func (r *ProcedureRepository) Update(procedure *domains.Procedure) error {
 	return r.db.Save(procedure).Error

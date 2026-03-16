@@ -81,7 +81,7 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 				Platform:        platformLink,
 				DeployedSystems: systemLinks,
 			},
-			Links: deployment.Links,
+			Links: formaters.AppendDeploymentAssociationLinks(deployment),
 		}
 		features = append(features, feature)
 	}
@@ -103,6 +103,8 @@ func (f *DeploymentGeoJSONFormatter) Deserialize(ctx context.Context, reader io.
 	if err := json.NewDecoder(reader).Decode(&geoJSON); err != nil {
 		return nil, err
 	}
+
+	associationLinks := formaters.DeploymentAssociationLinks(geoJSON.Links)
 
 	deployment := &domains.Deployment{
 		Links: common_shared.StripAssociationLinks(geoJSON.Links),
@@ -149,6 +151,8 @@ func (f *DeploymentGeoJSONFormatter) Deserialize(ctx context.Context, reader io.
 			deployment.SystemIds = &systemIDs
 		}
 	}
+
+	formaters.ApplyDeploymentAssociationLinks(deployment, associationLinks)
 
 	return deployment, nil
 }

@@ -24,10 +24,13 @@ type SystemHandler struct {
 	// deployment dependencies for server-side reuse
 	deploymentRepo *repository.DeploymentRepository
 	deploymentFC   *formaters.MultiFormatFormatterCollection[*domains.Deployment]
+	// procedure dependencies for server-side association endpoint
+	procedureRepo *repository.ProcedureRepository
+	procedureFC   *formaters.MultiFormatFormatterCollection[*domains.Procedure]
 }
 
 // NewSystemHandler creates a new SystemHandler
-func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, historyRepo *repository.SystemHistoryRepository, fc *formaters.MultiFormatFormatterCollection[*domains.System], deploymentRepo *repository.DeploymentRepository, deploymentFC *formaters.MultiFormatFormatterCollection[*domains.Deployment]) *SystemHandler {
+func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, historyRepo *repository.SystemHistoryRepository, fc *formaters.MultiFormatFormatterCollection[*domains.System], deploymentRepo *repository.DeploymentRepository, deploymentFC *formaters.MultiFormatFormatterCollection[*domains.Deployment], procedureRepo *repository.ProcedureRepository, procedureFC *formaters.MultiFormatFormatterCollection[*domains.Procedure]) *SystemHandler {
 	return &SystemHandler{
 		cfg:            cfg,
 		logger:         logger,
@@ -36,6 +39,8 @@ func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.S
 		fc:             fc,
 		deploymentRepo: deploymentRepo,
 		deploymentFC:   deploymentFC,
+		procedureRepo:  procedureRepo,
+		procedureFC:    procedureFC,
 	}
 }
 
@@ -50,6 +55,8 @@ func (h *SystemHandler) ListSystems(w http.ResponseWriter, r *http.Request) {
 		render.JSON(w, r, map[string]string{"error": "Internal server error"})
 		return
 	}
+
+	h.populateSystemAssociationLinks(systems)
 
 	acceptHeader := r.Header.Get("Accept")
 	collection := h.fc.BuildCollection(acceptHeader, systems, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
@@ -169,11 +176,22 @@ func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.populateSystemAssociationLinks(systems)
+
 	acceptHeader := r.Header.Get("Accept")
 	collection := h.fc.BuildCollection(acceptHeader, systems, h.cfg.API.BaseURL+r.URL.Path, len(systems), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, collection)
+}
+
+func (h *SystemHandler) populateSystemAssociationLinks(systems []*domains.System) {
+	for _, system := range systems {
+		if system == nil || strings.TrimSpace(system.ID) == "" {
+			continue
+		}
+		system.Links = append(system.Links, h.repo.BuildSystemAssociations(system.ID)...)
+	}
 }
 
 // GetDeployments retrieves deployments associated with a system
@@ -197,6 +215,26 @@ func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 	collection := h.deploymentFC.BuildCollection(acceptHeader, deployments, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.deploymentFC.GetResponseContentType(acceptHeader))
+	render.JSON(w, r, collection)
+}
+
+// GetProcedures retrieves procedures associated with a system.
+func (h *SystemHandler) GetProcedures(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	params := queryparams.ProceduresQueryParams{}.BuildFromRequest(r)
+
+	procedures, total, err := h.procedureRepo.ListBySystem(id, params)
+	if err != nil {
+		h.logger.Error("Failed to get procedures for system", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to get procedures"})
+		return
+	}
+
+	acceptHeader := r.Header.Get("Accept")
+	collection := h.procedureFC.BuildCollection(acceptHeader, procedures, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
+
+	w.Header().Set("Content-Type", h.procedureFC.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, collection)
 }
 

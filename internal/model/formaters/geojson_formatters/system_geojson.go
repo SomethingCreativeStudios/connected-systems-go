@@ -109,7 +109,7 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 				LocalTimeFrames:      system.LocalTimeFrames,
 				Position:             system.Position,
 			},
-			Links: system.Links,
+			Links: formaters.AppendGeoJSONSystemAssociationLinks(system),
 		}
 		features = append(features, feature)
 	}
@@ -132,6 +132,8 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 		return nil, err
 	}
 
+	associationLinks := formaters.GeoJSONSystemAssociationLinks(geoJSON.Links)
+
 	system := &domains.System{
 		Links: common_shared.StripAssociationLinks(geoJSON.Links),
 	}
@@ -148,6 +150,9 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 	system.SystemType = geoJSON.Properties.FeatureType
 	system.AssetType = geoJSON.Properties.AssetType
 	system.ValidTime = geoJSON.Properties.ValidTime
+	if geoJSON.Properties.SystemKind != nil {
+		system.SystemKindID = geoJSON.Properties.SystemKind.GetId("procedures")
+	}
 
 	// Map additional SWE/System fields
 	system.Lang = geoJSON.Properties.Lang
@@ -168,6 +173,8 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 	system.LocalReferenceFrames = geoJSON.Properties.LocalReferenceFrames
 	system.LocalTimeFrames = geoJSON.Properties.LocalTimeFrames
 	system.Position = geoJSON.Properties.Position
+
+	formaters.ApplyGeoJSONSystemAssociationLinks(system, associationLinks)
 
 	return system, nil
 }

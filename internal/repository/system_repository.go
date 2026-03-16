@@ -60,6 +60,13 @@ func (r *SystemRepository) BuildSystemAssociations(systemID string) common_share
 		})
 	}
 
+	if has, err := r.HasProcedures(systemID); err == nil && has {
+		links = append(links, common_shared.Link{
+			Rel:  common_shared.OGCRel("procedures"),
+			Href: "/systems/" + systemID + "/procedures",
+		})
+	}
+
 	return links
 }
 
@@ -322,6 +329,25 @@ func (r *SystemRepository) HasDeployments(systemID string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *SystemRepository) HasProcedures(systemID string) (bool, error) {
+	var count int64
+	err := r.db.Table("system_procedures").Where("system_id = ?", systemID).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	if count > 0 {
+		return true, nil
+	}
+
+	var system domains.System
+	err = r.db.Select("id", "system_kind_id").Where("id = ?", systemID).First(&system).Error
+	if err != nil {
+		return false, err
+	}
+
+	return system.SystemKindID != nil && strings.TrimSpace(*system.SystemKindID) != "", nil
 }
 
 func (r *SystemRepository) hasAssociatedRecords(model interface{}, query string, args ...interface{}) (bool, error) {

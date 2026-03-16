@@ -54,7 +54,7 @@ func (f *ProcedureGeoJSONFormatter) SerializeAll(ctx context.Context, procedures
 				FeatureType: procedure.ProcedureType,
 				ValidTime:   procedure.ValidTime,
 			},
-			Links: procedure.Links,
+			Links: formaters.AppendProcedureAssociationLinks(procedure),
 		}
 		features = append(features, feature)
 	}
