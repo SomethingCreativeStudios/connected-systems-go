@@ -14,6 +14,7 @@ type System struct {
 
 	SystemType string  `gorm:"type:varchar(255);not null" json:"featureType"` // sosa:Sensor, sosa:Actuator, sosa:Platform, etc.
 	AssetType  *string `gorm:"type:varchar(100)" json:"assetType,omitempty"`  // Equipment, Human, Platform, etc.
+	SMLType    *string `gorm:"type:varchar(50)" json:"-"`                     // SensorML process type (PhysicalSystem, PhysicalComponent, etc.)
 
 	// Temporal
 	ValidTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:valid_time_" json:"validTime,omitempty"`
@@ -105,7 +106,9 @@ type SystemGeoJSONProperties struct {
 	Description          string                         `json:"description,omitempty"`
 	FeatureType          string                         `json:"featureType"`
 	AssetType            *string                        `json:"assetType,omitempty"`
+	SMLType              *string                        `json:"smlType,omitempty"`
 	ValidTime            *common_shared.TimeRange       `json:"validTime,omitempty"`
+	// SystemKind@link is the GeoJSON representation of the system kind (procedure reference)
 	SystemKind           *common_shared.Link            `json:"systemKind@link,omitempty"`
 	Lang                 *string                        `json:"lang,omitempty"`
 	Keywords             []string                       `json:"keywords,omitempty"`
@@ -114,14 +117,14 @@ type SystemGeoJSONProperties struct {
 	Contacts             []common_shared.ContactWrapper `json:"contacts,omitempty"`
 	Documentation        common_shared.Documents        `json:"documentation,omitempty"`
 	History              common_shared.History          `json:"history,omitempty"`
-	TypeOf               *common_shared.Link            `json:"typeOf,omitempty"`
+	// Note: no typeOf here — GeoJSON uses systemKind@link; typeOf is the SensorML equivalent
+	// Note: no attachedTo here — server-generated field in SensorML only
 	Configuration        json.RawMessage                `json:"configuration,omitempty"`
 	FeaturesOfInterest   common_shared.Links            `json:"featuresOfInterest,omitempty"`
 	Inputs               common_shared.IOList           `json:"inputs,omitempty"`
 	Outputs              common_shared.IOList           `json:"outputs,omitempty"`
 	Parameters           common_shared.IOList           `json:"parameters,omitempty"`
 	Modes                json.RawMessage                `json:"modes,omitempty"`
-	AttachedTo           *common_shared.Link            `json:"attachedTo,omitempty"`
 	LocalReferenceFrames []common_shared.SpatialFrame   `json:"localReferenceFrames,omitempty"`
 	LocalTimeFrames      []common_shared.TemporalFrame  `json:"localTimeFrames,omitempty"`
 	Position             json.RawMessage                `json:"position,omitempty"`

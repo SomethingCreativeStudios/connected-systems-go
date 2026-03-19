@@ -27,6 +27,7 @@ var (
 		common_shared.OGCRel("controlstreams"),
 	}
 	sensorMLSystemAssociationRels = []string{
+		common_shared.OGCRel("parentSystem"),
 		common_shared.OGCRel("subsystems"),
 		common_shared.OGCRel("samplingFeatures"),
 		common_shared.OGCRel("deployments"),
@@ -111,6 +112,14 @@ func AppendSensorMLSystemAssociationLinks(system *domains.System) common_shared.
 	}
 
 	derived := common_shared.Links{}
+
+	if system.ParentSystemID != nil && strings.TrimSpace(*system.ParentSystemID) != "" {
+		derived = append(derived, common_shared.Link{
+			Rel:  common_shared.OGCRel("parentSystem"),
+			Href: "/systems/" + strings.TrimSpace(*system.ParentSystemID),
+		})
+	}
+
 	if strings.TrimSpace(system.ID) != "" {
 		if hasAssociationLink(system.Links, "subsystems") {
 			derived = append(derived, common_shared.Link{Rel: common_shared.OGCRel("subsystems"), Href: "/systems/" + system.ID + "/subsystems"})

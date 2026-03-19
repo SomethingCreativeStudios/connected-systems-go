@@ -73,7 +73,7 @@ func TestAppendGeoJSONSystemAssociationLinks_DedupesDerivedAndExisting(t *testin
 	assertRelCount(t, links, common_shared.OGCRel("subsystems"), 1)
 }
 
-func TestAppendSensorMLSystemAssociationLinksExcludesParentSystem(t *testing.T) {
+func TestAppendSensorMLSystemAssociationLinksIncludesParentSystem(t *testing.T) {
 	useTestAssociationBaseURL(t)
 
 	parentID := "parent-1"
@@ -81,7 +81,6 @@ func TestAppendSensorMLSystemAssociationLinksExcludesParentSystem(t *testing.T) 
 		Base:           domains.Base{ID: "sys-1"},
 		ParentSystemID: &parentID,
 		Links: common_shared.Links{
-			{Href: "/systems/parent-1", Rel: common_shared.OGCRel("parentSystem")},
 			{Href: "/systems/sys-1/subsystems", Rel: common_shared.OGCRel("subsystems")},
 			{Href: "/systems/sys-1/samplingFeatures", Rel: common_shared.OGCRel("samplingFeatures")},
 			{Href: "/systems/sys-1/deployments", Rel: common_shared.OGCRel("deployments")},
@@ -99,7 +98,7 @@ func TestAppendSensorMLSystemAssociationLinksExcludesParentSystem(t *testing.T) 
 	assertHasRel(t, links, common_shared.OGCRel("datastreams"))
 	assertHasRel(t, links, common_shared.OGCRel("controlstreams"))
 	assertHasRel(t, links, common_shared.OGCRel("subsystems"))
-	assertMissingRel(t, links, common_shared.OGCRel("parentSystem"))
+	assertHasHref(t, links, common_shared.OGCRel("parentSystem"), "http://example.test/systems/parent-1")
 }
 
 func TestAppendDeploymentAssociationLinks(t *testing.T) {

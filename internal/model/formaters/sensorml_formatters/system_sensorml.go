@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
@@ -12,6 +13,15 @@ import (
 )
 
 const SensorMLContentType = "application/sml+json"
+
+// getSMLType returns the SensorML process type for a system.
+// Defaults to "PhysicalSystem" if not explicitly set.
+func getSMLType(system *domains.System) string {
+	if system.SMLType != nil && *system.SMLType != "" {
+		return *system.SMLType
+	}
+	return "PhysicalSystem"
+}
 
 // SystemSensorMLFormatter handles serialization and deserialization of System objects in SensorML format
 type SystemSensorMLFormatter struct {
@@ -46,22 +56,54 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 	var features []domains.SystemSensorMLFeature
 	for _, system := range systems {
 
+		// attachedTo is server-generated from ParentSystemID
+		var attachedTo *common_shared.Link
+		if system.ParentSystemID != nil && strings.TrimSpace(*system.ParentSystemID) != "" {
+			attachedTo = &common_shared.Link{
+				Href: "/systems/" + strings.TrimSpace(*system.ParentSystemID),
+				Rel:  common_shared.OGCRel("attachedTo"),
+			}
+		}
+
+		// typeOf is the SensorML equivalent of systemKind@link in GeoJSON
+		// Build from SystemKindID if TypeOf is not explicitly set
+		typeOf := system.TypeOf
+		if typeOf == nil && system.SystemKindID != nil && strings.TrimSpace(*system.SystemKindID) != "" {
+			typeOf = &common_shared.Link{
+				Href: "/procedures/" + strings.TrimSpace(*system.SystemKindID),
+				Rel:  common_shared.OGCRel("systemKind"),
+			}
+		}
+
+		// Build classifiers list, injecting assetType as a cs:AssetType classifier
+		classifiers := system.Classifiers
+		if system.AssetType != nil && strings.TrimSpace(*system.AssetType) != "" {
+			assetClassifier := common_shared.Term{
+				Definition: "cs:AssetType",
+				Label:      "Asset Type",
+				CodeSpace:  "cs",
+				Value:      strings.TrimSpace(*system.AssetType),
+			}
+			classifiers = append(classifiers, assetClassifier)
+		}
+
 		feature := domains.SystemSensorMLFeature{
 			ID:                   system.ID,
-			Type:                 system.SystemType,
+			Type:                 getSMLType(system),
 			Label:                system.Name,
 			Description:          system.Description,
 			UniqueID:             string(system.UniqueIdentifier),
+			Definition:           system.SystemType,
 			Lang:                 system.Lang,
 			Keywords:             system.Keywords,
 			Identifiers:          system.Identifiers,
-			Classifiers:          system.Classifiers,
+			Classifiers:          classifiers,
 			SecurityConstraints:  system.SecurityConstraints,
 			LegalConstraints:     system.LegalConstraints,
 			Contacts:             system.Contacts,
 			Documentation:        system.Documentation,
 			History:              system.History,
-			TypeOf:               system.TypeOf,
+			TypeOf:               typeOf,
 			Configuration:        system.Configuration,
 			FeaturesOfInterest:   system.FeaturesOfInterest,
 			Inputs:               system.Inputs,
@@ -69,7 +111,7 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 			Parameters:           system.Parameters,
 			Modes:                system.Modes,
 			Position:             system.Position,
-			AttachedTo:           system.AttachedTo,
+			AttachedTo:           attachedTo,
 			LocalReferenceFrames: system.LocalReferenceFrames,
 			LocalTimeFrames:      system.LocalTimeFrames,
 			Links:                formaters.AppendSensorMLSystemAssociationLinks(system),
@@ -121,13 +163,9 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 		system.SystemType = v
 	}
 
-	if v, ok := raw["type"].(string); ok && system.SystemType == "" {
-		system.SystemType = v
-	}
-
-	if v, ok := raw["assetType"].(string); ok {
-		at := v
-		system.AssetType = &at
+	// type is the SML process type, not the semantic definition
+	if v, ok := raw["type"].(string); ok && v != "" {
+		system.SMLType = &v
 	}
 
 	if vt, ok := raw["validTime"]; ok {
@@ -150,7 +188,30 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 		}
 	}
 
+	// typeOf is the SensorML equivalent of systemKind@link — extract the procedure ID
 	system.TypeOf = sml.TypeOf
+	if sml.TypeOf != nil {
+		system.SystemKindID = sml.TypeOf.GetId("procedures")
+	}
+
+	// Extract assetType from classifiers (it's stored as cs:AssetType classifier in SensorML)
+	var filteredClassifiers common_shared.Terms
+	for _, c := range sml.Classifiers {
+		if c.Definition == "cs:AssetType" {
+			val := c.Value
+			system.AssetType = &val
+		} else {
+			filteredClassifiers = append(filteredClassifiers, c)
+		}
+	}
+	system.Classifiers = filteredClassifiers
+
+	system.Identifiers = sml.Identifiers
+	system.SecurityConstraints = sml.SecurityConstraints
+	system.LegalConstraints = sml.LegalConstraints
+	system.Lang = sml.Lang
+	system.Keywords = sml.Keywords
+
 	system.Configuration = sml.Configuration
 	if sml.FeaturesOfInterest != nil {
 		system.FeaturesOfInterest = sml.FeaturesOfInterest
@@ -159,11 +220,12 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 	system.Outputs = sml.Outputs
 	system.Parameters = sml.Parameters
 	system.Modes = sml.Modes
-	system.AttachedTo = sml.AttachedTo
 	system.LocalReferenceFrames = sml.LocalReferenceFrames
 	system.LocalTimeFrames = sml.LocalTimeFrames
 	system.Position = sml.Position
-	if sml.AttachedTo != nil {
+	// Derive ParentSystemID from ogc-rel:parentSystem link; fall back to attachedTo for incoming SensorML
+	formaters.ApplyGeoJSONSystemAssociationLinks(system, sml.Links)
+	if system.ParentSystemID == nil && sml.AttachedTo != nil {
 		system.ParentSystemID = sml.AttachedTo.GetId("systems")
 	}
 	system.Contacts = sml.Contacts

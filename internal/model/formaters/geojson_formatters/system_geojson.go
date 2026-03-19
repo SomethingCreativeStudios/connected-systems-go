@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
@@ -64,10 +65,12 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 
 	var features []domains.SystemGeoJSONFeature
 	for _, system := range systems {
-		// Build systemKind link if present
+		// Build systemKind@link — prefer the full procedure record (title/uid),
+		// fall back to a bare href from SystemKindID, then to TypeOf as a last resort.
 		var kindLink *common_shared.Link
-		if system.SystemKindID != nil {
-			if proc, ok := kindMap[*system.SystemKindID]; ok {
+		if system.SystemKindID != nil && strings.TrimSpace(*system.SystemKindID) != "" {
+			id := strings.TrimSpace(*system.SystemKindID)
+			if proc, ok := kindMap[id]; ok {
 				kindLink = &common_shared.Link{
 					Href:  "procedures/" + proc.ID,
 					Rel:   common_shared.OGCRel("systemKind"),
@@ -75,6 +78,18 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 					Title: proc.Name,
 					UID:   (*string)(&proc.UniqueIdentifier),
 				}
+			} else {
+				kindLink = &common_shared.Link{
+					Href: "procedures/" + id,
+					Rel:  common_shared.OGCRel("systemKind"),
+				}
+			}
+		} else if system.TypeOf != nil && system.TypeOf.Href != "" {
+			// TypeOf was stored before SystemKindID was introduced; surface it as systemKind@link
+			kindLink = &common_shared.Link{
+				Href:  system.TypeOf.Href,
+				Rel:   common_shared.OGCRel("systemKind"),
+				Title: system.TypeOf.Title,
 			}
 		}
 
@@ -88,6 +103,7 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 				Description:          system.Description,
 				FeatureType:          system.SystemType,
 				AssetType:            system.AssetType,
+				SMLType:              system.SMLType,
 				ValidTime:            system.ValidTime,
 				SystemKind:           kindLink,
 				Lang:                 system.Lang,
@@ -97,14 +113,12 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 				Contacts:             system.Contacts,
 				Documentation:        system.Documentation,
 				History:              system.History,
-				TypeOf:               system.TypeOf,
 				Configuration:        system.Configuration,
 				FeaturesOfInterest:   system.FeaturesOfInterest,
 				Inputs:               system.Inputs,
 				Outputs:              system.Outputs,
 				Parameters:           system.Parameters,
 				Modes:                system.Modes,
-				AttachedTo:           system.AttachedTo,
 				LocalReferenceFrames: system.LocalReferenceFrames,
 				LocalTimeFrames:      system.LocalTimeFrames,
 				Position:             system.Position,
@@ -149,6 +163,7 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 	system.Description = geoJSON.Properties.Description
 	system.SystemType = geoJSON.Properties.FeatureType
 	system.AssetType = geoJSON.Properties.AssetType
+	system.SMLType = geoJSON.Properties.SMLType
 	system.ValidTime = geoJSON.Properties.ValidTime
 	if geoJSON.Properties.SystemKind != nil {
 		system.SystemKindID = geoJSON.Properties.SystemKind.GetId("procedures")
@@ -162,14 +177,12 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 	system.Contacts = geoJSON.Properties.Contacts
 	system.Documentation = geoJSON.Properties.Documentation
 	system.History = geoJSON.Properties.History
-	system.TypeOf = geoJSON.Properties.TypeOf
 	system.Configuration = geoJSON.Properties.Configuration
 	system.FeaturesOfInterest = geoJSON.Properties.FeaturesOfInterest
 	system.Inputs = geoJSON.Properties.Inputs
 	system.Outputs = geoJSON.Properties.Outputs
 	system.Parameters = geoJSON.Properties.Parameters
 	system.Modes = geoJSON.Properties.Modes
-	system.AttachedTo = geoJSON.Properties.AttachedTo
 	system.LocalReferenceFrames = geoJSON.Properties.LocalReferenceFrames
 	system.LocalTimeFrames = geoJSON.Properties.LocalTimeFrames
 	system.Position = geoJSON.Properties.Position

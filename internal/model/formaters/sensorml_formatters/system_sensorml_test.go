@@ -20,7 +20,6 @@ func TestSystemSensorMLSerialize_AssociationLinks(t *testing.T) {
 		Deployments:    []domains.Deployment{{Base: domains.Base{ID: "dep-1"}}},
 		Procedures:     []domains.Procedure{{Base: domains.Base{ID: "proc-1"}}},
 		Links: common_shared.Links{
-			{Href: "/systems/sys-parent", Rel: common_shared.OGCRel("parentSystem")},
 			{Href: "/systems/sys-1/subsystems", Rel: common_shared.OGCRel("subsystems")},
 			{Href: "/systems/sys-1/samplingFeatures", Rel: common_shared.OGCRel("samplingFeatures")},
 			{Href: "/systems/sys-1/deployments", Rel: common_shared.OGCRel("deployments")},
@@ -35,13 +34,13 @@ func TestSystemSensorMLSerialize_AssociationLinks(t *testing.T) {
 		t.Fatalf("serialize failed: %v", err)
 	}
 
+	assertHasHref(t, feature.Links, common_shared.OGCRel("parentSystem"), "http://example.test/systems/sys-parent")
 	assertHasRel(t, feature.Links, common_shared.OGCRel("subsystems"))
 	assertHasRel(t, feature.Links, common_shared.OGCRel("samplingFeatures"))
 	assertHasRel(t, feature.Links, common_shared.OGCRel("deployments"))
 	assertHasRel(t, feature.Links, common_shared.OGCRel("datastreams"))
 	assertHasRel(t, feature.Links, common_shared.OGCRel("controlstreams"))
 	assertHasHref(t, feature.Links, common_shared.OGCRel("procedures"), "http://example.test/procedures?id=proc-1")
-	assertMissingRel(t, feature.Links, common_shared.OGCRel("parentSystem"))
 }
 
 func TestSystemSensorMLDeserialize_AssociationHandling(t *testing.T) {
