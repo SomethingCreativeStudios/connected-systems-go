@@ -13,7 +13,6 @@ type SystemQueryParams struct {
 	Bbox               *common_shared.BoundingBox
 	Datetime           *common_shared.TimeRange
 	Geom               string // WKT geometry
-	Q                  []string
 	Parent             []string
 	Procedure          []string
 	FOI                []string
@@ -42,6 +41,26 @@ func (SystemQueryParams) BuildFromRequest(r *http.Request) *SystemQueryParams {
 			tr = common_shared.ToTimeRangeFromSlice(dateVals)
 		}
 		params.Datetime = &tr
+	}
+
+	if procedure := r.URL.Query().Get("procedure"); procedure != "" {
+		params.Procedure = strings.Split(procedure, ",")
+	}
+
+	if foi := r.URL.Query().Get("foi"); foi != "" {
+		params.FOI = strings.Split(foi, ",")
+	}
+
+	if observedProperty := r.URL.Query().Get("observedProperty"); observedProperty != "" {
+		params.ObservedProperty = strings.Split(observedProperty, ",")
+	}
+
+	if controlledProperty := r.URL.Query().Get("controlledProperty"); controlledProperty != "" {
+		params.ControlledProperty = strings.Split(controlledProperty, ",")
+	}
+
+	if geom := r.URL.Query().Get("geom"); geom != "" {
+		params.Geom = geom
 	}
 
 	return params

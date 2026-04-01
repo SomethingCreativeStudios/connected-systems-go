@@ -5,13 +5,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -33,6 +34,12 @@ func (h *CollectionHandler) CreateCollection(w http.ResponseWriter, r *http.Requ
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Invalid request payload"))
 		return
+	}
+	if collection.ID == "" {
+		collection.ID = uuid.New().String()
+	}
+	if collection.ItemType == "" {
+		collection.ItemType = "feature"
 	}
 	ctx := r.Context()
 	if err := h.Repo.CreateCollection(ctx, &collection); err != nil {
@@ -65,69 +72,50 @@ func (h *CollectionHandler) ListCollections(w http.ResponseWriter, r *http.Reque
 
 	collections = ensureCanonicalCollections(collections, h.cfg.API.BaseURL)
 
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, collections, h.cfg.API.BaseURL+r.URL.Path, int(10), r.URL.Query(), queryparams.QueryParams{})
+	// OGC API - Common requires /collections to return { "links": [...], "collections": [...] }
+	// not a GeoJSON FeatureCollection, so we bypass the formatter here.
+	type collectionsResponse struct {
+		Links          common_shared.Links  `json:"links"`
+		Collections    []*domains.Collection `json:"collections"`
+		NumberMatched  int                  `json:"numberMatched"`
+		NumberReturned int                  `json:"numberReturned"`
+	}
 
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	resp := collectionsResponse{
+		Links:          common_shared.Links{},
+		Collections:    collections,
+		NumberMatched:  len(collections),
+		NumberReturned: len(collections),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	render.JSON(w, r, resp)
 }
 
 func (h *CollectionHandler) GetCollection(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := chi.URLParam(r, "collectionId")
-	// Redirect known collection IDs to canonical endpoints
-	switch id {
-	case "systems":
-		http.Redirect(w, r, "/systems", http.StatusTemporaryRedirect)
-		return
-	case "datastreams":
-		http.Redirect(w, r, "/datastreams", http.StatusTemporaryRedirect)
-		return
-	case "observations":
-		http.Redirect(w, r, "/observations", http.StatusTemporaryRedirect)
-		return
-	case "controlstreams":
-		http.Redirect(w, r, "/controlstreams", http.StatusTemporaryRedirect)
-		return
-	case "commands":
-		http.Redirect(w, r, "/commands", http.StatusTemporaryRedirect)
-		return
-	case "systemEvents":
-		http.Redirect(w, r, "/systemEvents", http.StatusTemporaryRedirect)
-		return
-	case "deployments":
-		http.Redirect(w, r, "/deployments", http.StatusTemporaryRedirect)
-		return
-	case "procedures":
-		http.Redirect(w, r, "/procedures", http.StatusTemporaryRedirect)
-		return
-	case "samplingFeatures":
-		http.Redirect(w, r, "/samplingFeatures", http.StatusTemporaryRedirect)
-		return
-	case "properties":
-		http.Redirect(w, r, "/properties", http.StatusTemporaryRedirect)
-		return
+
+	// For canonical collections, return their metadata directly rather than
+	// redirecting (a redirect would return the items list, not the collection record).
+	canonicals := ensureCanonicalCollections(nil, h.cfg.API.BaseURL)
+	for _, c := range canonicals {
+		if c.ID == id {
+			w.Header().Set("Content-Type", "application/json")
+			render.JSON(w, r, c)
+			return
+		}
 	}
+
 	collection, err := h.Repo.GetCollectionByID(ctx, id)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("Collection not found"))
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
-
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, collection)
-	if err != nil {
-		h.logger.Error("Failed to serialize collection", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize collection"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, serialized)
+	render.JSON(w, r, collection)
 }
 
 func ensureCanonicalCollections(existing []*domains.Collection, baseURL string) []*domains.Collection {

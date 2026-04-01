@@ -66,7 +66,7 @@ func appendControlStreamAssociationLinks(cs *domains.ControlStream) common_share
 
 	commandLink := common_shared.Link{
 		Rel:  common_shared.OGCRel("commands"),
-		Href: "/controlstreams/" + cs.ID + "/commands",
+		Href: formaters.ToFunctionalAssociationHref("/controlstreams/" + cs.ID + "/commands"),
 	}
 
 	for _, link := range links {

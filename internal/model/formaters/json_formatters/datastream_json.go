@@ -69,14 +69,15 @@ func appendDatastreamAssociationLinks(ds *domains.Datastream) common_shared.Link
 
 	observationLink := common_shared.Link{
 		Rel:  common_shared.OGCRel("observations"),
-		Href: "/datastreams/" + ds.ID + "/observations",
+		Href: formaters.ToFunctionalAssociationHref("/datastreams/" + ds.ID + "/observations"),
 	}
 
-	for _, link := range links {
-		if common_shared.RelEquals(link.Rel, observationLink.Rel) && link.Href == observationLink.Href {
-			return links
-		}
+	systemLink := common_shared.Link{
+		Rel:  common_shared.OGCRel("systems"),
+		Href: formaters.ToFunctionalAssociationHref("/systems/" + *ds.SystemID),
 	}
+
+	links = append(links, systemLink)
 
 	return append(links, observationLink)
 }

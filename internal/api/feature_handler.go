@@ -13,6 +13,29 @@ import (
 	"go.uber.org/zap"
 )
 
+// canonicalCollectionPaths maps canonical collectionId values to their real API path prefix.
+// Requests to /collections/{id}/items[/{featureId}] are transparently redirected to the
+// canonical endpoint so that OGC API Features clients work alongside the CS-specific paths.
+var canonicalCollectionPaths = map[string]string{
+	"systems":         "/systems",
+	"deployments":     "/deployments",
+	"procedures":      "/procedures",
+	"samplingFeatures": "/samplingFeatures",
+	"properties":      "/properties",
+	"datastreams":     "/datastreams",
+	"observations":    "/observations",
+	"controlstreams":  "/controlstreams",
+	"commands":        "/commands",
+	"systemEvents":    "/systemEvents",
+}
+
+func redirectToCanonical(w http.ResponseWriter, r *http.Request, target string) {
+	if q := r.URL.RawQuery; q != "" {
+		target += "?" + q
+	}
+	http.Redirect(w, r, target, http.StatusTemporaryRedirect)
+}
+
 // FeatureHandler handles Feature resource requests (OGC API Features Part 1)
 type FeatureHandler struct {
 	cfg    *config.Config
@@ -34,6 +57,11 @@ func NewFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.
 // ListFeatures retrieves features from a collection (OGC path: /collections/{collectionId}/items)
 func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionId")
+	if basePath, ok := canonicalCollectionPaths[collectionID]; ok {
+		redirectToCanonical(w, r, basePath)
+		return
+	}
+
 	params := queryparams.FeatureQueryParams{}.BuildFromRequest(r)
 	params.CollectionID = collectionID
 
@@ -55,6 +83,10 @@ func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 func (h *FeatureHandler) GetFeature(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionId")
 	featureID := chi.URLParam(r, "featureId")
+	if basePath, ok := canonicalCollectionPaths[collectionID]; ok {
+		redirectToCanonical(w, r, basePath+"/"+featureID)
+		return
+	}
 
 	feature, err := h.repo.GetByCollectionAndID(collectionID, featureID)
 	if err != nil {
@@ -85,8 +117,13 @@ func (h *FeatureHandler) GetFeature(w http.ResponseWriter, r *http.Request) {
 
 // CreateFeature creates a new feature in a collection
 func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
-	acceptHeader := r.Header.Get("content-type")
 	collectionID := chi.URLParam(r, "collectionId")
+	if basePath, ok := canonicalCollectionPaths[collectionID]; ok {
+		redirectToCanonical(w, r, basePath)
+		return
+	}
+
+	acceptHeader := r.Header.Get("content-type")
 
 	feature, err := h.fc.Deserialize(acceptHeader, r.Body)
 
@@ -114,6 +151,10 @@ func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionId")
 	featureID := chi.URLParam(r, "featureId")
+	if basePath, ok := canonicalCollectionPaths[collectionID]; ok {
+		redirectToCanonical(w, r, basePath+"/"+featureID)
+		return
+	}
 
 	existing, err := h.repo.GetByCollectionAndID(collectionID, featureID)
 	if err != nil {
@@ -150,6 +191,10 @@ func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 func (h *FeatureHandler) DeleteFeature(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionId")
 	featureID := chi.URLParam(r, "featureId")
+	if basePath, ok := canonicalCollectionPaths[collectionID]; ok {
+		redirectToCanonical(w, r, basePath+"/"+featureID)
+		return
+	}
 
 	_, err := h.repo.GetByCollectionAndID(collectionID, featureID)
 	if err != nil {

@@ -97,13 +97,12 @@ func AppendGeoJSONSystemAssociationLinks(system *domains.System) common_shared.L
 			derived = append(derived, common_shared.Link{Rel: common_shared.OGCRel("controlstreams"), Href: "/systems/" + system.ID + "/controlstreams"})
 		}
 
-		if len(system.Procedures) > 0 && strings.TrimSpace(system.ID) != "" {
-			href := buildProceduresEndpointHref(system.Procedures)
-			derived = append(derived, common_shared.Link{Rel: common_shared.OGCRel("procedures"), Href: href})
+		if system.TypeOf != nil {
+			derived = append(derived, common_shared.Link{Rel: common_shared.OGCRel("procedures"), Href: system.TypeOf.Href})
 		}
 	}
 
-	return mergeAssociationLinks(system.Links, geoJSONSystemAssociationRels, derived)
+	return mergeAssociationLinks(common_shared.StripAssociationLinks(system.Links), geoJSONSystemAssociationRels, derived)
 }
 
 func AppendSensorMLSystemAssociationLinks(system *domains.System) common_shared.Links {
@@ -137,13 +136,12 @@ func AppendSensorMLSystemAssociationLinks(system *domains.System) common_shared.
 			derived = append(derived, common_shared.Link{Rel: common_shared.OGCRel("controlstreams"), Href: "/systems/" + system.ID + "/controlstreams"})
 		}
 
-		if len(system.Procedures) > 0 && strings.TrimSpace(system.ID) != "" {
-			href := buildProceduresEndpointHref(system.Procedures)
-			derived = append(derived, common_shared.Link{Rel: common_shared.OGCRel("procedures"), Href: href})
+		if system.TypeOf != nil {
+			derived = append(derived, common_shared.Link{Rel: common_shared.OGCRel("procedures"), Href: system.TypeOf.Href})
 		}
 	}
 
-	return mergeAssociationLinks(system.Links, sensorMLSystemAssociationRels, derived)
+	return mergeAssociationLinks(common_shared.StripAssociationLinks(system.Links), sensorMLSystemAssociationRels, derived)
 }
 
 func AppendDeploymentAssociationLinks(deployment *domains.Deployment) common_shared.Links {
@@ -167,7 +165,7 @@ func AppendDeploymentAssociationLinks(deployment *domains.Deployment) common_sha
 		})
 	}
 
-	return mergeAssociationLinks(deployment.Links, deploymentAssociationRels, derived)
+	return mergeAssociationLinks(common_shared.StripAssociationLinks(deployment.Links), deploymentAssociationRels, derived)
 }
 
 func AppendProcedureAssociationLinks(procedure *domains.Procedure) common_shared.Links {
@@ -183,7 +181,7 @@ func AppendProcedureAssociationLinks(procedure *domains.Procedure) common_shared
 		})
 	}
 
-	return mergeAssociationLinks(procedure.Links, procedureAssociationRels, derived)
+	return mergeAssociationLinks(common_shared.StripAssociationLinks(procedure.Links), procedureAssociationRels, derived)
 }
 
 func AppendSamplingFeatureGeoJSONAssociationLinks(sf *domains.SamplingFeature) common_shared.Links {
@@ -208,7 +206,7 @@ func AppendSamplingFeatureGeoJSONAssociationLinks(sf *domains.SamplingFeature) c
 		derived = append(derived, *sf.SampleOf...)
 	}
 
-	return mergeAssociationLinks(sf.Links, samplingFeatureGeoJSONAssociationRels, derived)
+	return mergeAssociationLinks(common_shared.StripAssociationLinks(sf.Links), samplingFeatureGeoJSONAssociationRels, derived)
 }
 
 func ApplyGeoJSONSystemAssociationLinks(system *domains.System, links common_shared.Links) {
@@ -295,7 +293,7 @@ func mergeAssociationLinks(existing common_shared.Links, allowedRels []string, d
 				return
 			}
 			link.Rel = common_shared.OGCRel(canonicalRel)
-			link.Href = toFunctionalAssociationHref(link.Href)
+			link.Href = ToFunctionalAssociationHref(link.Href)
 		}
 
 		key := canonicalRel + "|" + link.Href
@@ -370,7 +368,7 @@ func hasAssociationLink(links common_shared.Links, rel string) bool {
 	return false
 }
 
-func toFunctionalAssociationHref(href string) string {
+func ToFunctionalAssociationHref(href string) string {
 	href = strings.TrimSpace(href)
 	if href == "" {
 		return href

@@ -36,34 +36,32 @@ func (Feature) TableName() string {
 
 // FeatureGeoJSONFeature converts Feature to GeoJSON Feature format
 type FeatureGeoJSONFeature struct {
-	Type       string                   `json:"type"`
-	ID         string                   `json:"id"`
-	Geometry   *common_shared.GoGeom    `json:"geometry"`
-	Properties FeatureGeoJSONProperties `json:"properties"`
-	Links      common_shared.Links      `json:"links,omitempty"`
-}
-
-// FeatureGeoJSONProperties represents the properties object in GeoJSON
-type FeatureGeoJSONProperties struct {
-	UID          UniqueID                 `json:"uid"`
-	Name         string                   `json:"name"`
-	Description  string                   `json:"description,omitempty"`
-	DateTime     *time.Time               `json:"dateTime,omitempty"`
-	ValidTime    *common_shared.TimeRange `json:"validTime,omitempty"`
-	CollectionID string                   `json:"collectionId"`
-	// Additional properties are merged from the Properties field
-	AdditionalProperties map[string]interface{} `json:"-"` // Will be flattened into properties
+	Type       string                 `json:"type"`
+	ID         string                 `json:"id"`
+	Geometry   *common_shared.GoGeom  `json:"geometry"`
+	Properties map[string]interface{} `json:"properties"`
+	Links      common_shared.Links    `json:"links,omitempty"`
 }
 
 // ToGeoJSON converts Feature domain to GeoJSON Feature
 func (f Feature) ToGeoJSON() FeatureGeoJSONFeature {
-	props := FeatureGeoJSONProperties{
-		UID:          f.UniqueIdentifier,
-		Name:         f.Name,
-		Description:  f.Description,
-		DateTime:     f.DateTime,
-		ValidTime:    f.ValidTime,
-		CollectionID: f.CollectionID,
+	// Start with extra properties so known fields always win
+	props := make(map[string]interface{}, len(f.Properties)+6)
+	for k, v := range f.Properties {
+		props[k] = v
+	}
+
+	props["uid"] = string(f.UniqueIdentifier)
+	props["name"] = f.Name
+	props["collectionId"] = f.CollectionID
+	if f.Description != "" {
+		props["description"] = f.Description
+	}
+	if f.DateTime != nil {
+		props["dateTime"] = f.DateTime
+	}
+	if f.ValidTime != nil {
+		props["validTime"] = f.ValidTime
 	}
 
 	return FeatureGeoJSONFeature{

@@ -1,4 +1,4 @@
-.PHONY: help build run test clean migrate
+.PHONY: help build run test clean migrate viewer-docker-build
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -33,11 +33,25 @@ lint: ## Run linter
 migrate: ## Run database migrations
 	@echo "Database migrations not yet implemented"
 
-docker-build: ## Build Docker image
-	docker build -t connected-systems-api .
+docker-build: ## Build and push multi-arch Docker image (linux/amd64 + linux/arm64)
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--tag docker.monogatari.dev/connected-systems/cs-api-server \
+		--push \
+		.
 
 docker-run: ## Run Docker container
 	docker-compose up
 
 docker-stop: ## Stop Docker container
 	docker-compose down
+
+# ── cs-api-viewer ──────────────────────────────────────────────────────────────
+
+viewer-docker-build: ## Build and push multi-arch Docker image for cs-api-viewer (linux/amd64 + linux/arm64)
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--tag docker.monogatari.dev/connected-systems/cs-api-viewer \
+		--file cs-api-viewer/Dockerfile \
+		--push \
+		.

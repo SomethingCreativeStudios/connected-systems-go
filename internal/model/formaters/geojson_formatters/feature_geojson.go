@@ -66,10 +66,22 @@ func (f *FeatureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 		return nil, err
 	}
 
+	// Strip known fields from properties; only extra/arbitrary props are stored in Properties column
+	knownKeys := map[string]bool{
+		"uid": true, "name": true, "description": true, "collectionId": true,
+		"dateTime": true, "validTime": true,
+	}
+	extraProps := make(common_shared.Properties)
+	for k, v := range geoJSON.Properties {
+		if !knownKeys[k] {
+			extraProps[k] = v
+		}
+	}
+
 	// Convert GeoJSON properties to Feature model
 	feature := domains.Feature{
 		Links:      common_shared.StripAssociationLinks(geoJSON.Links),
-		Properties: geoJSON.Properties,
+		Properties: extraProps,
 	}
 	// assign geometry (decoded directly into GoGeom)
 	if geoJSON.Geometry != nil {
@@ -97,20 +109,12 @@ func (f *FeatureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 		}
 	}
 
-	// Parse validTime if present
-	if validTimeMap, ok := geoJSON.Properties["validTime"].(map[string]interface{}); ok {
-		validTime := &common_shared.TimeRange{}
-		if start, ok := validTimeMap["start"].(string); ok {
-			if t, err := time.Parse(time.RFC3339, start); err == nil {
-				validTime.Start = &t
-			}
+	// Parse validTime — accepts both array ["start","end"] and object {"start":...,"end":...} forms.
+	if vt, ok := geoJSON.Properties["validTime"]; ok && vt != nil {
+		tr := common_shared.ParseTimeRange(vt)
+		if tr.Start != nil || tr.End != nil {
+			feature.ValidTime = &tr
 		}
-		if end, ok := validTimeMap["end"].(string); ok {
-			if t, err := time.Parse(time.RFC3339, end); err == nil {
-				validTime.End = &t
-			}
-		}
-		feature.ValidTime = validTime
 	}
 
 	return &feature, nil

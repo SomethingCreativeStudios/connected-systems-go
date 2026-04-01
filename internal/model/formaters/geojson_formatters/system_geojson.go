@@ -146,7 +146,7 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 		return nil, err
 	}
 
-	associationLinks := formaters.GeoJSONSystemAssociationLinks(geoJSON.Links)
+	associationLinks := formaters.GeoJSONSystemAssociationLinks(common_shared.StripAssociationLinks(geoJSON.Links))
 
 	system := &domains.System{
 		Links: common_shared.StripAssociationLinks(geoJSON.Links),

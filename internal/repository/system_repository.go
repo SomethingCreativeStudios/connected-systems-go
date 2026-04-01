@@ -415,13 +415,21 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 	}
 
 	if len(params.ObservedProperty) > 0 {
-		query = query.Joins("JOIN system_observed_properties ON systems.id = system_observed_properties.system_id").
-			Where("system_observed_properties.observed_property_id IN ?", params.ObservedProperty)
+		query = query.
+			Joins("JOIN system_datastreams ON systems.id = system_datastreams.system_id").
+			Joins("JOIN datastreams ON system_datastreams.datastream_id = datastreams.id")
+		for _, op := range params.ObservedProperty {
+			query = query.Where("datastreams.observed_properties::text ILIKE ?", "%"+op+"%")
+		}
 	}
 
 	if len(params.ControlledProperty) > 0 {
-		query = query.Joins("JOIN system_controlled_properties ON systems.id = system_controlled_properties.system_id").
-			Where("system_controlled_properties.controlled_property_id IN ?", params.ControlledProperty)
+		query = query.
+			Joins("JOIN system_controlstreams ON systems.id = system_controlstreams.system_id").
+			Joins("JOIN control_streams ON system_controlstreams.control_stream_id = control_streams.id")
+		for _, cp := range params.ControlledProperty {
+			query = query.Where("control_streams.controlled_properties::text ILIKE ?", "%"+cp+"%")
+		}
 	}
 	return query
 }

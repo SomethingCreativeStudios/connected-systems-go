@@ -364,8 +364,7 @@ func TestSystemRepository_List(t *testing.T) {
 		{
 			name: "Query test",
 			params: &queryparams.SystemQueryParams{
-				QueryParams: queryparams.QueryParams{Limit: 10},
-				Q:           []string{"Humidity", "Controller"},
+				QueryParams: queryparams.QueryParams{Limit: 10, Q: []string{"Humidity", "Controller"}},
 			},
 			wantCount: 2,
 			wantTotal: 2,
@@ -519,8 +518,7 @@ func TestSystemRepository_DeeplyNestedSystems(t *testing.T) {
 		{
 			name: "Finding the grandchild system via recursive listing",
 			params: &queryparams.SystemQueryParams{
-				QueryParams: queryparams.QueryParams{Limit: 10},
-				Q:           []string{"Grandchild"},
+				QueryParams: queryparams.QueryParams{Limit: 10, Q: []string{"Grandchild"}},
 				Recursive:   true,
 			},
 			wantCount: 1,
@@ -532,8 +530,7 @@ func TestSystemRepository_DeeplyNestedSystems(t *testing.T) {
 		{
 			name: "Finding the grandchild system but non-recursively (so should not find it)",
 			params: &queryparams.SystemQueryParams{
-				QueryParams: queryparams.QueryParams{Limit: 10},
-				Q:           []string{"Grandchild"},
+				QueryParams: queryparams.QueryParams{Limit: 10, Q: []string{"Grandchild"}},
 				Recursive:   false,
 			},
 			wantCount: 0,

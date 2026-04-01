@@ -20,8 +20,6 @@ require (
 	gorm.io/gorm v1.25.5
 )
 
-replace gitlab.monogatari.dev/deckachu/utility => /Users/eric/Projects/deckachu/utility
-
 require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/spf13/viper"
 )
 
@@ -53,7 +55,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("api.version", "1.0.0")
 	viper.SetDefault("api.description", "OGC API - Connected Systems - Part 1: Feature Resources")
 
-	// Read from environment
+	// Read from environment — replace "." with "_" so database.host → DATABASE_HOST
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	// Read config file (optional)

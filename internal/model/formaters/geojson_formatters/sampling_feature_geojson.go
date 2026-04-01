@@ -98,8 +98,12 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 
 	// Handle sampled feature link - store both the link and extract ID
 	if geoJSON.Properties.SampledFeatureLink != nil && geoJSON.Properties.SampledFeatureLink.Href != "" {
-		sf.SampledFeatureLink = geoJSON.Properties.SampledFeatureLink
-		sf.SampledFeatureID = geoJSON.Properties.SampledFeatureLink.GetId("samplingFeatures")
+		link := *geoJSON.Properties.SampledFeatureLink
+		if link.Rel == "" {
+			link.Rel = common_shared.OGCRel("sampledFeature")
+		}
+		sf.SampledFeatureLink = &link
+		sf.SampledFeatureID = link.GetId("items")
 	}
 
 	formaters.ApplySamplingFeatureGeoJSONAssociationLinks(sf, associationLinks)

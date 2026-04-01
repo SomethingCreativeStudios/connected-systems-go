@@ -93,6 +93,7 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 			Label:                system.Name,
 			Description:          system.Description,
 			UniqueID:             string(system.UniqueIdentifier),
+			ValidTime:            system.ValidTime,
 			Definition:           system.SystemType,
 			Lang:                 system.Lang,
 			Keywords:             system.Keywords,
@@ -168,9 +169,12 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 		system.SMLType = &v
 	}
 
-	if vt, ok := raw["validTime"]; ok {
-		tr := common_shared.ParseTimeRange(vt)
-		system.ValidTime = &tr
+	system.ValidTime = sml.ValidTime
+	if system.ValidTime == nil {
+		if vt, ok := raw["validTime"]; ok {
+			tr := common_shared.ParseTimeRange(vt)
+			system.ValidTime = &tr
+		}
 	}
 
 	var geomObj interface{}

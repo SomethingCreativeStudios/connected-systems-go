@@ -7,22 +7,67 @@ services:
       POSTGRES_DB: connected_systems
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  # api:
-  #   build: .
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     DATABASE_HOST: db
-  #     DATABASE_PORT: 5432
-  #     DATABASE_NAME: connected_systems
-  #     DATABASE_USER: postgres
-  #     DATABASE_PASSWORD: postgres
-  #   depends_on:
-  #     - db
-  #   restart: unless-stopped
+  api:
+    image: docker.monogatari.dev/connected-systems/cs-api-server
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.cs-viewer-server.rule=Host(`cs-viewer.monogatari.dev`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.cs-viewer-server.entrypoints=http,https"
+      - "traefik.http.routers.cs-viewer-server.priority=100"
+      - "traefik.http.routers.cs-viewer-server.tls=true"
+      - "traefik.http.routers.cs-viewer-server.tls.certresolver=cloudflare"
+      - "traefik.http.routers.cs-viewer-server.middlewares=cs-viewer-server-strip"
+      - "traefik.http.middlewares.cs-viewer-server-strip.stripprefix.prefixes=/api"
+      - "traefik.http.services.cs-viewer-server.loadbalancer.server.port=8080"
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      API_BASE_URL: "https://cs-viewer.monogatari.dev/api"
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: connected_systems
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  viewer:
+    image: docker.monogatari.dev/connected-systems/cs-api-viewer
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.cs-viewer.rule=Host(`cs-viewer.monogatari.dev`)"
+      - "traefik.http.routers.cs-viewer.entrypoints=http,https"
+      - "traefik.http.routers.cs-viewer.priority=10"
+      - "traefik.http.routers.cs-viewer.tls=true"
+      - "traefik.http.routers.cs-viewer.tls.certresolver=cloudflare"
+      - "traefik.http.services.cs-viewer.loadbalancer.server.port=80"
+    environment:
+      API_PROXY_TARGET: http://api:8080
+      API_BASE_URL: /api
+    depends_on:
+      - api
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+
+networks:
+  proxy:
+    external: true

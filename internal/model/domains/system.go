@@ -65,6 +65,9 @@ type System struct {
 	Procedures  []Procedure  `gorm:"many2many:system_procedures;"`
 	Deployments []Deployment `gorm:"many2many:system_deployments;"`
 	//SamplingFeatures []SamplingFeature `gorm:"foreignKey:ParentSystemID;"`
+
+	Datastreams    []Datastream    `gorm:"many2many:system_datastreams;"`
+	Controlstreams []ControlStream `gorm:"many2many:system_controlstreams;"`
 }
 
 // TableName specifies the table name
@@ -101,33 +104,33 @@ type SystemGeoJSONFeature struct {
 
 // SystemGeoJSONProperties represents the properties object in GeoJSON
 type SystemGeoJSONProperties struct {
-	UID                  UniqueID                       `json:"uid"`
-	Name                 string                         `json:"name"`
-	Description          string                         `json:"description,omitempty"`
-	FeatureType          string                         `json:"featureType"`
-	AssetType            *string                        `json:"assetType,omitempty"`
-	SMLType              *string                        `json:"smlType,omitempty"`
-	ValidTime            *common_shared.TimeRange       `json:"validTime,omitempty"`
+	UID         UniqueID                 `json:"uid"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description,omitempty"`
+	FeatureType string                   `json:"featureType"`
+	AssetType   *string                  `json:"assetType,omitempty"`
+	SMLType     *string                  `json:"smlType,omitempty"`
+	ValidTime   *common_shared.TimeRange `json:"validTime,omitempty"`
 	// SystemKind@link is the GeoJSON representation of the system kind (procedure reference)
-	SystemKind           *common_shared.Link            `json:"systemKind@link,omitempty"`
-	Lang                 *string                        `json:"lang,omitempty"`
-	Keywords             []string                       `json:"keywords,omitempty"`
-	Identifiers          common_shared.Terms            `json:"identifiers,omitempty"`
-	Classifiers          common_shared.Terms            `json:"classifiers,omitempty"`
-	Contacts             []common_shared.ContactWrapper `json:"contacts,omitempty"`
-	Documentation        common_shared.Documents        `json:"documentation,omitempty"`
-	History              common_shared.History          `json:"history,omitempty"`
+	SystemKind    *common_shared.Link            `json:"systemKind@link,omitempty"`
+	Lang          *string                        `json:"lang,omitempty"`
+	Keywords      []string                       `json:"keywords,omitempty"`
+	Identifiers   common_shared.Terms            `json:"identifiers,omitempty"`
+	Classifiers   common_shared.Terms            `json:"classifiers,omitempty"`
+	Contacts      []common_shared.ContactWrapper `json:"contacts,omitempty"`
+	Documentation common_shared.Documents        `json:"documentation,omitempty"`
+	History       common_shared.History          `json:"history,omitempty"`
 	// Note: no typeOf here — GeoJSON uses systemKind@link; typeOf is the SensorML equivalent
 	// Note: no attachedTo here — server-generated field in SensorML only
-	Configuration        json.RawMessage                `json:"configuration,omitempty"`
-	FeaturesOfInterest   common_shared.Links            `json:"featuresOfInterest,omitempty"`
-	Inputs               common_shared.IOList           `json:"inputs,omitempty"`
-	Outputs              common_shared.IOList           `json:"outputs,omitempty"`
-	Parameters           common_shared.IOList           `json:"parameters,omitempty"`
-	Modes                json.RawMessage                `json:"modes,omitempty"`
-	LocalReferenceFrames []common_shared.SpatialFrame   `json:"localReferenceFrames,omitempty"`
-	LocalTimeFrames      []common_shared.TemporalFrame  `json:"localTimeFrames,omitempty"`
-	Position             json.RawMessage                `json:"position,omitempty"`
+	Configuration        json.RawMessage               `json:"configuration,omitempty"`
+	FeaturesOfInterest   common_shared.Links           `json:"featuresOfInterest,omitempty"`
+	Inputs               common_shared.IOList          `json:"inputs,omitempty"`
+	Outputs              common_shared.IOList          `json:"outputs,omitempty"`
+	Parameters           common_shared.IOList          `json:"parameters,omitempty"`
+	Modes                json.RawMessage               `json:"modes,omitempty"`
+	LocalReferenceFrames []common_shared.SpatialFrame  `json:"localReferenceFrames,omitempty"`
+	LocalTimeFrames      []common_shared.TemporalFrame `json:"localTimeFrames,omitempty"`
+	Position             json.RawMessage               `json:"position,omitempty"`
 }
 
 // SystemSensorMLFeature represents a System serialized in SensorML JSON format
@@ -137,6 +140,7 @@ type SystemSensorMLFeature struct {
 	Label                string                            `json:"label"`
 	Description          string                            `json:"description,omitempty"`
 	UniqueID             string                            `json:"uniqueId"`
+	ValidTime            *common_shared.TimeRange          `json:"validTime,omitempty"`
 	Lang                 *string                           `json:"lang,omitempty"`
 	Keywords             []string                          `json:"keywords,omitempty"`
 	Identifiers          common_shared.Terms               `json:"identifiers,omitempty"`

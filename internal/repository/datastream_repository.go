@@ -3,6 +3,7 @@ package repository
 import (
 	"strings"
 
+	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
@@ -21,6 +22,7 @@ func NewDatastreamRepository(db *gorm.DB) *DatastreamRepository {
 // Create creates a new datastream.
 func (r *DatastreamRepository) Create(datastream *domains.Datastream) error {
 	normalizeDatastreamRefs(datastream)
+	r.populateSystemAssociations(datastream)
 	return r.db.Create(datastream).Error
 }
 
@@ -58,9 +60,63 @@ func (r *DatastreamRepository) List(params *queryparams.DatastreamsQueryParams, 
 }
 
 // Update updates a datastream.
+// The system-derived fields (procedure, deployment, featureOfInterest, samplingFeature)
+// are locked: they are always restored from the existing record and cannot be changed by the client.
 func (r *DatastreamRepository) Update(datastream *domains.Datastream) error {
+	var existing domains.Datastream
+	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id", "feature_of_interest", "feature_of_interest_id", "sampling_feature_link", "sampling_feature_id").
+		Where("id = ?", datastream.ID).First(&existing).Error; err == nil {
+		datastream.ProcedureLink = existing.ProcedureLink
+		datastream.ProcedureID = existing.ProcedureID
+		datastream.DeploymentLink = existing.DeploymentLink
+		datastream.DeploymentID = existing.DeploymentID
+		datastream.FeatureOfInterest = existing.FeatureOfInterest
+		datastream.FeatureOfInterestID = existing.FeatureOfInterestID
+		datastream.SamplingFeatureLink = existing.SamplingFeatureLink
+		datastream.SamplingFeatureID = existing.SamplingFeatureID
+	}
 	normalizeDatastreamRefs(datastream)
 	return r.db.Save(datastream).Error
+}
+
+// populateSystemAssociations overwrites the system-derived fields on a datastream
+// using data from the parent system. These fields are server-provided and locked.
+func (r *DatastreamRepository) populateSystemAssociations(datastream *domains.Datastream) {
+	if datastream.SystemID == nil {
+		return
+	}
+	systemID := *datastream.SystemID
+
+	// Feature of interest — take the first link stored on the system
+	var system domains.System
+	if err := r.db.Select("id", "features_of_interest").Where("id = ?", systemID).First(&system).Error; err == nil {
+		if len(system.FeaturesOfInterest) > 0 {
+			foi := system.FeaturesOfInterest[0]
+			datastream.FeatureOfInterest = &foi
+			datastream.FeatureOfInterestID = foi.GetId("features")
+		}
+	}
+
+	// Procedure — first entry in system_procedures join table
+	var procID string
+	if err := r.db.Table("system_procedures").Select("procedure_id").Where("system_id = ?", systemID).Limit(1).Scan(&procID).Error; err == nil && procID != "" {
+		datastream.ProcedureLink = &common_shared.Link{Href: "procedures/" + procID}
+		datastream.ProcedureID = &procID
+	}
+
+	// Deployment — first entry in system_deployments join table
+	var depID string
+	if err := r.db.Table("system_deployments").Select("deployment_id").Where("system_id = ?", systemID).Limit(1).Scan(&depID).Error; err == nil && depID != "" {
+		datastream.DeploymentLink = &common_shared.Link{Href: "deployments/" + depID}
+		datastream.DeploymentID = &depID
+	}
+
+	// Sampling feature — first sampling feature belonging to this system
+	var sf domains.SamplingFeature
+	if err := r.db.Select("id").Where("parent_system_id = ?", systemID).Limit(1).First(&sf).Error; err == nil && sf.ID != "" {
+		datastream.SamplingFeatureLink = &common_shared.Link{Href: "samplingFeatures/" + sf.ID}
+		datastream.SamplingFeatureID = &sf.ID
+	}
 }
 
 // Delete deletes a datastream.
