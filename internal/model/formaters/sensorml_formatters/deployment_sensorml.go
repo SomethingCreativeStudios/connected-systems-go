@@ -51,6 +51,7 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 			UniqueID:        string(deployment.UniqueIdentifier),
 			Definition:      deployment.DeploymentType,
 			ValidTime:       deployment.ValidTime,
+			Location:        deployment.Geometry,
 			Platform:        deployment.Platform,
 			DeployedSystems: deployment.DeployedSystems,
 			Links:           formaters.AppendDeploymentAssociationLinks(deployment),
@@ -133,9 +134,13 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 	deployment.Documentation = sensorML.Documentation
 	deployment.History = sensorML.History
 
-	// Handle geometry from position field if present
-	if geomObj, ok := raw["position"]; ok {
-		if gb, err := json.Marshal(geomObj); err == nil {
+	// Handle geometry from "location" (OGC CS spec) or "position" field
+	geomRaw, ok := raw["location"]
+	if !ok {
+		geomRaw, ok = raw["position"]
+	}
+	if ok {
+		if gb, err := json.Marshal(geomRaw); err == nil {
 			var gg common_shared.GoGeom
 			if err := json.Unmarshal(gb, &gg); err == nil {
 				deployment.Geometry = &gg

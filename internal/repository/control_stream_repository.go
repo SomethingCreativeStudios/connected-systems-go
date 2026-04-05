@@ -3,6 +3,7 @@ package repository
 import (
 	"strings"
 
+	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
@@ -21,7 +22,17 @@ func NewControlStreamRepository(db *gorm.DB) *ControlStreamRepository {
 // Create creates a new control stream.
 func (r *ControlStreamRepository) Create(cs *domains.ControlStream) error {
 	normalizeControlStreamRefs(cs)
-	return r.db.Create(cs).Error
+	r.populateSystemAssociations(cs)
+	if err := r.db.Create(cs).Error; err != nil {
+		return err
+	}
+	if cs.SystemID != nil && cs.ID != "" {
+		r.db.Exec(
+			"INSERT INTO system_controlstreams (system_id, control_stream_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+			*cs.SystemID, cs.ID,
+		)
+	}
+	return nil
 }
 
 // GetByID retrieves a control stream by ID.
@@ -58,9 +69,64 @@ func (r *ControlStreamRepository) List(params *queryparams.ControlStreamsQueryPa
 }
 
 // Update updates a control stream.
+// Procedure and deployment are locked (server-derived from system). SamplingFeature can be
+// changed by the client; featureOfInterest is re-derived from the updated samplingFeature.
 func (r *ControlStreamRepository) Update(cs *domains.ControlStream) error {
+	var existing domains.ControlStream
+	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id").
+		Where("id = ?", cs.ID).First(&existing).Error; err == nil {
+		cs.ProcedureLink = existing.ProcedureLink
+		cs.ProcedureID = existing.ProcedureID
+		cs.DeploymentLink = existing.DeploymentLink
+		cs.DeploymentID = existing.DeploymentID
+	}
 	normalizeControlStreamRefs(cs)
+	r.deriveFOIFromSamplingFeature(cs)
 	return r.db.Save(cs).Error
+}
+
+// populateSystemAssociations sets procedure and deployment from the parent system on create.
+// Procedure comes from system.SystemKindID; deployment from system_deployments.
+// FOI is derived from the user-supplied samplingFeature via deriveFOIFromSamplingFeature.
+func (r *ControlStreamRepository) populateSystemAssociations(cs *domains.ControlStream) {
+	if cs.SystemID == nil {
+		return
+	}
+	systemID := *cs.SystemID
+
+	// Procedure from SystemKindID FK
+	var sys domains.System
+	if err := r.db.Select("id", "system_kind_id").Where("id = ?", systemID).First(&sys).Error; err == nil {
+		if sys.SystemKindID != nil && *sys.SystemKindID != "" {
+			kindID := *sys.SystemKindID
+			cs.ProcedureLink = &common_shared.Link{Href: "procedures/" + kindID}
+			cs.ProcedureID = &kindID
+		}
+	}
+
+	// Deployment — first entry in system_deployments join table
+	var depID string
+	if err := r.db.Table("system_deployments").Select("deployment_id").Where("system_id = ?", systemID).Limit(1).Scan(&depID).Error; err == nil && depID != "" {
+		cs.DeploymentLink = &common_shared.Link{Href: "deployments/" + depID}
+		cs.DeploymentID = &depID
+	}
+
+	// FOI derived from user-provided samplingFeature
+	r.deriveFOIFromSamplingFeature(cs)
+}
+
+// deriveFOIFromSamplingFeature sets FeatureOfInterest and FeatureOfInterestID on the control stream
+// by looking up the sampledFeature link stored on the referenced SamplingFeature.
+func (r *ControlStreamRepository) deriveFOIFromSamplingFeature(cs *domains.ControlStream) {
+	if cs.SamplingFeatureID == nil {
+		return
+	}
+	var sf domains.SamplingFeature
+	if err := r.db.Select("id", "sampled_feature_link", "sampled_feature_id").
+		Where("id = ?", *cs.SamplingFeatureID).First(&sf).Error; err == nil {
+		cs.FeatureOfInterest = sf.SampledFeatureLink
+		cs.FeatureOfInterestID = sf.SampledFeatureID
+	}
 }
 
 // Delete deletes a control stream.
@@ -140,7 +206,7 @@ func (r *ControlStreamRepository) applyFilters(query *gorm.DB, params *querypara
 	}
 
 	if len(params.FOI) > 0 {
-		query = query.Where("sampling_feature_id IN ?", params.FOI)
+		query = query.Where("feature_of_interest_id IN ?", params.FOI)
 	}
 
 	if len(params.ControlledProperty) > 0 {

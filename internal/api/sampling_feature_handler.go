@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -77,6 +78,19 @@ func (h *SamplingFeatureHandler) GetSamplingFeature(w http.ResponseWriter, r *ht
 	render.JSON(w, r, serialized)
 }
 
+func validateSamplingFeature(sf *domains.SamplingFeature) error {
+	if sf.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if sf.FeatureType == "" {
+		return fmt.Errorf("featureType is required")
+	}
+	if sf.SampledFeatureLink == nil || sf.SampledFeatureLink.Href == "" {
+		return fmt.Errorf("sampledFeature@link (with href) is required")
+	}
+	return nil
+}
+
 func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 	sampledFeature, err := h.fc.Deserialize(contentType, r.Body)
@@ -84,6 +98,12 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 		h.logger.Error("Failed to deserialize sampling feature", zap.Error(err))
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		return
+	}
+
+	if err := validateSamplingFeature(sampledFeature); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
 		return
 	}
 
@@ -121,6 +141,11 @@ func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r 
 	}
 
 	sampledFeature.ID = id
+	if err := validateSamplingFeature(sampledFeature); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 	if err := h.repo.Update(sampledFeature); err != nil {
 		h.logger.Error("Failed to update sampling feature", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)

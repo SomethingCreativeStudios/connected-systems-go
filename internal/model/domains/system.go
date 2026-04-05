@@ -62,9 +62,9 @@ type System struct {
 	SystemKind Procedure `gorm:"foreignKey:SystemKindID;" json:"-"`
 
 	// Associations
-	Procedures  []Procedure  `gorm:"many2many:system_procedures;"`
-	Deployments []Deployment `gorm:"many2many:system_deployments;"`
-	//SamplingFeatures []SamplingFeature `gorm:"foreignKey:ParentSystemID;"`
+	Procedures       []Procedure       `gorm:"many2many:system_procedures;"`
+	Deployments      []Deployment      `gorm:"many2many:system_deployments;"`
+	SamplingFeatures []SamplingFeature `gorm:"foreignKey:ParentSystemID;"`
 
 	Datastreams    []Datastream    `gorm:"many2many:system_datastreams;"`
 	Controlstreams []ControlStream `gorm:"many2many:system_controlstreams;"`

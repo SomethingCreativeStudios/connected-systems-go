@@ -94,6 +94,7 @@ type DeploymentSensorMLFeature struct {
 	UniqueID        string                   `json:"uniqueId"`
 	Definition      string                   `json:"definition,omitempty"`
 	ValidTime       *common_shared.TimeRange `json:"validTime,omitempty"`
+	Location        *common_shared.GoGeom    `json:"location,omitempty"`
 	Platform        *DeployedSystemItem      `json:"platform,omitempty"`
 	DeployedSystems []DeployedSystemItem     `json:"deployedSystems,omitempty"`
 	Links           common_shared.Links      `json:"links,omitempty"`

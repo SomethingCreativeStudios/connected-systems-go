@@ -23,7 +23,16 @@ func NewDatastreamRepository(db *gorm.DB) *DatastreamRepository {
 func (r *DatastreamRepository) Create(datastream *domains.Datastream) error {
 	normalizeDatastreamRefs(datastream)
 	r.populateSystemAssociations(datastream)
-	return r.db.Create(datastream).Error
+	if err := r.db.Create(datastream).Error; err != nil {
+		return err
+	}
+	if datastream.SystemID != nil && datastream.ID != "" {
+		r.db.Exec(
+			"INSERT INTO system_datastreams (system_id, datastream_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+			*datastream.SystemID, datastream.ID,
+		)
+	}
+	return nil
 }
 
 // GetByID retrieves a datastream by ID.
@@ -60,48 +69,39 @@ func (r *DatastreamRepository) List(params *queryparams.DatastreamsQueryParams, 
 }
 
 // Update updates a datastream.
-// The system-derived fields (procedure, deployment, featureOfInterest, samplingFeature)
-// are locked: they are always restored from the existing record and cannot be changed by the client.
+// Procedure and deployment are locked (server-derived from system). SamplingFeature can be
+// changed by the client; featureOfInterest is re-derived from the updated samplingFeature.
 func (r *DatastreamRepository) Update(datastream *domains.Datastream) error {
 	var existing domains.Datastream
-	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id", "feature_of_interest", "feature_of_interest_id", "sampling_feature_link", "sampling_feature_id").
+	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id").
 		Where("id = ?", datastream.ID).First(&existing).Error; err == nil {
 		datastream.ProcedureLink = existing.ProcedureLink
 		datastream.ProcedureID = existing.ProcedureID
 		datastream.DeploymentLink = existing.DeploymentLink
 		datastream.DeploymentID = existing.DeploymentID
-		datastream.FeatureOfInterest = existing.FeatureOfInterest
-		datastream.FeatureOfInterestID = existing.FeatureOfInterestID
-		datastream.SamplingFeatureLink = existing.SamplingFeatureLink
-		datastream.SamplingFeatureID = existing.SamplingFeatureID
 	}
 	normalizeDatastreamRefs(datastream)
+	r.deriveFOIFromSamplingFeature(datastream)
 	return r.db.Save(datastream).Error
 }
 
-// populateSystemAssociations overwrites the system-derived fields on a datastream
-// using data from the parent system. These fields are server-provided and locked.
+// populateSystemAssociations sets procedure and deployment from the parent system on create.
+// Procedure comes from system.SystemKindID; deployment from system_deployments.
+// FOI is derived from the user-supplied samplingFeature via deriveFOIFromSamplingFeature.
 func (r *DatastreamRepository) populateSystemAssociations(datastream *domains.Datastream) {
 	if datastream.SystemID == nil {
 		return
 	}
 	systemID := *datastream.SystemID
 
-	// Feature of interest — take the first link stored on the system
-	var system domains.System
-	if err := r.db.Select("id", "features_of_interest").Where("id = ?", systemID).First(&system).Error; err == nil {
-		if len(system.FeaturesOfInterest) > 0 {
-			foi := system.FeaturesOfInterest[0]
-			datastream.FeatureOfInterest = &foi
-			datastream.FeatureOfInterestID = foi.GetId("features")
+	// Procedure from SystemKindID FK
+	var sys domains.System
+	if err := r.db.Select("id", "system_kind_id").Where("id = ?", systemID).First(&sys).Error; err == nil {
+		if sys.SystemKindID != nil && *sys.SystemKindID != "" {
+			kindID := *sys.SystemKindID
+			datastream.ProcedureLink = &common_shared.Link{Href: "procedures/" + kindID}
+			datastream.ProcedureID = &kindID
 		}
-	}
-
-	// Procedure — first entry in system_procedures join table
-	var procID string
-	if err := r.db.Table("system_procedures").Select("procedure_id").Where("system_id = ?", systemID).Limit(1).Scan(&procID).Error; err == nil && procID != "" {
-		datastream.ProcedureLink = &common_shared.Link{Href: "procedures/" + procID}
-		datastream.ProcedureID = &procID
 	}
 
 	// Deployment — first entry in system_deployments join table
@@ -111,11 +111,21 @@ func (r *DatastreamRepository) populateSystemAssociations(datastream *domains.Da
 		datastream.DeploymentID = &depID
 	}
 
-	// Sampling feature — first sampling feature belonging to this system
+	// FOI derived from user-provided samplingFeature
+	r.deriveFOIFromSamplingFeature(datastream)
+}
+
+// deriveFOIFromSamplingFeature sets FeatureOfInterest and FeatureOfInterestID on the datastream
+// by looking up the sampledFeature link stored on the referenced SamplingFeature.
+func (r *DatastreamRepository) deriveFOIFromSamplingFeature(datastream *domains.Datastream) {
+	if datastream.SamplingFeatureID == nil {
+		return
+	}
 	var sf domains.SamplingFeature
-	if err := r.db.Select("id").Where("parent_system_id = ?", systemID).Limit(1).First(&sf).Error; err == nil && sf.ID != "" {
-		datastream.SamplingFeatureLink = &common_shared.Link{Href: "samplingFeatures/" + sf.ID}
-		datastream.SamplingFeatureID = &sf.ID
+	if err := r.db.Select("id", "sampled_feature_link", "sampled_feature_id").
+		Where("id = ?", *datastream.SamplingFeatureID).First(&sf).Error; err == nil {
+		datastream.FeatureOfInterest = sf.SampledFeatureLink
+		datastream.FeatureOfInterestID = sf.SampledFeatureID
 	}
 }
 
@@ -196,7 +206,7 @@ func (r *DatastreamRepository) applyFilters(query *gorm.DB, params *queryparams.
 	}
 
 	if len(params.FOI) > 0 {
-		query = query.Where("feature_of_interest_id IN ?", params.FOI)
+		query = query.Where("sampling_feature_id IN ? OR feature_of_interest_id IN ?", params.FOI, params.FOI)
 	}
 
 	if len(params.ObservedProperty) > 0 {

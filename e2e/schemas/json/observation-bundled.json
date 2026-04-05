@@ -122,9 +122,9 @@
     }
   },
   "required": [
-    "id",
     "datastream@id",
-    "resultTime"
+    "resultTime",
+    "result"
   ],
   "oneOf": [
     {

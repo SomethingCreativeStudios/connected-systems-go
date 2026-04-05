@@ -183,8 +183,6 @@
     }
   },
   "required": [
-    "id",
-    "controlstream@id",
     "issueTime",
     "parameters"
   ]

@@ -50,6 +50,7 @@ docker-stop: ## Stop Docker container
 
 viewer-docker-build: ## Build and push multi-arch Docker image for cs-api-viewer (linux/amd64 + linux/arm64)
 	docker buildx build \
+		--no-cache \
 		--platform linux/amd64,linux/arm64 \
 		--tag docker.monogatari.dev/connected-systems/cs-api-viewer \
 		--file cs-api-viewer/Dockerfile \

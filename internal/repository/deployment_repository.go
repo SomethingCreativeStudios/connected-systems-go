@@ -22,7 +22,11 @@ func NewDeploymentRepository(db *gorm.DB) *DeploymentRepository {
 
 // Create creates a new deployment
 func (r *DeploymentRepository) Create(deployment *domains.Deployment) error {
-	return r.db.Create(deployment).Error
+	if err := r.db.Create(deployment).Error; err != nil {
+		return err
+	}
+	r.syncSystemDeployments(deployment)
+	return nil
 }
 
 // GetByID retrieves a deployment by ID
@@ -71,7 +75,36 @@ func (r *DeploymentRepository) List(params *queryparams.DeploymentsQueryParams, 
 
 // Update updates a deployment
 func (r *DeploymentRepository) Update(deployment *domains.Deployment) error {
-	return r.db.Save(deployment).Error
+	if err := r.db.Save(deployment).Error; err != nil {
+		return err
+	}
+	r.syncSystemDeployments(deployment)
+	return nil
+}
+
+// syncSystemDeployments replaces the system_deployments junction rows for a deployment
+// based on the current DeployedSystems list.
+func (r *DeploymentRepository) syncSystemDeployments(deployment *domains.Deployment) {
+	r.db.Exec("DELETE FROM system_deployments WHERE deployment_id = ?", deployment.ID)
+	for _, ds := range deployment.DeployedSystems {
+		systemID := hrefLastSegment(ds.System.Href)
+		if systemID == "" {
+			continue
+		}
+		r.db.Exec(
+			"INSERT INTO system_deployments (system_id, deployment_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+			systemID, deployment.ID,
+		)
+	}
+}
+
+// hrefLastSegment extracts the final path segment from a URL or path string.
+func hrefLastSegment(href string) string {
+	href = strings.TrimRight(href, "/")
+	if idx := strings.LastIndex(href, "/"); idx >= 0 {
+		return href[idx+1:]
+	}
+	return href
 }
 
 // Delete deletes a deployment
@@ -138,8 +171,11 @@ func (r *DeploymentRepository) applyFilters(query *gorm.DB, params *queryparams.
 	}
 
 	if len(params.Foi) > 0 {
-		query = query.Joins("JOIN deployment_foi ON deployments.id = deployment_foi.deployment_id").
-			Where("deployment_foi.foi_id IN ?", params.Foi)
+		query = query.
+			Joins("JOIN system_deployments sd ON sd.deployment_id = deployments.id").
+			Joins("JOIN sampling_features sf ON sf.parent_system_id = sd.system_id").
+			Where("sf.sampled_feature_id IN ? OR sf.id IN ?", params.Foi, params.Foi).
+			Distinct()
 	}
 
 	if len(params.Parent) > 0 && parentId == nil {

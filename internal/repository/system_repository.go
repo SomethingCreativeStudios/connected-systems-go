@@ -72,7 +72,12 @@ func (r *SystemRepository) BuildSystemAssociations(systemID string) common_share
 
 // Create creates a new system
 func (r *SystemRepository) Create(system *domains.System) error {
-	return r.db.Create(system).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(system).Error; err != nil {
+			return err
+		}
+		return r.syncProcedures(tx, system)
+	})
 }
 
 // GetByID retrieves a system by ID
@@ -153,7 +158,26 @@ func (r *SystemRepository) GetSubsystems(parentID string, recursive bool) ([]*do
 // Update updates a system
 func (r *SystemRepository) Update(systemId string, system *domains.System) error {
 	system.ID = systemId
-	return r.db.Save(system).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(system).Error; err != nil {
+			return err
+		}
+		return r.syncProcedures(tx, system)
+	})
+}
+
+// syncProcedures keeps system_procedures in sync with SystemKindID.
+func (r *SystemRepository) syncProcedures(tx *gorm.DB, system *domains.System) error {
+	if err := tx.Exec("DELETE FROM system_procedures WHERE system_id = ?", system.ID).Error; err != nil {
+		return err
+	}
+	if system.SystemKindID != nil && strings.TrimSpace(*system.SystemKindID) != "" {
+		return tx.Exec(
+			"INSERT INTO system_procedures (system_id, procedure_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+			system.ID, *system.SystemKindID,
+		).Error
+	}
+	return nil
 }
 
 // Delete deletes a system
@@ -362,7 +386,7 @@ func (r *SystemRepository) hasAssociatedRecords(model interface{}, query string,
 // applyFilters applies query filters
 func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.SystemQueryParams) *gorm.DB {
 	if !params.Recursive {
-		query = query.Where("parent_system_id IS NULL")
+		query = query.Where("systems.parent_system_id IS NULL")
 	}
 
 	if len(params.IDs) > 0 {
@@ -411,7 +435,7 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 
 	if len(params.FOI) > 0 {
 		query = query.Joins("JOIN sampling_features ON systems.id = sampling_features.parent_system_id").
-			Where("sampling_features.id IN ?", params.FOI)
+			Where("sampling_features.sampled_feature_id IN ? or sampling_features.id IN ?", params.FOI, params.FOI)
 	}
 
 	if len(params.ObservedProperty) > 0 {

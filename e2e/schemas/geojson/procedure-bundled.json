@@ -673,7 +673,10 @@
                 "sosa:Platform"
               ]
             }
-          }
+          },
+          "required": [
+            "featureType"
+          ]
         }
       }
     }
