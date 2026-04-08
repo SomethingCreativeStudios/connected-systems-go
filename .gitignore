@@ -41,3 +41,5 @@ config.yaml
 # Database
 *.db
 *.sqlite
+
+CLAUDE.md

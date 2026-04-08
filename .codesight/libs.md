@@ -1,0 +1,359 @@
+# Libraries
+
+- `cs-api-client/src/client.ts`
+  - class CsApiClient
+  - interface ClientOptions
+  - interface CollectionResponse
+- `cs-api-client/src/codecs/deployment.ts`
+  - function decodeDeploymentGeoJSON: (feature) => Deployment
+  - function encodeDeploymentGeoJSON: (deployment) => GeoJsonFeature<DeploymentGeoJSONProperties>
+  - function decodeDeploymentSensorML: (data) => Deployment
+  - function encodeDeploymentSensorML: (deployment) => SensorMLDeployment
+- `cs-api-client/src/codecs/procedure.ts`
+  - function decodeProcedureGeoJSON: (feature) => Procedure
+  - function encodeProcedureGeoJSON: (procedure) => GeoJsonFeature<ProcedureGeoJSONProperties>
+  - function decodeProcedureSensorML: (data) => Procedure
+  - function encodeProcedureSensorML: (procedure) => SensorMLProcedure
+- `cs-api-client/src/codecs/property.ts`
+  - function decodePropertyGeoJSON: (feature) => Property
+  - function encodePropertyGeoJSON: (property) => GeoJsonFeature<PropertyGeoJSONProperties>
+  - function decodePropertySensorML: (data) => Property
+  - function encodePropertySensorML: (property) => SensorMLProperty
+- `cs-api-client/src/codecs/sampling-feature.ts`
+  - function decodeSamplingFeatureGeoJSON: (feature) => SamplingFeature
+  - function encodeSamplingFeatureGeoJSON: (sf) => GeoJsonFeature<SamplingFeatureGeoJSONProperties>
+  - function decodeSamplingFeatureSensorML: (data) => SamplingFeature
+  - function encodeSamplingFeatureSensorML: (sf) => SensorMLSamplingFeature
+- `cs-api-client/src/codecs/system.ts`
+  - function decodeSystemGeoJSON: (feature) => System
+  - function encodeSystemGeoJSON: (system) => GeoJsonFeature<SystemGeoJSONProperties>
+  - function decodeSystemSensorML: (data) => System
+  - function encodeSystemSensorML: (system) => SensorMLSystem
+- `cs-api-client/src/codecs/utils.ts` — function omitEmpty: (obj) => T
+- `cs-api-client/src/content-types.ts`
+  - function normalizeContentType: (value) => string
+  - function isGeoJSONContentType: (value) => boolean
+  - function isSensorMLContentType: (value) => boolean
+  - function isJSONContentType: (value) => boolean
+  - type ContentType
+  - const CONTENT_TYPES
+- `cs-api-client/src/errors.ts` — class CsApiError
+- `cs-api-client/src/http.ts`
+  - function setAuthHeader: (value) => void
+  - function getAuthHeader: () => string
+  - class HttpClient
+  - interface HttpClientOptions
+  - interface RequestOptions
+  - interface HttpResponse
+- `cs-api-client/src/util.ts`
+  - function toOptionalString: (value) => string | undefined
+  - function deepClone: (value) => T
+  - function ensureArray: (value) => T[]
+  - interface JsonObject
+  - type JsonPrimitive
+  - type JsonValue
+- `cs-api-viewer/src/schema-components/geometry-editor/composable/useGeometry.ts`
+  - function defaultCoordsForType: (type) => unknown
+  - function coordsEqual: (a, b) => boolean
+  - function mapHint: (type) => string | null
+  - function useGeometry: (props) => void
+  - interface UseGeometryProps
+  - const GEOMETRY_TYPES
+- `cs-api-viewer/src/schema-components/required-fields.ts` — function checkRequiredFields: (resourceKey, data) => boolean
+- `cs-api-viewer/src/schema-components/schema-context.ts`
+  - function apiFetch: (url, init?) => Promise<Response>
+  - const schemaApiBase
+  - const schemaCurrentResourceId
+  - const schemaNavigateTo
+  - const schemaOpenFeatureTab
+  - const schemaBuildSystemFromProcedure
+  - _...1 more_
+- `cs-api-viewer/src/schema-components/utils.ts`
+  - function defaultArrayItem: (value, path) => unknown
+  - function normalizeKey: (key) => string
+  - function matchesKey: (normalizedKey, expected) => boolean
+  - function humanizeKey: (key) => string
+  - function formatPrimitive: (value) => string
+  - function readString: (value) => string | undefined
+  - _...16 more_
+- `e2e/schema_validator.go`
+  - function GetSchemaValidator: () *SchemaValidator
+  - function NewSchemaValidator: () *SchemaValidator
+  - class SchemaValidator
+- `internal/api/collection_handler.go` — function NewCollectionHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.CollectionRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Collection]) *CollectionHandler, class CollectionHandler
+- `internal/api/collections_handler.go` — function NewCollectionsHandler: (cfg *config.Config, logger *zap.Logger) *CollectionsHandler, class CollectionsHandler
+- `internal/api/command_handler.go`
+  - function NewCommandHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.CommandRepository, controlStreamRepo *repository.ControlStreamRepository) *CommandHandler
+  - class CommandCollectionResponse
+  - class CommandHandler
+- `internal/api/conformance_handler.go` — function NewConformanceHandler: (cfg *config.Config, logger *zap.Logger) *ConformanceHandler, class ConformanceHandler
+- `internal/api/control_stream_handler.go`
+  - function NewControlStreamHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.ControlStreamRepository, fc *formaters.MultiFormatFormatterCollection[*domains.ControlStream]) *ControlStreamHandler
+  - class ControlStreamCollectionResponse
+  - class ControlStreamHandler
+- `internal/api/datastream_handler.go`
+  - function NewDatastreamHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.DatastreamRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Datastream]) *DatastreamHandler
+  - class DatastreamCollectionResponse
+  - class DatastreamHandler
+- `internal/api/deployment_handler.go` — function NewDeploymentHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.DeploymentRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Deployment]) *DeploymentHandler, class DeploymentHandler
+- `internal/api/feature_handler.go` — function NewFeatureHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.FeatureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Feature]) *FeatureHandler, class FeatureHandler
+- `internal/api/landing_handler.go` — function NewLandingHandler: (cfg *config.Config, logger *zap.Logger) *LandingHandler, class LandingHandler
+- `internal/api/observation_handler.go`
+  - function NewObservationHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.ObservationRepository, datastreamRepo *repository.DatastreamRepository) *ObservationHandler
+  - class ObservationCollectionResponse
+  - class ObservationHandler
+- `internal/api/procedure_handler.go` — function NewProcedureHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.ProcedureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Procedure]) *ProcedureHandler, class ProcedureHandler
+- `internal/api/property_handler.go` — function NewPropertyHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.PropertyRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Property]) *PropertyHandler, class PropertyHandler
+- `internal/api/router.go` — function NewRouter: (cfg *config.Config, logger *zap.Logger, repos *repository.Repositories) http.Handler
+- `internal/api/sampling_feature_handler.go` — function NewSamplingFeatureHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.SamplingFeatureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]) *SamplingFeatureHandler, class SamplingFeatureHandler
+- `internal/api/system_event_handler.go`
+  - function NewSystemEventHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository) *SystemEventHandler
+  - class SystemEventCollectionResponse
+  - class SystemEventHandler
+- `internal/api/system_handler.go` — function NewSystemHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, historyRepo *repository.SystemHistoryRepository, fc *formaters.MultiFormatFormatterCollection[*domains.System], deploymentRepo *repository.DeploymentRepository, deploymentFC *formaters.MultiFormatFormatterCollection[*domains.Deployment], procedureRepo *repository.ProcedureRepository, procedureFC *formaters.MultiFormatFormatterCollection[*domains.Procedure]) *SystemHandler, class SystemHandler
+- `internal/config/config.go`
+  - function Load: () (*Config, error)
+  - class Config
+  - class ServerConfig
+  - class DatabaseConfig
+  - class APIConfig
+- `internal/model/collection_metadata.go`
+  - class CollectionMetadata
+  - class Extent
+  - class SpatialExtent
+  - class TemporalExtent
+  - class LandingPage
+  - class ConformanceDeclaration
+- `internal/model/common_shared/bounding-box.go` — class BoundingBox
+- `internal/model/common_shared/capabilities.go` — class CapabilityGroup
+- `internal/model/common_shared/characteristics.go`
+  - class CharacteristicGroup
+  - class ComponentWrapper
+  - class BooleanComponent
+  - class CountComponent
+  - class QuantityComponent
+  - class TimeComponent
+  - _...8 more_
+- `internal/model/common_shared/codeList.go` — class CodeList
+- `internal/model/common_shared/configurationSettings.go`
+  - class ConfigurationSettings
+  - class SetValue
+  - class SetArrayValue
+  - class SetMode
+  - class AllowedTokens
+  - class ValueItem
+  - _...4 more_
+- `internal/model/common_shared/contacts.go`
+  - class ContactInfo
+  - class Phone
+  - class Address
+  - class ContactPersonOrg
+  - class ContactLink
+  - class ContactWrapper
+- `internal/model/common_shared/documents.go` — class Document
+- `internal/model/common_shared/extent.go` — class Extent
+- `internal/model/common_shared/geometry.go` — class Geometry
+- `internal/model/common_shared/go_geom.go` — function WKBHexToWKT: (hexStr string) (string, error), class GoGeom
+- `internal/model/common_shared/history.go` — class HistoryTime, class HistoryEvent
+- `internal/model/common_shared/io.go` — class ObservablePropertyInline, class IOItem
+- `internal/model/common_shared/json_feature.go` — class JSONFeature
+- `internal/model/common_shared/legalConstraint.go` — class LegalConstraint
+- `internal/model/common_shared/links.go`
+  - function CanonicalRel: (rel string) string
+  - function OGCRel: (rel string) string
+  - function RelEquals: (actual, expected string) bool
+  - function StripAssociationLinks: (links Links) Links
+  - class Link
+- `internal/model/common_shared/method.go` — class Method
+- `internal/model/common_shared/point.go` — class Point
+- `internal/model/common_shared/securityConstraint.go` — class SecurityConstraint
+- `internal/model/common_shared/spatial_temporal.go`
+  - class Axis
+  - class SpatialFrame
+  - class TemporalFrame
+- `internal/model/common_shared/terms.go` — class Term
+- `internal/model/common_shared/time_range.go`
+  - function ToTimeRange: (timeValue string) TimeRange
+  - function ToTimeRangeFromSlice: (parts []string) TimeRange
+  - function ParseTimeRange: (value interface{}) TimeRange
+  - class TimeRange
+- `internal/model/domains/collection.go`
+  - function NewCollection: (id, title, description string, links []common_shared.Link, extent *common_shared.Extent, itemType string, crs []string) *Collection
+  - class Collection
+  - class CollectionGeoJSONFeature
+- `internal/model/domains/command.go` — class Command
+- `internal/model/domains/common.go` — class Base, class CommonSSN
+- `internal/model/domains/control_stream.go`
+  - class ControlStream
+  - class ControlStreamControlledProperty
+  - class ControlStreamSchema
+- `internal/model/domains/datastream.go`
+  - class Datastream
+  - class DatastreamObservedProperty
+  - class DatastreamSchema
+  - class DatastreamResultLink
+  - class DatastreamMessageSchema
+  - class DatastreamEncoding
+  - _...7 more_
+- `internal/model/domains/deployment.go`
+  - class Deployment
+  - class DeploymentGeoJSONFeature
+  - class DeploymentGeoJSONProperties
+  - class DeployedSystemItem
+  - class DeploymentSensorMLFeature
+- `internal/model/domains/deployment_closure.go` — class DeploymentClosure
+- `internal/model/domains/feature.go` — class Feature, class FeatureGeoJSONFeature
+- `internal/model/domains/observation.go` — class Observation
+- `internal/model/domains/procedure.go`
+  - class Procedure
+  - class ProcedureGeoJSONFeature
+  - class ProcedureGeoJSONProperties
+  - class ProcedureSensorMLFeature
+- `internal/model/domains/property.go`
+  - class Property
+  - class PropertySensorMLFeature
+  - class PropertyGeoJSONFeature
+  - class PropertyGeoJSONProperties
+- `internal/model/domains/sampling_feature.go`
+  - class SamplingFeature
+  - class SamplingFeatureGeoJSONFeature
+  - class SamplingFeatureGeoJSONProperties
+  - class SamplingFeatureSensorMLFeature
+- `internal/model/domains/system.go`
+  - class System
+  - class SystemGeoJSONFeature
+  - class SystemGeoJSONProperties
+  - class SystemSensorMLFeature
+- `internal/model/domains/system_event.go` — class SystemEvent
+- `internal/model/domains/system_history_revision.go` — class SystemHistoryRevision
+- `internal/model/formaters/association_links.go`
+  - function SetAssociationLinksBaseURL: (baseURL string)
+  - function GeoJSONSystemAssociationLinks: (links common_shared.Links) common_shared.Links
+  - function DeploymentAssociationLinks: (links common_shared.Links) common_shared.Links
+  - function SamplingFeatureGeoJSONAssociationLinks: (links common_shared.Links) common_shared.Links
+  - function AppendGeoJSONSystemAssociationLinks: (system *domains.System) common_shared.Links
+  - function AppendSensorMLSystemAssociationLinks: (system *domains.System) common_shared.Links
+  - _...7 more_
+- `internal/model/formaters/geojson_formatters/collection_geojson.go` — function NewFeatureCollectionGeoJSONFormatter: (repos *repository.Repositories) *FeatureCollectionGeoJSONFormatter, class FeatureCollectionGeoJSONFormatter
+- `internal/model/formaters/geojson_formatters/deployment_geojson.go` — function NewDeploymentGeoJSONFormatter: (repos *repository.Repositories) *DeploymentGeoJSONFormatter, class DeploymentGeoJSONFormatter
+- `internal/model/formaters/geojson_formatters/feature_geojson.go` — function NewFeatureGeoJSONFormatter: (repos *repository.Repositories) *FeatureGeoJSONFormatter, class FeatureGeoJSONFormatter
+- `internal/model/formaters/geojson_formatters/procedure_geojson.go` — function NewProcedureGeoJSONFormatter: (repos *repository.Repositories) *ProcedureGeoJSONFormatter, class ProcedureGeoJSONFormatter
+- `internal/model/formaters/geojson_formatters/property_geojson.go` — function NewPropertyGeoJSONFormatter: (repos *repository.Repositories) *PropertyGeoJSONFormatter, class PropertyGeoJSONFormatter
+- `internal/model/formaters/geojson_formatters/sampling_feature_geojson.go` — function NewSamplingFeatureGeoJSONFormatter: (repos *repository.Repositories) *SamplingFeatureGeoJSONFormatter, class SamplingFeatureGeoJSONFormatter
+- `internal/model/formaters/geojson_formatters/system_geojson.go` — function NewSystemGeoJSONFormatter: (repos *repository.Repositories) *SystemGeoJSONFormatter, class SystemGeoJSONFormatter
+- `internal/model/formaters/json_formatters/control_stream_json.go` — function NewControlStreamJSONFormatter: () *ControlStreamJSONFormatter, class ControlStreamJSONFormatter
+- `internal/model/formaters/json_formatters/datastream_json.go` — function NewDatastreamJSONFormatter: () *DatastreamJSONFormatter, class DatastreamJSONFormatter
+- `internal/model/formaters/multi_format_serializer.go` — class AnyFeatureCollection
+- `internal/model/formaters/sensorml_formatters/deployment_sensorml.go` — function NewDeploymentSensorMLFormatter: (repos *repository.Repositories) *DeploymentSensorMLFormatter, class DeploymentSensorMLFormatter
+- `internal/model/formaters/sensorml_formatters/procedure_sensorml.go` — function NewProcedureSensorMLFormatter: (repos *repository.Repositories) *ProcedureSensorMLFormatter, class ProcedureSensorMLFormatter
+- `internal/model/formaters/sensorml_formatters/property_sensorml.go` — function NewPropertySensorMLFormatter: (repos *repository.Repositories) *PropertySensorMLFormatter, class PropertySensorMLFormatter
+- `internal/model/formaters/sensorml_formatters/sampling_feature_sensorml.go` — function NewSamplingFeatureSensorMLFormatter: (repos *repository.Repositories) *SamplingFeatureSensorMLFormatter, class SamplingFeatureSensorMLFormatter
+- `internal/model/formaters/sensorml_formatters/system_sensorml.go` — function NewSystemSensorMLFormatter: (repos *repository.Repositories) *SystemSensorMLFormatter, class SystemSensorMLFormatter
+- `internal/model/generators/generators_collection.go` — function FakeCollection: () domains.Collection
+- `internal/model/generators/generators_common_shared.go`
+  - function FakeTerms: () common_shared.Terms
+  - function FakeLink: () common_shared.Link
+  - function FakeLinks: () common_shared.Links
+  - function FakeContactInfo: () *common_shared.ContactInfo
+  - function FakeContactPersonOrg: () *common_shared.ContactPersonOrg
+  - function FakeContactLink: () *common_shared.ContactLink
+  - _...8 more_
+- `internal/model/generators/generators_common_shared_more.go`
+  - function FakeDocument: () common_shared.Document
+  - function FakeDocuments: () common_shared.Documents
+  - function FakeHistoryEvent: () common_shared.HistoryEvent
+  - function FakeHistory: () common_shared.History
+  - function FakeProperties: () common_shared.Properties
+  - function FakeSecurityConstraints: () common_shared.SecurityConstraints
+  - _...8 more_
+- `internal/model/generators/generators_datastream.go`
+  - function FakeDatastreamJSONScalarSchema: () *domains.DatastreamSchema
+  - function FakeDatastreamJSONRecordSchema: () *domains.DatastreamSchema
+  - function FakeDatastreamSWEJSONSchema: () *domains.DatastreamSchema
+  - function FakeDatastreamSWECsvSchema: () *domains.DatastreamSchema
+  - function FakeDatastreamProtobufSchema: () *domains.DatastreamSchema
+  - function FakeDatastreamOtherFormatSchema: () *domains.DatastreamSchema
+  - _...9 more_
+- `internal/model/generators/generators_deployment.go`
+  - function FakeSetValue: () common_shared.SetValue
+  - function FakeSetArrayValue: () common_shared.SetArrayValue
+  - function FakeSetMode: () common_shared.SetMode
+  - function FakeAllowedTokens: () common_shared.AllowedTokens
+  - function FakeAllowedValues: () common_shared.AllowedValues
+  - function FakeConstraint: () common_shared.Constraint
+  - _...27 more_
+- `internal/model/generators/generators_observation.go`
+  - function FakeObservationForDatastream: (ds domains.Datastream) domains.Observation
+  - function FakeObservationWithResultLink: (ds domains.Datastream) domains.Observation
+  - function FakeObservationListForDatastream: (ds domains.Datastream, n int) []domains.Observation
+- `internal/model/generators/generators_procedure.go`
+  - function FakeProcedureMinimal: () domains.Procedure
+  - function FakeProcedureObserving: () domains.Procedure
+  - function FakeProcedureSampling: () domains.Procedure
+  - function FakeProcedureActuating: () domains.Procedure
+  - function FakeProcedureSensorDatasheet: () domains.Procedure
+  - function FakeProcedureActuatorDatasheet: () domains.Procedure
+  - _...8 more_
+- `internal/model/generators/generators_property.go` — function FakeProperty: () domains.Property
+- `internal/model/generators/generators_sampling_feature.go` — function FakeSamplingFeature: () domains.SamplingFeature
+- `internal/model/generators/generators_sensorml_shared.go`
+  - function FakeTerm: () common_shared.Term
+  - function FakeIdentifierTerm: () common_shared.Term
+  - function FakeClassifierTerm: () common_shared.Term
+  - function FakeIdentifiers: (count int) common_shared.Terms
+  - function FakeClassifiers: (count int) common_shared.Terms
+  - function FakePhone: () *common_shared.Phone
+  - _...44 more_
+- `internal/model/generators/generators_system.go`
+  - function FakeSystemMinimal: () domains.System
+  - function FakeSystemSensor: () domains.System
+  - function FakeSystemActuator: () domains.System
+  - function FakeSystemSampler: () domains.System
+  - function FakeSystemPlatform: () domains.System
+  - function FakeSystemPhysicalSystem: () domains.System
+  - _...5 more_
+- `internal/model/query_params/collection_query_params.go` — class CollectionQueryParams
+- `internal/model/query_params/command_query_params.go` — class CommandsQueryParams
+- `internal/model/query_params/control_stream_query_params.go` — class ControlStreamsQueryParams
+- `internal/model/query_params/datastream_query_params.go` — class DatastreamsQueryParams
+- `internal/model/query_params/deployment_query_params.go` — class DeploymentsQueryParams
+- `internal/model/query_params/feature_query_params.go` — class FeatureQueryParams, class TimeFilter
+- `internal/model/query_params/observation_query_params.go` — class ObservationsQueryParams
+- `internal/model/query_params/procedure_query_params.go` — class ProceduresQueryParams
+- `internal/model/query_params/property_query_params.go` — class PropertiesQueryParams
+- `internal/model/query_params/query_params.go` — class QueryParams
+- `internal/model/query_params/sampling_feature_query_params.go` — class SamplingFeatureQueryParams
+- `internal/model/query_params/system_event_query_params.go` — class SystemEventsQueryParams
+- `internal/model/query_params/system_history_query_params.go` — class SystemHistoryQueryParams
+- `internal/model/query_params/system_query_params.go` — class SystemQueryParams
+- `internal/repository/closure.go` — function EnsureClosureSupport: (db *gorm.DB, table, idCol, parentCol, closureTable string) error, function EnsureDeleteReparentSupport: (db *gorm.DB, table, idCol, parentCol string) error
+- `internal/repository/collection_repository.go` — function NewCollectionRepository: (db *gorm.DB) *CollectionRepository, class CollectionRepository
+- `internal/repository/command_repository.go` — function NewCommandRepository: (db *gorm.DB) *CommandRepository, class CommandRepository
+- `internal/repository/control_stream_repository.go` — function NewControlStreamRepository: (db *gorm.DB) *ControlStreamRepository, class ControlStreamRepository
+- `internal/repository/datastream_repository.go` — function NewDatastreamRepository: (db *gorm.DB) *DatastreamRepository, class DatastreamRepository
+- `internal/repository/deployment_repository.go` — function NewDeploymentRepository: (db *gorm.DB) *DeploymentRepository, class DeploymentRepository
+- `internal/repository/feature_repository.go` — function NewFeatureRepository: (db *gorm.DB) *FeatureRepository, class FeatureRepository
+- `internal/repository/observation_repository.go` — function NewObservationRepository: (db *gorm.DB) *ObservationRepository, class ObservationRepository
+- `internal/repository/procedure_repository.go` — function NewProcedureRepository: (db *gorm.DB) *ProcedureRepository, class ProcedureRepository
+- `internal/repository/property_repository.go` — function NewPropertyRepository: (db *gorm.DB) *PropertyRepository, class PropertyRepository
+- `internal/repository/repository.go`
+  - function NewRepositories: (db *gorm.DB) *Repositories
+  - function AutoMigrate: (db *gorm.DB) error
+  - class Repositories
+- `internal/repository/repository_shared/repository.go`
+  - function NewRepositories: (db *gorm.DB) *Repositories
+  - function AutoMigrate: (db *gorm.DB) error
+  - class Repositories
+- `internal/repository/sampling_feature_repository.go` — function NewSamplingFeatureRepository: (db *gorm.DB) *SamplingFeatureRepository, class SamplingFeatureRepository
+- `internal/repository/system_event_repository.go` — function NewSystemEventRepository: (db *gorm.DB) *SystemEventRepository, class SystemEventRepository
+- `internal/repository/system_history_repository.go` — function NewSystemHistoryRepository: (db *gorm.DB) *SystemHistoryRepository, class SystemHistoryRepository
+- `internal/repository/system_repository.go` — function NewSystemRepository: (db *gorm.DB) *SystemRepository, class SystemRepository
+- `internal/repository/testutil/postgis.go`
+  - function StartPostGISContainer: (ctx context.Context, t *testing.T) *PostGISContainer
+  - function OpenTestDB: (t *testing.T, dsn string, opts OpenTestDBOptions) *gorm.DB
+  - function DefaultSystemModels: () []interface
+  - function AllModels: () []interface
+  - function PtrTime: (t time.Time) *time.Time
+  - function PtrStr: (s string) *string
+  - _...13 more_
+- `ptz-test/webapp/src/api.js` — function createApi: (baseUrl) => void
