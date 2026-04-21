@@ -1,6 +1,6 @@
 module github.com/yourusername/connected-systems-go
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/emicklei/proto v1.14.3
@@ -31,7 +31,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 )
 
 require (
@@ -94,10 +94,11 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	google.golang.org/genproto v0.0.0-20220617124728-180714bec0ad // indirect
+	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

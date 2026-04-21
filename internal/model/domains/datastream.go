@@ -13,7 +13,8 @@ import (
 // project conventions for common fields, links, and JSONB persistence.
 type Datastream struct {
 	Base
-	CommonSSN
+	Name        string `gorm:"type:varchar(255);not null" json:"name"`
+	Description string `gorm:"type:text" json:"description,omitempty"`
 
 	ValidTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:valid_time_" json:"validTime,omitempty"`
 
