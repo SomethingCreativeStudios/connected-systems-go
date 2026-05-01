@@ -142,9 +142,6 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 
 	if systemID != "" {
 		cs.SystemID = &systemID
-		if cs.SystemLink == nil {
-			cs.SystemLink = &common_shared.Link{Href: "systems/" + systemID}
-		}
 	}
 
 	if err := h.repo.Create(cs); err != nil {
@@ -180,8 +177,7 @@ func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *htt
 	}
 
 	cs.ID = id
-	if cs.SystemLink == nil {
-		cs.SystemLink = existing.SystemLink
+	if cs.SystemID == nil {
 		cs.SystemID = existing.SystemID
 	}
 	if err := h.repo.Update(cs); err != nil {

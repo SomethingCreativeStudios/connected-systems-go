@@ -133,9 +133,6 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 
 	if systemID != "" {
 		datastream.SystemID = &systemID
-		if datastream.SystemLink == nil {
-			datastream.SystemLink = &common_shared.Link{Href: "systems/" + systemID}
-		}
 	}
 
 	if err := h.repo.Create(datastream); err != nil {
@@ -170,8 +167,7 @@ func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Requ
 	}
 
 	datastream.ID = id
-	if datastream.SystemLink == nil {
-		datastream.SystemLink = existing.SystemLink
+	if datastream.SystemID == nil {
 		datastream.SystemID = existing.SystemID
 	}
 	if err := h.repo.Update(datastream); err != nil {

@@ -21,7 +21,6 @@ type ControlStream struct {
 	Formats common_shared.StringArray `gorm:"type:jsonb" json:"formats,omitempty"`
 
 	// Resource links.
-	SystemLink          *common_shared.Link `gorm:"type:jsonb" json:"system@link,omitempty"`
 	InputName           string              `gorm:"type:varchar(255)" json:"inputName,omitempty"`
 	ProcedureLink       *common_shared.Link `gorm:"type:jsonb" json:"procedure@link,omitempty"`
 	DeploymentLink      *common_shared.Link `gorm:"type:jsonb" json:"deployment@link,omitempty"`

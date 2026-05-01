@@ -172,13 +172,12 @@ func FakeDatastreamWithSchema(schema *domains.DatastreamSchema) domains.Datastre
 	}
 
 	return domains.Datastream{
-		Base:        domains.Base{ID: id},
-		Name:        "Datastream " + f.Lorem().Word(),
-		Description: f.Lorem().Sentence(6),
+		Base:               domains.Base{ID: id},
+		Name:               "Datastream " + f.Lorem().Word(),
+		Description:        f.Lorem().Sentence(6),
 		ValidTime:          FakeValidTimeCurrent(),
 		Formats:            formats,
 		SystemID:           &systemID,
-		SystemLink:         &common_shared.Link{Href: "/systems/" + systemID},
 		FeatureOfInterest:  &common_shared.Link{Href: "/features/" + foiID},
 		OutputName:         "output-" + f.Lorem().Word(),
 		ObservedProperties: &obsProps,

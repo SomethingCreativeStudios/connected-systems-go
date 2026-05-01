@@ -250,9 +250,6 @@ func normalizeDatastreamRefs(datastream *domains.Datastream) {
 		return
 	}
 
-	if datastream.SystemLink != nil {
-		datastream.SystemID = datastream.SystemLink.GetId("systems")
-	}
 	if datastream.ProcedureLink != nil {
 		datastream.ProcedureID = datastream.ProcedureLink.GetId("procedures")
 	}

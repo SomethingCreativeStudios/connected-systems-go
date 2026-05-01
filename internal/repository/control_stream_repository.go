@@ -250,9 +250,6 @@ func normalizeControlStreamRefs(cs *domains.ControlStream) {
 		return
 	}
 
-	if cs.SystemLink != nil {
-		cs.SystemID = cs.SystemLink.GetId("systems")
-	}
 	if cs.ProcedureLink != nil {
 		cs.ProcedureID = cs.ProcedureLink.GetId("procedures")
 	}

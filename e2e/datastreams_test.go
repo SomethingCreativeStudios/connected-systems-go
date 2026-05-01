@@ -21,7 +21,6 @@ const (
 func baseDatastreamPayload() map[string]interface{} {
 	uniqueID := uuid.NewString()
 	return map[string]interface{}{
-		"uid":        "urn:uuid:" + uniqueID,
 		"name":       "Datastream " + uniqueID[:8],
 		"type":       "observation",
 		"outputName": "weather-output",

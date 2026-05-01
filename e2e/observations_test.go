@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	generators "github.com/yourusername/connected-systems-go/internal/model/generators"
 )
@@ -23,8 +22,8 @@ func seedDatastreamForObservationTests(t *testing.T) *domains.Datastream {
 	t.Helper()
 
 	datastream := generators.FakeDatastreamJSONRecord()
-	datastream.SystemID = nil
-	datastream.SystemLink = &common_shared.Link{Href: testServer.URL + "/systems/unknown"}
+	systemID := "unknown"
+	datastream.SystemID = &systemID
 	require.NoError(t, testRepos.Datastream.Create(&datastream), "failed to seed datastream")
 
 	return &datastream

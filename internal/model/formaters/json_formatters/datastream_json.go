@@ -13,9 +13,16 @@ import (
 
 const JSONContentType = "application/json"
 
+// DatastreamJSONFeature is the wire-format representation of a datastream.
+// It adds system@link (derived from SystemID) to the domain model.
+type DatastreamJSONFeature struct {
+	domains.Datastream
+	SystemLink *common_shared.Link `json:"system@link,omitempty"`
+}
+
 // DatastreamJSONFormatter handles datastream JSON serialization/deserialization.
 type DatastreamJSONFormatter struct {
-	formaters.Formatter[domains.Datastream, *domains.Datastream]
+	formaters.Formatter[DatastreamJSONFeature, *domains.Datastream]
 }
 
 func NewDatastreamJSONFormatter() *DatastreamJSONFormatter {
@@ -26,36 +33,53 @@ func (f *DatastreamJSONFormatter) ContentType() string {
 	return JSONContentType
 }
 
-func (f *DatastreamJSONFormatter) Serialize(ctx context.Context, datastream *domains.Datastream) (domains.Datastream, error) {
+func (f *DatastreamJSONFormatter) Serialize(ctx context.Context, datastream *domains.Datastream) (DatastreamJSONFeature, error) {
 	if datastream == nil {
-		return domains.Datastream{}, fmt.Errorf("datastream cannot be nil")
+		return DatastreamJSONFeature{}, fmt.Errorf("datastream cannot be nil")
 	}
-	out := *datastream
+	out := DatastreamJSONFeature{Datastream: *datastream}
 	out.Links = appendDatastreamAssociationLinks(datastream)
+	if datastream.SystemID != nil {
+		out.SystemLink = &common_shared.Link{
+			Href: formaters.ToFunctionalAssociationHref("/systems/" + *datastream.SystemID),
+		}
+	}
 	return out, nil
 }
 
-func (f *DatastreamJSONFormatter) SerializeAll(ctx context.Context, datastreams []*domains.Datastream) ([]domains.Datastream, error) {
+func (f *DatastreamJSONFormatter) SerializeAll(ctx context.Context, datastreams []*domains.Datastream) ([]DatastreamJSONFeature, error) {
 	if len(datastreams) == 0 {
-		return []domains.Datastream{}, nil
+		return []DatastreamJSONFeature{}, nil
 	}
 
-	items := make([]domains.Datastream, 0, len(datastreams))
+	items := make([]DatastreamJSONFeature, 0, len(datastreams))
 	for _, ds := range datastreams {
 		if ds == nil {
 			continue
 		}
-		out := *ds
+		out := DatastreamJSONFeature{Datastream: *ds}
 		out.Links = appendDatastreamAssociationLinks(ds)
+		if ds.SystemID != nil {
+			out.SystemLink = &common_shared.Link{
+				Href: formaters.ToFunctionalAssociationHref("/systems/" + *ds.SystemID),
+			}
+		}
 		items = append(items, out)
 	}
 	return items, nil
 }
 
 func (f *DatastreamJSONFormatter) Deserialize(ctx context.Context, reader io.Reader) (*domains.Datastream, error) {
-	var datastream domains.Datastream
-	if err := json.NewDecoder(reader).Decode(&datastream); err != nil {
+	var wire struct {
+		domains.Datastream
+		SystemLink *common_shared.Link `json:"system@link,omitempty"`
+	}
+	if err := json.NewDecoder(reader).Decode(&wire); err != nil {
 		return nil, err
+	}
+	datastream := wire.Datastream
+	if wire.SystemLink != nil {
+		datastream.SystemID = wire.SystemLink.GetId("systems")
 	}
 	return &datastream, nil
 }
