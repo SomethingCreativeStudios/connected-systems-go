@@ -18,11 +18,11 @@ import (
 
 // SamplingFeatureHandler handles SamplingFeature resource requests
 type SamplingFeatureHandler struct {
-	cfg       *config.Config
-	logger    *zap.Logger
-	repo      *repository.SamplingFeatureRepository
+	cfg        *config.Config
+	logger     *zap.Logger
+	repo       *repository.SamplingFeatureRepository
 	systemRepo *repository.SystemRepository
-	fc        *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]
+	fc         *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]
 }
 
 // NewSamplingFeatureHandler creates a new SamplingFeatureHandler
