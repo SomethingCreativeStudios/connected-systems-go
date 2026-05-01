@@ -26,9 +26,9 @@ type TimeFilter struct {
 }
 
 // BuildFromRequest parses query parameters from HTTP request
-func (FeatureQueryParams) BuildFromRequest(r *http.Request) *FeatureQueryParams {
+func (FeatureQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *FeatureQueryParams {
 	params := &FeatureQueryParams{}
-	baseParams := QueryParams{}.BuildFromRequest(r)
+	baseParams := QueryParams{}.BuildFromRequest(r, defaultLimit)
 	if baseParams != nil {
 		params.QueryParams = *baseParams
 	}

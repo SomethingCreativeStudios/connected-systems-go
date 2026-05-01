@@ -13,9 +13,9 @@ type PropertiesQueryParams struct {
 }
 
 // parseQueryParams parses common query parameters
-func (PropertiesQueryParams) BuildFromRequest(r *http.Request) *PropertiesQueryParams {
+func (PropertiesQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *PropertiesQueryParams {
 	params := &PropertiesQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if baseProps := r.URL.Query().Get("baseProperty"); baseProps != "" {

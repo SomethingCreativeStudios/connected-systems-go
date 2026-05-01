@@ -40,7 +40,7 @@ func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *reposit
 }
 
 func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.ObservationsQueryParams{}.BuildFromRequest(r)
+	params := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	observations, total, err := h.repo.List(params, nil)
 	if err != nil {
@@ -70,7 +70,7 @@ func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r
 		return
 	}
 
-	params := queryparams.ObservationsQueryParams{}.BuildFromRequest(r)
+	params := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	observations, total, err := h.repo.ListByDatastream(datastreamID, params)
 	if err != nil {

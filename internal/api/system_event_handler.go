@@ -34,7 +34,7 @@ func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *reposit
 }
 
 func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r)
+	params := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	events, total, err := h.repo.List(params, nil)
 	if err != nil {
@@ -68,7 +68,7 @@ func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	params := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r)
+	params := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	events, total, err := h.repo.List(params, &systemID)
 	if err != nil {
 		h.logger.Error("Failed to list system events", zap.String("systemId", systemID), zap.Error(err))

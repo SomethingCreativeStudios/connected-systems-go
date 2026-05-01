@@ -43,3 +43,4 @@ config.yaml
 *.sqlite
 
 CLAUDE.md
+Current Issues.md

@@ -15,9 +15,9 @@ type SystemHistoryQueryParams struct {
 	Keyword   []string
 }
 
-func (SystemHistoryQueryParams) BuildFromRequest(r *http.Request) *SystemHistoryQueryParams {
+func (SystemHistoryQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *SystemHistoryQueryParams {
 	params := &SystemHistoryQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if vals := r.URL.Query()["validTime"]; len(vals) > 0 {

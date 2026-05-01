@@ -20,9 +20,9 @@ type DatastreamsQueryParams struct {
 }
 
 // BuildFromRequest parses datastream query parameters from request.
-func (DatastreamsQueryParams) BuildFromRequest(r *http.Request) *DatastreamsQueryParams {
+func (DatastreamsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *DatastreamsQueryParams {
 	params := &DatastreamsQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if system := r.URL.Query().Get("system"); system != "" {

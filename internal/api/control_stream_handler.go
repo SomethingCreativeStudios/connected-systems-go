@@ -40,7 +40,7 @@ func NewControlStreamHandler(
 
 // ListControlStreams handles GET /controlstreams
 func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r)
+	params := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	controlStreams, total, err := h.repo.List(params, nil)
 	if err != nil {
@@ -72,7 +72,7 @@ func (h *ControlStreamHandler) ListSystemControlStreams(w http.ResponseWriter, r
 	if systemID == "" {
 		systemID = chi.URLParam(r, "id")
 	}
-	params := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r)
+	params := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	controlStreams, total, err := h.repo.List(params, &systemID)
 	if err != nil {

@@ -28,7 +28,7 @@ func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository
 }
 
 func (h *PropertyHandler) ListProperties(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.PropertiesQueryParams{}.BuildFromRequest(r)
+	params := queryparams.PropertiesQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	properties, total, err := h.repo.List(params)
 	if err != nil {

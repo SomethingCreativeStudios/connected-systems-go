@@ -46,7 +46,7 @@ func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.S
 
 // ListSystems retrieves a list of systems
 func (h *SystemHandler) ListSystems(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.SystemQueryParams{}.BuildFromRequest(r)
+	params := queryparams.SystemQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	systems, total, err := h.repo.List(params)
 	if err != nil {
@@ -166,7 +166,7 @@ func (h *SystemHandler) DeleteSystem(w http.ResponseWriter, r *http.Request) {
 func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 	parentID := chi.URLParam(r, "id")
 	recursive := r.URL.Query().Get("recursive") == "true"
-	params := queryparams.SystemQueryParams{}.BuildFromRequest(r)
+	params := queryparams.SystemQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	systems, err := h.repo.GetSubsystems(parentID, recursive)
 	if err != nil {
@@ -199,7 +199,7 @@ func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	// Build optional pagination params from request
-	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r)
+	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	params.System = append(params.System, id)
 
 	// Use deployment repository helper to find deployments associated with this system
@@ -221,7 +221,7 @@ func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 // GetProcedures retrieves procedures associated with a system.
 func (h *SystemHandler) GetProcedures(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	params := queryparams.ProceduresQueryParams{}.BuildFromRequest(r)
+	params := queryparams.ProceduresQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	procedures, total, err := h.procedureRepo.ListBySystem(id, params)
 	if err != nil {

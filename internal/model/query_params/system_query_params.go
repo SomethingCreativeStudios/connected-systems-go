@@ -21,9 +21,9 @@ type SystemQueryParams struct {
 	Recursive          bool
 }
 
-func (SystemQueryParams) BuildFromRequest(r *http.Request) *SystemQueryParams {
+func (SystemQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *SystemQueryParams {
 	params := &SystemQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	params.Recursive = r.URL.Query().Get("recursive") == "true"

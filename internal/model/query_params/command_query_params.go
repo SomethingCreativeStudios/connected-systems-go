@@ -21,9 +21,9 @@ type CommandsQueryParams struct {
 }
 
 // BuildFromRequest parses command query parameters from request.
-func (CommandsQueryParams) BuildFromRequest(r *http.Request) *CommandsQueryParams {
+func (CommandsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *CommandsQueryParams {
 	params := &CommandsQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if cs := r.URL.Query().Get("controlStream"); cs != "" {

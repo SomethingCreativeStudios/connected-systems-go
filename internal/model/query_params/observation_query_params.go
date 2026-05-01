@@ -21,9 +21,9 @@ type ObservationsQueryParams struct {
 }
 
 // BuildFromRequest parses observation query parameters from request.
-func (ObservationsQueryParams) BuildFromRequest(r *http.Request) *ObservationsQueryParams {
+func (ObservationsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *ObservationsQueryParams {
 	params := &ObservationsQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if foi := r.URL.Query().Get("foi"); foi != "" {

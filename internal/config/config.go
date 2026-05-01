@@ -30,10 +30,11 @@ type DatabaseConfig struct {
 
 // APIConfig holds API-specific configuration
 type APIConfig struct {
-	BaseURL     string `mapstructure:"base_url"`
-	Title       string `mapstructure:"title"`
-	Description string `mapstructure:"description"`
-	Version     string `mapstructure:"version"`
+	BaseURL      string `mapstructure:"base_url"`
+	Title        string `mapstructure:"title"`
+	Description  string `mapstructure:"description"`
+	Version      string `mapstructure:"version"`
+	DefaultLimit int    `mapstructure:"default_limit"`
 }
 
 // Load loads configuration from file and environment
@@ -54,6 +55,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("api.title", "OGC Connected Systems API")
 	viper.SetDefault("api.version", "1.0.0")
 	viper.SetDefault("api.description", "OGC API - Connected Systems - Part 1: Feature Resources")
+	viper.SetDefault("api.default_limit", 10)
 
 	// Read from environment — replace "." with "_" so database.host → DATABASE_HOST
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

@@ -17,9 +17,9 @@ type SystemEventsQueryParams struct {
 	System    []string
 }
 
-func (SystemEventsQueryParams) BuildFromRequest(r *http.Request) *SystemEventsQueryParams {
+func (SystemEventsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *SystemEventsQueryParams {
 	params := &SystemEventsQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if vals := r.URL.Query()["datetime"]; len(vals) > 0 {

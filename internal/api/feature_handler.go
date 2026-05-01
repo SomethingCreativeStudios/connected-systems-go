@@ -62,7 +62,7 @@ func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := queryparams.FeatureQueryParams{}.BuildFromRequest(r)
+	params := queryparams.FeatureQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	params.CollectionID = collectionID
 
 	features, total, err := h.repo.ListByCollection(collectionID, params)

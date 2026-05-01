@@ -35,9 +35,9 @@ type QueryParams struct {
 	Offset int // Not part of standard, but useful for pagination (till i do curorsors)
 }
 
-func (QueryParams) BuildFromRequest(r *http.Request) *QueryParams {
+func (QueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *QueryParams {
 	params := &QueryParams{
-		Limit:  10,
+		Limit:  defaultLimit,
 		Offset: 0,
 	}
 

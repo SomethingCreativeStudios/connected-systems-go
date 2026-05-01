@@ -17,9 +17,9 @@ type ProceduresQueryParams struct {
 }
 
 // parseQueryParams parses common query parameters
-func (ProceduresQueryParams) BuildFromRequest(r *http.Request) *ProceduresQueryParams {
+func (ProceduresQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *ProceduresQueryParams {
 	params := &ProceduresQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if controlledProperties := r.URL.Query().Get("controlledProperty"); controlledProperties != "" {

@@ -20,9 +20,9 @@ type SamplingFeatureQueryParams struct {
 	FOI                []string
 }
 
-func (SamplingFeatureQueryParams) BuildFromRequest(r *http.Request) (*SamplingFeatureQueryParams, error) {
+func (SamplingFeatureQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*SamplingFeatureQueryParams, error) {
 	params := &SamplingFeatureQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if controlledProperty := r.URL.Query().Get("controlledProperty"); controlledProperty != "" {

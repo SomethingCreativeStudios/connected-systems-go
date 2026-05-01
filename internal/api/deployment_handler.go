@@ -28,7 +28,7 @@ func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 }
 
 func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r)
+	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	deployments, total, err := h.repo.List(params, nil)
 	if err != nil {
@@ -131,7 +131,7 @@ func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Requ
 // List all subdeployments
 func (h *DeploymentHandler) ListSubdeployments(w http.ResponseWriter, r *http.Request) {
 	parentID := chi.URLParam(r, "id")
-	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r)
+	params := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	deployments, total, err := h.repo.List(params, &parentID)
 	if err != nil {

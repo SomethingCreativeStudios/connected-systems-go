@@ -20,9 +20,9 @@ type DeploymentsQueryParams struct {
 }
 
 // BuildFromRequest parses common query parameters
-func (DeploymentsQueryParams) BuildFromRequest(r *http.Request) *DeploymentsQueryParams {
+func (DeploymentsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *DeploymentsQueryParams {
 	params := &DeploymentsQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r),
+		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if observedProperty := r.URL.Query().Get("observedProperty"); observedProperty != "" {

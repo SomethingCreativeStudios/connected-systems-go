@@ -29,7 +29,7 @@ func NewSamplingFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *rep
 }
 
 func (h *SamplingFeatureHandler) ListSamplingFeatures(w http.ResponseWriter, r *http.Request) {
-	params, err := queryparams.SamplingFeatureQueryParams{}.BuildFromRequest(r)
+	params, err := queryparams.SamplingFeatureQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
 	if err != nil {
 		h.logger.Error("Failed to parse query parameters", zap.Error(err))
@@ -172,7 +172,7 @@ func (h *SamplingFeatureHandler) DeleteSamplingFeature(w http.ResponseWriter, r 
 func (h *SamplingFeatureHandler) GetSystemSamplingFeatures(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "id")
 
-	params, err := queryparams.SamplingFeatureQueryParams{}.BuildFromRequest(r)
+	params, err := queryparams.SamplingFeatureQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		h.logger.Error("Failed to parse query parameters", zap.Error(err))
 		render.Status(r, http.StatusBadRequest)
