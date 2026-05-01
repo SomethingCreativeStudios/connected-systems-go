@@ -107,23 +107,25 @@ func TestMain(m *testing.M) {
 	formaters.RegisterFormatterTypedDefault(featCol, featGeo, "application/geo+json")
 	testFeatureFormatters = featCol
 
-	// Set up config
+	// Set up config — BaseURL will be set after we know the test server URL.
 	cfg := &config.Config{
 		API: config.APIConfig{
-			BaseURL: "http://localhost:8080",
 			Title:   "Test API",
 			Version: "1.0.0",
 		},
 	}
 
-	// Set up router
-	router := api.NewRouter(cfg, logger, testRepos)
-
-	// Start test server
-	testServer = httptest.NewServer(router)
-
-	// Update config BaseURL to the actual test server URL so handlers build correct Location headers
+	// Create router with a placeholder handler so we can reserve a URL,
+	// then update config and rebuild the router with the correct BaseURL.
+	placeholderRouter := api.NewRouter(cfg, logger, testRepos)
+	testServer = httptest.NewServer(placeholderRouter)
 	cfg.API.BaseURL = testServer.URL
+	formaters.SetAssociationLinksBaseURL(testServer.URL)
+
+	// Rebuild the router with the correct BaseURL so association links
+	// and Location headers use the real test server address.
+	router := api.NewRouter(cfg, logger, testRepos)
+	testServer.Config.Handler = router
 
 	// Run tests
 	exitCode := m.Run()

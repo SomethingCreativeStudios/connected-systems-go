@@ -224,7 +224,7 @@ func TestDatastream_CreateUnderSystem_AndSchemaRoundTrip(t *testing.T) {
 		rel, _ := link["rel"].(string)
 		if rel == "ogc-rel:observations" || rel == "observations" {
 			obsHref, _ := link["href"].(string)
-			assert.Equal(t, "http://localhost:8080/datastreams/"+datastreamID+"/observations", obsHref)
+			assert.Equal(t, testServer.URL+"/datastreams/"+datastreamID+"/observations", obsHref)
 			foundObservationsLink = true
 			break
 		}

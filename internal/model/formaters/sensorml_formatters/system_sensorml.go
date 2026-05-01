@@ -68,9 +68,9 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 		// typeOf is the SensorML equivalent of systemKind@link in GeoJSON
 		// Build from SystemKindID if TypeOf is not explicitly set
 		typeOf := system.TypeOf
-		if typeOf == nil && system.SystemKindID != nil && strings.TrimSpace(*system.SystemKindID) != "" {
+		if typeOf == nil && system.TypeOfID != nil && strings.TrimSpace(*system.TypeOfID) != "" {
 			typeOf = &common_shared.Link{
-				Href: "/procedures/" + strings.TrimSpace(*system.SystemKindID),
+				Href: "/procedures/" + strings.TrimSpace(*system.TypeOfID),
 				Rel:  common_shared.OGCRel("systemKind"),
 			}
 		}
@@ -195,7 +195,7 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 	// typeOf is the SensorML equivalent of systemKind@link — extract the procedure ID
 	system.TypeOf = sml.TypeOf
 	if sml.TypeOf != nil {
-		system.SystemKindID = sml.TypeOf.GetId("procedures")
+		system.TypeOfID = sml.TypeOf.GetId("procedures")
 	}
 
 	// Extract assetType from classifiers (it's stored as cs:AssetType classifier in SensorML)

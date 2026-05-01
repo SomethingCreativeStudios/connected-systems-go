@@ -47,8 +47,8 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 	// Collect system kind IDs for batch loading
 	kindIDs := make([]string, 0, len(systems))
 	for _, s := range systems {
-		if s.SystemKindID != nil && *s.SystemKindID != "" {
-			kindIDs = append(kindIDs, *s.SystemKindID)
+		if s.TypeOfID != nil && *s.TypeOfID != "" {
+			kindIDs = append(kindIDs, *s.TypeOfID)
 		}
 	}
 
@@ -68,8 +68,8 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 		// Build systemKind@link — prefer the full procedure record (title/uid),
 		// fall back to a bare href from SystemKindID, then to TypeOf as a last resort.
 		var kindLink *common_shared.Link
-		if system.SystemKindID != nil && strings.TrimSpace(*system.SystemKindID) != "" {
-			id := strings.TrimSpace(*system.SystemKindID)
+		if system.TypeOfID != nil && strings.TrimSpace(*system.TypeOfID) != "" {
+			id := strings.TrimSpace(*system.TypeOfID)
 			if proc, ok := kindMap[id]; ok {
 				kindLink = &common_shared.Link{
 					Href:  "procedures/" + proc.ID,
@@ -166,7 +166,7 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 	system.SMLType = geoJSON.Properties.SMLType
 	system.ValidTime = geoJSON.Properties.ValidTime
 	if geoJSON.Properties.SystemKind != nil {
-		system.SystemKindID = geoJSON.Properties.SystemKind.GetId("procedures")
+		system.TypeOfID = geoJSON.Properties.SystemKind.GetId("procedures")
 	}
 
 	// Map additional SWE/System fields

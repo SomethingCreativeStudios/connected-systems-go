@@ -750,6 +750,31 @@ func TestSamplingFeatureCRUD_Delete(t *testing.T) {
 func TestSamplingFeatureSystemLinks(t *testing.T) {
 	cleanupDB(t)
 
+	// Create a parent system to host the sampling feature
+	sysPayload := map[string]interface{}{
+		"type": "Feature",
+		"properties": map[string]interface{}{
+			"uid":         "urn:ogc:conf:system:sf-link-parent-001",
+			"name":        "Parent System for Link Tests",
+			"description": "System used as parent for sampling feature link tests",
+		},
+	}
+	sysBody, _ := json.Marshal(sysPayload)
+	sysResp, err := http.Post(testServer.URL+"/systems", "application/geo+json", bytes.NewReader(sysBody))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, sysResp.StatusCode, "failed to create parent system")
+
+	location := sysResp.Header.Get("Location")
+	sysResp.Body.Close()
+	require.NotEmpty(t, location, "expected Location header on system create")
+	systemID := parseID(location, "/systems/")
+	require.NotEmpty(t, systemID, "unable to parse system id from Location header: %s", location)
+
+	defer func() {
+		req, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/systems/"+systemID, nil)
+		http.DefaultClient.Do(req)
+	}()
+
 	tests := map[string]struct {
 		createPayload map[string]interface{}
 		description   string
@@ -780,7 +805,7 @@ func TestSamplingFeatureSystemLinks(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			body, _ := json.Marshal(tc.createPayload)
-			req, err := http.NewRequest(http.MethodPost, testServer.URL+"/systems/some-system-id-2/samplingFeatures", bytes.NewReader(body))
+			req, err := http.NewRequest(http.MethodPost, testServer.URL+"/systems/"+systemID+"/samplingFeatures", bytes.NewReader(body))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/geo+json")
 			req.Header.Set("Accept", "application/geo+json")
@@ -820,6 +845,33 @@ func TestSamplingFeatureSystemLinks(t *testing.T) {
 // =============================================================================
 
 func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
+	cleanupDB(t)
+
+	// Create a parent system to host the sampling features
+	sysPayload := map[string]interface{}{
+		"type": "Feature",
+		"properties": map[string]interface{}{
+			"uid":         "urn:ogc:conf:system:sf-sampleof-parent-001",
+			"name":        "Parent System for SampleOf Tests",
+			"description": "System used as parent for sampleOf relationship tests",
+		},
+	}
+	sysBody, _ := json.Marshal(sysPayload)
+	sysResp, err := http.Post(testServer.URL+"/systems", "application/geo+json", bytes.NewReader(sysBody))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, sysResp.StatusCode, "failed to create parent system")
+
+	location := sysResp.Header.Get("Location")
+	sysResp.Body.Close()
+	require.NotEmpty(t, location, "expected Location header on system create")
+	systemID := parseID(location, "/systems/")
+	require.NotEmpty(t, systemID, "unable to parse system id from Location header: %s", location)
+
+	defer func() {
+		req, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/systems/"+systemID, nil)
+		http.DefaultClient.Do(req)
+	}()
+
 	testcases := map[string]struct {
 		parentFeature map[string]interface{}
 		childFeature  map[string]interface{}
@@ -876,7 +928,7 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Create parent feature
 			parentBody, _ := json.Marshal(tc.parentFeature)
-			parentReq, err := http.NewRequest(http.MethodPost, testServer.URL+"/systems/some-parent-id/samplingFeatures", bytes.NewReader(parentBody))
+			parentReq, err := http.NewRequest(http.MethodPost, testServer.URL+"/systems/"+systemID+"/samplingFeatures", bytes.NewReader(parentBody))
 			require.NoError(t, err)
 			parentReq.Header.Set("Content-Type", "application/geo+json")
 			parentReq.Header.Set("Accept", "application/geo+json")
@@ -902,7 +954,7 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 			childFeatureWithLink["links"] = []map[string]interface{}{sampleOfLink}
 
 			childBody, _ := json.Marshal(childFeatureWithLink)
-			childReq, err := http.NewRequest(http.MethodPost, testServer.URL+"/systems/some-parent-id/samplingFeatures", bytes.NewReader(childBody))
+			childReq, err := http.NewRequest(http.MethodPost, testServer.URL+"/systems/"+systemID+"/samplingFeatures", bytes.NewReader(childBody))
 			require.NoError(t, err)
 			childReq.Header.Set("Content-Type", "application/geo+json")
 			childReq.Header.Set("Accept", "application/geo+json")
@@ -930,7 +982,7 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 			}
 
 			require.NotNil(t, sampleOfLinkRetrieved, "Child resource must have sampleOf@link")
-			assert.Equal(t, fmt.Sprintf("samplingFeatures/%s", parentID), sampleOfLinkRetrieved["href"], "sampleOf@link href must match parent feature ID")
+			assert.Equal(t, fmt.Sprintf(testServer.URL+"/samplingFeatures/%s", parentID), sampleOfLinkRetrieved["href"], "sampleOf@link href must match parent feature ID")
 		})
 	}
 }

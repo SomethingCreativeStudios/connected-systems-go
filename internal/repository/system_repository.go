@@ -166,15 +166,15 @@ func (r *SystemRepository) Update(systemId string, system *domains.System) error
 	})
 }
 
-// syncProcedures keeps system_procedures in sync with SystemKindID.
+// syncProcedures keeps system_procedures in sync with TypeOfID.
 func (r *SystemRepository) syncProcedures(tx *gorm.DB, system *domains.System) error {
 	if err := tx.Exec("DELETE FROM system_procedures WHERE system_id = ?", system.ID).Error; err != nil {
 		return err
 	}
-	if system.SystemKindID != nil && strings.TrimSpace(*system.SystemKindID) != "" {
+	if system.TypeOfID != nil && strings.TrimSpace(*system.TypeOfID) != "" {
 		return tx.Exec(
 			"INSERT INTO system_procedures (system_id, procedure_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
-			system.ID, *system.SystemKindID,
+			system.ID, *system.TypeOfID,
 		).Error
 	}
 	return nil
@@ -417,12 +417,12 @@ func (r *SystemRepository) HasProcedures(systemID string) (bool, error) {
 	}
 
 	var system domains.System
-	err = r.db.Select("id", "system_kind_id").Where("id = ?", systemID).First(&system).Error
+	err = r.db.Select("id", "type_of_id").Where("id = ?", systemID).First(&system).Error
 	if err != nil {
 		return false, err
 	}
 
-	return system.SystemKindID != nil && strings.TrimSpace(*system.SystemKindID) != "", nil
+	return system.TypeOfID != nil && strings.TrimSpace(*system.TypeOfID) != "", nil
 }
 
 func (r *SystemRepository) hasAssociatedRecords(model interface{}, query string, args ...interface{}) (bool, error) {

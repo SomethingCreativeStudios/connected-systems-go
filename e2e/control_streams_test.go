@@ -224,7 +224,7 @@ func TestControlStream_SystemLink(t *testing.T) {
 		rel, _ := link["rel"].(string)
 		if rel == "ogc-rel:commands" || rel == "commands" {
 			commandHref, _ := link["href"].(string)
-			assert.Equal(t, "http://localhost:8080/controlstreams/"+csID+"/commands", commandHref)
+			assert.Equal(t, testServer.URL+"/controlstreams/"+csID+"/commands", commandHref)
 			foundCommandsLink = true
 			break
 		}

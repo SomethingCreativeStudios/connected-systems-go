@@ -94,11 +94,11 @@ func (r *DatastreamRepository) populateSystemAssociations(datastream *domains.Da
 	}
 	systemID := *datastream.SystemID
 
-	// Procedure from SystemKindID FK
+	// Procedure from TypeOfID FK
 	var sys domains.System
-	if err := r.db.Select("id", "system_kind_id").Where("id = ?", systemID).First(&sys).Error; err == nil {
-		if sys.SystemKindID != nil && *sys.SystemKindID != "" {
-			kindID := *sys.SystemKindID
+	if err := r.db.Select("id", "type_of_id").Where("id = ?", systemID).First(&sys).Error; err == nil {
+		if sys.TypeOfID != nil && *sys.TypeOfID != "" {
+			kindID := *sys.TypeOfID
 			datastream.ProcedureLink = &common_shared.Link{Href: "procedures/" + kindID}
 			datastream.ProcedureID = &kindID
 		}

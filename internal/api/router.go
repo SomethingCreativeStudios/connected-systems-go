@@ -63,7 +63,7 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentFormatterCollection)
 	systemHandler := NewSystemHandler(cfg, logger, repos.System, repos.SystemHistory, systemFormatterCollection, repos.Deployment, deploymentFormatterCollection, repos.Procedure, procedureFormatterCollection)
 	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureFormatterCollection)
-	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, samplingFeatureFormatterCollection)
+	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, repos.System, samplingFeatureFormatterCollection)
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertyFormatterCollection)
 	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureFormatterCollection)
 	datastreamHandler := NewDatastreamHandler(cfg, logger, repos.Datastream, datastreamFormatterCollection)

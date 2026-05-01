@@ -18,15 +18,16 @@ import (
 
 // SamplingFeatureHandler handles SamplingFeature resource requests
 type SamplingFeatureHandler struct {
-	cfg    *config.Config
-	logger *zap.Logger
-	repo   *repository.SamplingFeatureRepository
-	fc     *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]
+	cfg       *config.Config
+	logger    *zap.Logger
+	repo      *repository.SamplingFeatureRepository
+	systemRepo *repository.SystemRepository
+	fc        *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]
 }
 
 // NewSamplingFeatureHandler creates a new SamplingFeatureHandler
-func NewSamplingFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SamplingFeatureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]) *SamplingFeatureHandler {
-	return &SamplingFeatureHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
+func NewSamplingFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SamplingFeatureRepository, systemRepo *repository.SystemRepository, fc *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]) *SamplingFeatureHandler {
+	return &SamplingFeatureHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, fc: fc}
 }
 
 func (h *SamplingFeatureHandler) ListSamplingFeatures(w http.ResponseWriter, r *http.Request) {
@@ -112,8 +113,14 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 	// set the ParentSystemID from the URL param so the created sampling feature
 	// is associated with the parent system.
 	if parentID := chi.URLParam(r, "id"); parentID != "" {
+		// Validate the parent system exists before associating
+		if _, err := h.systemRepo.GetByID(parentID); err != nil {
+			h.logger.Error("Parent system not found", zap.String("systemId", parentID), zap.Error(err))
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "System not found"})
+			return
+		}
 		sampledFeature.ParentSystemID = &parentID
-
 	}
 
 	if err := h.repo.Create(sampledFeature); err != nil {
