@@ -73,11 +73,6 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
-	// Ensure delete-reparent trigger for deployments (reparent children to deleted node's parent)
-	if err := EnsureDeleteReparentSupport(db, "deployments", "id", "parent_deployment_id"); err != nil {
-		return err
-	}
-
 	return nil
 }
 

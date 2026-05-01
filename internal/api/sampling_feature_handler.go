@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -160,9 +161,15 @@ func (h *SamplingFeatureHandler) DeleteSamplingFeature(w http.ResponseWriter, r 
 	id := chi.URLParam(r, "id")
 
 	if err := h.repo.Delete(id); err != nil {
-		h.logger.Error("Failed to delete sampling feature", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete sampling feature"})
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Sampling feature not found"})
+		default:
+			h.logger.Error("Failed to delete sampling feature", zap.String("id", id), zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to delete sampling feature"})
+		}
 		return
 	}
 

@@ -132,15 +132,42 @@ func (r *DatastreamRepository) deriveFOIFromSamplingFeature(datastream *domains.
 // Delete deletes a datastream.
 // If cascade is true, all observations associated with the datastream are deleted first.
 func (r *DatastreamRepository) Delete(id string, cascade bool) error {
+	// Always clean join table first to unblock FK constraints.
+	if err := r.db.Exec("DELETE FROM system_datastreams WHERE datastream_id = ?", id).Error; err != nil {
+		return err
+	}
+
 	if !cascade {
-		return r.db.Delete(&domains.Datastream{}, "id = ?", id).Error
+		var obsCount int64
+		if err := r.db.Model(&domains.Observation{}).Where("datastream_id = ?", id).Count(&obsCount).Error; err != nil {
+			return err
+		}
+		if obsCount > 0 {
+			return ErrHasChildren
+		}
+
+		result := r.db.Delete(&domains.Datastream{}, "id = ?", id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
 	}
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("datastream_id = ?", id).Delete(&domains.Observation{}).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&domains.Datastream{}, "id = ?", id).Error
+		result := tx.Delete(&domains.Datastream{}, "id = ?", id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
 	})
 }
 

@@ -1,21 +1,30 @@
 # Routes
 
+## CRUD Resources
+
+- **`/collections/{collectionId}/items`** GET | POST | PUT/:id | DELETE/:id → Item
+- **``** GET/:id | PUT/:id | DELETE/:id
+- **`/systems`** GET | POST | PUT/:id | DELETE/:id → System
+- **`/events`** GET | POST | GET/:id | PUT/:id | DELETE/:id → Event
+- **`/history`** GET | GET/:id | PUT/:id | DELETE/:id → History
+- **`/datastreams`** GET | POST | PUT/:id | DELETE/:id → Datastream
+- **`/controlstreams`** GET | POST | PUT/:id | DELETE/:id → Controlstream
+- **`/commands`** GET | POST | PUT/:id | DELETE/:id → Command
+- **`/observations`** GET | POST | PUT/:id | DELETE/:id → Observation
+- **`/deployments`** GET | POST | PUT/:id | DELETE/:id → Deployment
+- **`/procedures`** GET | POST | PUT/:id | DELETE/:id → Procedure
+- **`/samplingFeatures`** GET | POST | PUT/:id | DELETE/:id → SamplingFeature
+- **`/properties`** GET | POST | PUT/:id | DELETE/:id → Propertie
+- **`/`** GET | POST | PUT/:id | DELETE/:id
+- **`/collections`** GET | POST | GET/:id → Collection
+
+## Other Routes
+
 - `GET` `Location` params()
 - `GET` `Content-Type` params()
 - `GET` `Accept` params()
 - `GET` `cascade` params() [db]
-- `GET` `content-type` params() [db]
-- `GET` `/collections/{collectionId}/items` params(collectionId) [auth, db]
-- `POST` `/collections/{collectionId}/items` params(collectionId) [auth, db]
-- `PUT` `/collections/{collectionId}/items` params(collectionId) [auth, db]
-- `DELETE` `/collections/{collectionId}/items` params(collectionId) [auth, db]
-- `GET` `/{featureId}` params(featureId) [auth, db]
-- `PUT` `/{featureId}` params(featureId) [auth, db]
-- `DELETE` `/{featureId}` params(featureId) [auth, db]
-- `GET` `/systems` params() [auth, db]
-- `POST` `/systems` params() [auth, db]
-- `PUT` `/systems` params() [auth, db]
-- `DELETE` `/systems` params() [auth, db]
+- `GET` `content-type` params() [db] ✓
 - `GET` `/systems/subsystems` params() [auth, db]
 - `POST` `/systems/subsystems` params() [auth, db]
 - `GET` `/systems/deployments` params() [auth, db]
@@ -29,9 +38,6 @@
 - `POST` `/systems/samplingFeatures` params() [auth, db]
 - `POST` `/systems/datastreams` params() [auth, db]
 - `POST` `/systems/controlstreams` params() [auth, db]
-- `GET` `/{id}` params(id) [auth, db]
-- `PUT` `/{id}` params(id) [auth, db]
-- `DELETE` `/{id}` params(id) [auth, db]
 - `GET` `/{id}/subsystems` params(id) [auth, db]
 - `POST` `/{id}/subsystems` params(id) [auth, db]
 - `GET` `/{id}/deployments` params(id) [auth, db]
@@ -45,94 +51,34 @@
 - `POST` `/{id}/samplingFeatures` params(id) [auth, db]
 - `POST` `/{id}/datastreams` params(id) [auth, db]
 - `POST` `/{id}/controlstreams` params(id) [auth, db]
-- `GET` `/events/{eventId}` params(eventId) [auth, db]
-- `PUT` `/events/{eventId}` params(eventId) [auth, db]
-- `DELETE` `/events/{eventId}` params(eventId) [auth, db]
-- `GET` `/history/{revId}` params(revId) [auth, db]
-- `PUT` `/history/{revId}` params(revId) [auth, db]
-- `DELETE` `/history/{revId}` params(revId) [auth, db]
 - `GET` `/systemEvents` params() [auth, db]
-- `GET` `/datastreams` params() [auth, db]
-- `PUT` `/datastreams` params() [auth, db]
-- `DELETE` `/datastreams` params() [auth, db]
 - `GET` `/datastreams/schema` params() [auth, db]
 - `PUT` `/datastreams/schema` params() [auth, db]
 - `GET` `/datastreams/observations` params() [auth, db]
 - `POST` `/datastreams/observations` params() [auth, db]
-- `GET` `/{dataStreamId}` params(dataStreamId) [auth, db]
-- `PUT` `/{dataStreamId}` params(dataStreamId) [auth, db]
-- `DELETE` `/{dataStreamId}` params(dataStreamId) [auth, db]
 - `GET` `/{dataStreamId}/schema` params(dataStreamId) [auth, db]
 - `PUT` `/{dataStreamId}/schema` params(dataStreamId) [auth, db]
 - `GET` `/{dataStreamId}/observations` params(dataStreamId) [auth, db]
 - `POST` `/{dataStreamId}/observations` params(dataStreamId) [auth, db]
-- `GET` `/controlstreams` params() [auth, db]
-- `PUT` `/controlstreams` params() [auth, db]
-- `DELETE` `/controlstreams` params() [auth, db]
 - `GET` `/controlstreams/schema` params() [auth, db]
 - `PUT` `/controlstreams/schema` params() [auth, db]
 - `GET` `/controlstreams/commands` params() [auth, db]
 - `POST` `/controlstreams/commands` params() [auth, db]
-- `GET` `/{controlStreamId}` params(controlStreamId) [auth, db]
-- `PUT` `/{controlStreamId}` params(controlStreamId) [auth, db]
-- `DELETE` `/{controlStreamId}` params(controlStreamId) [auth, db]
 - `GET` `/{controlStreamId}/schema` params(controlStreamId) [auth, db]
 - `PUT` `/{controlStreamId}/schema` params(controlStreamId) [auth, db]
 - `GET` `/{controlStreamId}/commands` params(controlStreamId) [auth, db]
 - `POST` `/{controlStreamId}/commands` params(controlStreamId) [auth, db]
-- `GET` `/commands` params() [auth, db]
-- `PUT` `/commands` params() [auth, db]
-- `DELETE` `/commands` params() [auth, db]
-- `GET` `/{cmdId}` params(cmdId) [auth, db]
-- `PUT` `/{cmdId}` params(cmdId) [auth, db]
-- `DELETE` `/{cmdId}` params(cmdId) [auth, db]
-- `GET` `/observations` params() [auth, db]
-- `PUT` `/observations` params() [auth, db]
-- `DELETE` `/observations` params() [auth, db]
-- `GET` `/{obsId}` params(obsId) [auth, db]
-- `PUT` `/{obsId}` params(obsId) [auth, db]
-- `DELETE` `/{obsId}` params(obsId) [auth, db]
-- `GET` `/deployments` params() [auth, db]
-- `POST` `/deployments` params() [auth, db]
-- `PUT` `/deployments` params() [auth, db]
-- `DELETE` `/deployments` params() [auth, db]
 - `GET` `/deployments/subdeployments` params() [auth, db]
 - `POST` `/deployments/subdeployments` params() [auth, db]
 - `GET` `/{id}/subdeployments` params(id) [auth, db]
 - `POST` `/{id}/subdeployments` params(id) [auth, db]
-- `GET` `/procedures` params() [auth, db]
-- `POST` `/procedures` params() [auth, db]
-- `PUT` `/procedures` params() [auth, db]
-- `DELETE` `/procedures` params() [auth, db]
-- `GET` `/samplingFeatures` params() [auth, db]
-- `PUT` `/samplingFeatures` params() [auth, db]
-- `DELETE` `/samplingFeatures` params() [auth, db]
-- `GET` `/properties` params() [auth, db]
-- `POST` `/properties` params() [auth, db]
-- `PUT` `/properties` params() [auth, db]
-- `DELETE` `/properties` params() [auth, db]
-- `GET` `/` params() [auth, db]
 - `GET` `/conformance` params() [auth, db]
-- `POST` `/collections` params() [auth, db]
-- `GET` `/collections` params() [auth, db]
-- `GET` `/collections/{collectionId}` params(collectionId) [auth, db]
-- `POST` `/` params() [auth, db]
-- `PUT` `/` params() [auth, db]
-- `DELETE` `/` params() [auth, db]
-- `GET` `/subsystems` params() [auth, db]
-- `POST` `/subsystems` params() [auth, db]
-- `GET` `/events` params() [auth, db]
-- `POST` `/events` params() [auth, db]
-- `GET` `/history` params() [auth, db]
-- `POST` `/samplingFeatures` params() [auth, db]
-- `POST` `/datastreams` params() [auth, db]
-- `POST` `/controlstreams` params() [auth, db]
-- `GET` `/schema` params() [auth, db]
-- `PUT` `/schema` params() [auth, db]
-- `POST` `/observations` params() [auth, db]
-- `POST` `/commands` params() [auth, db]
-- `GET` `/subdeployments` params() [auth, db]
-- `POST` `/subdeployments` params() [auth, db]
+- `GET` `/subsystems` params() [auth, db] ✓
+- `POST` `/subsystems` params() [auth, db] ✓
+- `GET` `/schema` params() [auth, db] ✓
+- `PUT` `/schema` params() [auth, db] ✓
+- `GET` `/subdeployments` params() [auth, db] ✓
+- `POST` `/subdeployments` params() [auth, db] ✓
 - `GET` `/api` params() [auth, db]
 - `GET` `recursive` params() [db]
 - `GET` `controlStream` params() [db]
@@ -147,9 +93,9 @@
 - `GET` `dataStream` params() [db]
 - `GET` `baseProperty` params() [db]
 - `GET` `objectType` params() [db]
-- `GET` `limit` params() [db]
-- `GET` `offset` params() [db]
-- `GET` `id` params() [db]
+- `GET` `limit` params() [db] ✓
+- `GET` `offset` params() [db] ✓
+- `GET` `id` params() [db] ✓
 - `GET` `q` params() [db]
 - `GET` `eventType` params() [db]
 - `GET` `keyword` params() [db]

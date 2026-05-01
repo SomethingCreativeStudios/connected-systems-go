@@ -90,7 +90,17 @@ func (r *ProcedureRepository) Update(procedure *domains.Procedure) error {
 
 // Delete deletes a procedure
 func (r *ProcedureRepository) Delete(id string) error {
-	return r.db.Delete(&domains.Procedure{}, "id = ?", id).Error
+	result := r.db.Delete(&domains.Procedure{}, "id = ?", id)
+	if result.Error != nil {
+		if isFKViolation(result.Error) {
+			return ErrHasChildren
+		}
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *ProcedureRepository) applyFilters(query *gorm.DB, params *queryparams.ProceduresQueryParams) *gorm.DB {

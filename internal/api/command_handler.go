@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -179,17 +180,16 @@ func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 func (h *CommandHandler) DeleteCommand(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "cmdId")
 
-	if _, err := h.repo.GetByID(id); err != nil {
-		h.logger.Error("Command not found", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command not found"})
-		return
-	}
-
 	if err := h.repo.Delete(id); err != nil {
-		h.logger.Error("Failed to delete command", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete command"})
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Command not found"})
+		default:
+			h.logger.Error("Failed to delete command", zap.String("id", id), zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to delete command"})
+		}
 		return
 	}
 

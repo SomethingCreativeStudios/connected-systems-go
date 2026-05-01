@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -123,9 +124,15 @@ func (h *PropertyHandler) DeleteProperty(w http.ResponseWriter, r *http.Request)
 	id := chi.URLParam(r, "id")
 
 	if err := h.repo.Delete(id); err != nil {
-		h.logger.Error("Failed to delete property", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete property"})
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Property not found"})
+		default:
+			h.logger.Error("Failed to delete property", zap.String("id", id), zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to delete property"})
+		}
 		return
 	}
 

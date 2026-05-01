@@ -1,30 +1,40 @@
 # connected-systems-go — AI Context Map
 
-> **Stack:** go-net-http, chi | gorm | unknown | go
+> **Stack:** chi | gorm | unknown | go
 
-> 155 routes | 121 models | 0 components | 129 lib files | 14 env vars | 0 middleware | 301 import links
-> **Token savings:** this file is ~15,100 tokens. Without it, AI exploration would cost ~172,300 tokens. **Saves ~157,200 tokens per conversation.**
+> 155 routes | 15 models | 0 components | 113 lib files | 0 env vars | 0 middleware | 38% test coverage
+> **Token savings:** this file is ~10,200 tokens. Without it, AI exploration would cost ~122,800 tokens. **Saves ~112,500 tokens per conversation.**
+> **Last scanned:** 2026-05-01 03:12 — re-run after significant changes
 
 ---
 
 # Routes
 
+## CRUD Resources
+
+- **`/collections/{collectionId}/items`** GET | POST | PUT/:id | DELETE/:id → Item
+- **``** GET/:id | PUT/:id | DELETE/:id
+- **`/systems`** GET | POST | PUT/:id | DELETE/:id → System
+- **`/events`** GET | POST | GET/:id | PUT/:id | DELETE/:id → Event
+- **`/history`** GET | GET/:id | PUT/:id | DELETE/:id → History
+- **`/datastreams`** GET | POST | PUT/:id | DELETE/:id → Datastream
+- **`/controlstreams`** GET | POST | PUT/:id | DELETE/:id → Controlstream
+- **`/commands`** GET | POST | PUT/:id | DELETE/:id → Command
+- **`/observations`** GET | POST | PUT/:id | DELETE/:id → Observation
+- **`/deployments`** GET | POST | PUT/:id | DELETE/:id → Deployment
+- **`/procedures`** GET | POST | PUT/:id | DELETE/:id → Procedure
+- **`/samplingFeatures`** GET | POST | PUT/:id | DELETE/:id → SamplingFeature
+- **`/properties`** GET | POST | PUT/:id | DELETE/:id → Propertie
+- **`/`** GET | POST | PUT/:id | DELETE/:id
+- **`/collections`** GET | POST | GET/:id → Collection
+
+## Other Routes
+
 - `GET` `Location` params()
 - `GET` `Content-Type` params()
 - `GET` `Accept` params()
 - `GET` `cascade` params() [db]
-- `GET` `content-type` params() [db]
-- `GET` `/collections/{collectionId}/items` params(collectionId) [auth, db]
-- `POST` `/collections/{collectionId}/items` params(collectionId) [auth, db]
-- `PUT` `/collections/{collectionId}/items` params(collectionId) [auth, db]
-- `DELETE` `/collections/{collectionId}/items` params(collectionId) [auth, db]
-- `GET` `/{featureId}` params(featureId) [auth, db]
-- `PUT` `/{featureId}` params(featureId) [auth, db]
-- `DELETE` `/{featureId}` params(featureId) [auth, db]
-- `GET` `/systems` params() [auth, db]
-- `POST` `/systems` params() [auth, db]
-- `PUT` `/systems` params() [auth, db]
-- `DELETE` `/systems` params() [auth, db]
+- `GET` `content-type` params() [db] ✓
 - `GET` `/systems/subsystems` params() [auth, db]
 - `POST` `/systems/subsystems` params() [auth, db]
 - `GET` `/systems/deployments` params() [auth, db]
@@ -38,9 +48,6 @@
 - `POST` `/systems/samplingFeatures` params() [auth, db]
 - `POST` `/systems/datastreams` params() [auth, db]
 - `POST` `/systems/controlstreams` params() [auth, db]
-- `GET` `/{id}` params(id) [auth, db]
-- `PUT` `/{id}` params(id) [auth, db]
-- `DELETE` `/{id}` params(id) [auth, db]
 - `GET` `/{id}/subsystems` params(id) [auth, db]
 - `POST` `/{id}/subsystems` params(id) [auth, db]
 - `GET` `/{id}/deployments` params(id) [auth, db]
@@ -54,94 +61,34 @@
 - `POST` `/{id}/samplingFeatures` params(id) [auth, db]
 - `POST` `/{id}/datastreams` params(id) [auth, db]
 - `POST` `/{id}/controlstreams` params(id) [auth, db]
-- `GET` `/events/{eventId}` params(eventId) [auth, db]
-- `PUT` `/events/{eventId}` params(eventId) [auth, db]
-- `DELETE` `/events/{eventId}` params(eventId) [auth, db]
-- `GET` `/history/{revId}` params(revId) [auth, db]
-- `PUT` `/history/{revId}` params(revId) [auth, db]
-- `DELETE` `/history/{revId}` params(revId) [auth, db]
 - `GET` `/systemEvents` params() [auth, db]
-- `GET` `/datastreams` params() [auth, db]
-- `PUT` `/datastreams` params() [auth, db]
-- `DELETE` `/datastreams` params() [auth, db]
 - `GET` `/datastreams/schema` params() [auth, db]
 - `PUT` `/datastreams/schema` params() [auth, db]
 - `GET` `/datastreams/observations` params() [auth, db]
 - `POST` `/datastreams/observations` params() [auth, db]
-- `GET` `/{dataStreamId}` params(dataStreamId) [auth, db]
-- `PUT` `/{dataStreamId}` params(dataStreamId) [auth, db]
-- `DELETE` `/{dataStreamId}` params(dataStreamId) [auth, db]
 - `GET` `/{dataStreamId}/schema` params(dataStreamId) [auth, db]
 - `PUT` `/{dataStreamId}/schema` params(dataStreamId) [auth, db]
 - `GET` `/{dataStreamId}/observations` params(dataStreamId) [auth, db]
 - `POST` `/{dataStreamId}/observations` params(dataStreamId) [auth, db]
-- `GET` `/controlstreams` params() [auth, db]
-- `PUT` `/controlstreams` params() [auth, db]
-- `DELETE` `/controlstreams` params() [auth, db]
 - `GET` `/controlstreams/schema` params() [auth, db]
 - `PUT` `/controlstreams/schema` params() [auth, db]
 - `GET` `/controlstreams/commands` params() [auth, db]
 - `POST` `/controlstreams/commands` params() [auth, db]
-- `GET` `/{controlStreamId}` params(controlStreamId) [auth, db]
-- `PUT` `/{controlStreamId}` params(controlStreamId) [auth, db]
-- `DELETE` `/{controlStreamId}` params(controlStreamId) [auth, db]
 - `GET` `/{controlStreamId}/schema` params(controlStreamId) [auth, db]
 - `PUT` `/{controlStreamId}/schema` params(controlStreamId) [auth, db]
 - `GET` `/{controlStreamId}/commands` params(controlStreamId) [auth, db]
 - `POST` `/{controlStreamId}/commands` params(controlStreamId) [auth, db]
-- `GET` `/commands` params() [auth, db]
-- `PUT` `/commands` params() [auth, db]
-- `DELETE` `/commands` params() [auth, db]
-- `GET` `/{cmdId}` params(cmdId) [auth, db]
-- `PUT` `/{cmdId}` params(cmdId) [auth, db]
-- `DELETE` `/{cmdId}` params(cmdId) [auth, db]
-- `GET` `/observations` params() [auth, db]
-- `PUT` `/observations` params() [auth, db]
-- `DELETE` `/observations` params() [auth, db]
-- `GET` `/{obsId}` params(obsId) [auth, db]
-- `PUT` `/{obsId}` params(obsId) [auth, db]
-- `DELETE` `/{obsId}` params(obsId) [auth, db]
-- `GET` `/deployments` params() [auth, db]
-- `POST` `/deployments` params() [auth, db]
-- `PUT` `/deployments` params() [auth, db]
-- `DELETE` `/deployments` params() [auth, db]
 - `GET` `/deployments/subdeployments` params() [auth, db]
 - `POST` `/deployments/subdeployments` params() [auth, db]
 - `GET` `/{id}/subdeployments` params(id) [auth, db]
 - `POST` `/{id}/subdeployments` params(id) [auth, db]
-- `GET` `/procedures` params() [auth, db]
-- `POST` `/procedures` params() [auth, db]
-- `PUT` `/procedures` params() [auth, db]
-- `DELETE` `/procedures` params() [auth, db]
-- `GET` `/samplingFeatures` params() [auth, db]
-- `PUT` `/samplingFeatures` params() [auth, db]
-- `DELETE` `/samplingFeatures` params() [auth, db]
-- `GET` `/properties` params() [auth, db]
-- `POST` `/properties` params() [auth, db]
-- `PUT` `/properties` params() [auth, db]
-- `DELETE` `/properties` params() [auth, db]
-- `GET` `/` params() [auth, db]
 - `GET` `/conformance` params() [auth, db]
-- `POST` `/collections` params() [auth, db]
-- `GET` `/collections` params() [auth, db]
-- `GET` `/collections/{collectionId}` params(collectionId) [auth, db]
-- `POST` `/` params() [auth, db]
-- `PUT` `/` params() [auth, db]
-- `DELETE` `/` params() [auth, db]
-- `GET` `/subsystems` params() [auth, db]
-- `POST` `/subsystems` params() [auth, db]
-- `GET` `/events` params() [auth, db]
-- `POST` `/events` params() [auth, db]
-- `GET` `/history` params() [auth, db]
-- `POST` `/samplingFeatures` params() [auth, db]
-- `POST` `/datastreams` params() [auth, db]
-- `POST` `/controlstreams` params() [auth, db]
-- `GET` `/schema` params() [auth, db]
-- `PUT` `/schema` params() [auth, db]
-- `POST` `/observations` params() [auth, db]
-- `POST` `/commands` params() [auth, db]
-- `GET` `/subdeployments` params() [auth, db]
-- `POST` `/subdeployments` params() [auth, db]
+- `GET` `/subsystems` params() [auth, db] ✓
+- `POST` `/subsystems` params() [auth, db] ✓
+- `GET` `/schema` params() [auth, db] ✓
+- `PUT` `/schema` params() [auth, db] ✓
+- `GET` `/subdeployments` params() [auth, db] ✓
+- `POST` `/subdeployments` params() [auth, db] ✓
 - `GET` `/api` params() [auth, db]
 - `GET` `recursive` params() [db]
 - `GET` `controlStream` params() [db]
@@ -156,9 +103,9 @@
 - `GET` `dataStream` params() [db]
 - `GET` `baseProperty` params() [db]
 - `GET` `objectType` params() [db]
-- `GET` `limit` params() [db]
-- `GET` `offset` params() [db]
-- `GET` `id` params() [db]
+- `GET` `limit` params() [db] ✓
+- `GET` `offset` params() [db] ✓
+- `GET` `id` params() [db] ✓
 - `GET` `q` params() [db]
 - `GET` `eventType` params() [db]
 - `GET` `keyword` params() [db]
@@ -168,350 +115,6 @@
 ---
 
 # Schema
-
-### collectionsResponse
-- Links: common_shared.Links
-- Collections: []*domains.Collection
-- NumberMatched: int
-- NumberReturned: int
-
-### CommandCollectionResponse
-- Items: []any
-- Links: common_shared.Links
-
-### ControlStreamCollectionResponse
-- Items: []any
-- Links: common_shared.Links
-
-### DatastreamCollectionResponse
-- Items: []any
-- Links: common_shared.Links
-
-### ObservationCollectionResponse
-- Items: []any
-- Links: common_shared.Links
-
-### SystemEventCollectionResponse
-- Items: []any
-- Links: common_shared.Links
-
-### CollectionMetadata
-- ID: string
-- Title: string
-- Description: string
-- Links: common_shared.Links
-- ItemType: string
-- FeatureType: string
-- CRS: []string
-- _relations_: Extent: Extent
-
-### SpatialExtent
-- Bbox: [][]float64
-- CRS: string
-
-### TemporalExtent
-- Interval: [][]string
-- TRS: string
-
-### LandingPage
-- Title: string
-- Description: string
-- Links: common_shared.Links
-
-### ConformanceDeclaration
-- ConformsTo: []string
-
-### CapabilityGroup
-- ID: string
-- Label: string
-- Description: string
-- Definition: string
-- Conditions: []ComponentWrapper
-- Capabilities: []ComponentWrapper
-
-### CharacteristicGroup
-- ID: string
-- Label: string
-- Description: string
-- Definition: string
-- Conditions: []ComponentWrapper
-- Characteristics: []ComponentWrapper
-
-### ComponentWrapper
-- Type: string
-- Definition: string
-- Label: string
-- ReferenceFrame: string
-- AxisID: string
-- LocalFrame: string
-- Updatable: *bool
-- Optional: *bool
-- UOM: json.RawMessage
-- Constraint: json.RawMessage
-- NilValues: json.RawMessage
-- Value: json.RawMessage
-- Component: Component
-- Raw: json.RawMessage
-
-### BooleanComponent
-- Type: string
-- Definition: string
-- Label: string
-- Value: bool
-
-### CountComponent
-- Type: string
-- Definition: string
-- Label: string
-- Value: int
-
-### QuantityComponent
-- Type: string
-- Definition: string
-- Label: string
-- UOM: json.RawMessage
-- Value: json.RawMessage
-
-### TimeComponent
-- Type: string
-- Definition: string
-- Label: string
-- UOM: json.RawMessage
-- Value: json.RawMessage
-
-### CategoryComponent
-- Type: string
-- Definition: string
-- Label: string
-- Value: string
-
-### TextComponent
-- Type: string
-- Definition: string
-- Label: string
-- Value: string
-
-### CountRangeComponent
-- Type: string
-- Definition: string
-- Label: string
-- Value: []int
-
-### QuantityRangeComponent
-- Type: string
-- Definition: string
-- Label: string
-- UOM: json.RawMessage
-- Value: []json.RawMessage
-
-### TimeRangeComponent
-- Type: string
-- Definition: string
-- Label: string
-- UOM: json.RawMessage
-- Value: []json.RawMessage
-
-### VectorComponent
-- Type: string
-- Definition: string
-- Label: string
-- ReferenceFrame: string
-- LocalFrame: string
-- Coordinates: json.RawMessage
-
-### ArrayComponent
-- Type: string
-- Definition: string
-- Label: string
-- ElementCount: int
-- Coordinates: json.RawMessage
-
-### CodeList
-- CodeSpace: string
-- Value: string
-
-### ConfigurationSettings
-- SetValues: []SetValue
-- SetArrayValues: []SetArrayValue
-- SetModes: []SetMode
-- SetConstraints: []Constraint
-- SetStatus: []SetStatus
-
-### SetValue
-- Ref: string
-- Value: interface
-
-### SetArrayValue
-- Ref: string
-- Value: []interface
-
-### SetMode
-- Ref: string
-- Value: string
-
-### AllowedTokens
-- Type: string
-- Values: []string
-- Pattern: string
-
-### ValueItem
-- Number: *float64
-- String: *string
-
-### AllowedValues
-- Type: string
-- Values: []ValueItem
-- Intervals: [][]ValueItem
-- SignificantFigures: *int
-
-### AllowedTimes
-- Type: string
-- Values: []string
-- Intervals: [][]string
-- SignificantFigures: *int
-
-### Constraint
-- Type: string
-- Ref: string
-- _relations_: Tokens: AllowedTokens, Values: AllowedValues, Times: AllowedTimes
-
-### SetStatus
-- Ref: string
-- Value: string
-
-### ContactInfo
-- Website: string
-- HoursOfService: string
-- ContactInstructions: string
-- _relations_: Phone: Phone, Address: Address
-
-### Phone
-- Voice: string
-- Facsimile: string
-
-### Address
-- DeliveryPoint: string
-- City: string
-- AdministrativeArea: string
-- PostalCode: string
-- Country: string
-- ElectronicMailAddress: string
-
-### ContactPersonOrg
-- IndividualName: string
-- OrganisationName: string
-- PositionName: string
-- Role: string
-- _relations_: ContactInfo: ContactInfo
-
-### ContactLink
-- Role: string
-- Name: string
-- Link: Link
-
-### ContactWrapper
-- Raw: json.RawMessage
-- _relations_: Person: ContactPersonOrg, LinkRef: ContactLink
-
-### Document
-- Role: string
-- Name: string
-- Description: string
-- Link: Link
-
-### Geometry
-- Type: string
-- Coordinates: interface
-
-### HistoryTime
-- Instant: *time.Time
-- _relations_: Range: TimeRange
-
-### HistoryEvent
-- ID: string
-- Label: string
-- Description: string
-- Definition: string
-- Identifiers: []Term
-- Classifiers: []Term
-- Contacts: []ContactWrapper
-- Documentation: Documents
-- Time: HistoryTime
-- Properties: []ComponentWrapper
-- Configuration: json.RawMessage
-
-### ObservablePropertyInline
-- Type: string
-- Definition: string
-- Label: string
-
-### IOItem
-- Raw: json.RawMessage
-- _relations_: Component: ComponentWrapper, Observable: ObservablePropertyInline
-
-### JSONFeature
-- ID: string
-
-### LegalConstraint
-- AccessConstraints: CodeLists
-- UseConstraints: CodeLists
-- OtherConstraints: Terms
-- UserLimitations: *string
-
-### Link
-- Href: string
-- Rel: string
-- Type: string
-- Title: string
-- UID: *string
-
-### Method
-- Algorithm: string
-- Description: string
-
-### Point
-- Type: string
-- Coordinates: []float64
-
-### SecurityConstraint
-- Type: string
-- Extra: map[string]interface
-
-### Axis
-- Name: string
-- Description: string
-
-### SpatialFrame
-- ID: string
-- Label: string
-- Description: string
-- Origin: string
-- Axes: []Axis
-
-### TemporalFrame
-- ID: string
-- Label: string
-- Description: string
-- Origin: string
-
-### Term
-- Definition: string
-- Label: string
-- CodeSpace: string
-- Value: string
-
-### TimeRange
-- Start: *time.Time
-- End: *time.Time
-
-### Collection
-- ID: string (pk)
-- Title: string
-- Description: string
-- Links: common_shared.Links
-- Extent: *common_shared.Extent
-- ItemType: string (default)
-- CRS: []string
 
 ### Command
 - ControlStreamID: string (required, index)
@@ -555,16 +158,9 @@
 - Systems: []System
 - _relations_: ControlledProperties: ControlStreamControlledProperties, Schema: ControlStreamSchema
 
-### ControlStreamControlledProperty
-- Definition: string
-- Label: string
-- Description: string
-
-### ControlStreamSchema
-- CommandFormat: string
-- _relations_: ParametersSchema: DatastreamDataComponent, ResultSchema: DatastreamDataComponent, FeasibilityResultSchema: DatastreamDataComponent, RecordSchema: DatastreamDataComponent, Encoding: DatastreamEncoding
-
 ### Datastream
+- Name: string (required)
+- Description: string
 - ValidTime: *common_shared.TimeRange
 - Formats: common_shared.StringArray
 - SystemLink: *common_shared.Link
@@ -589,94 +185,6 @@
 - Systems: []System
 - _relations_: ObservedProperties: DatastreamObservedProperties, Schema: DatastreamSchema
 
-### DatastreamObservedProperty
-- Definition: string
-- Label: string
-- Description: string
-
-### DatastreamSchema
-- ObsFormat: string
-- Any: common_shared.Properties
-- _relations_: ParametersSchema: DatastreamDataComponent, ResultSchema: DatastreamDataComponent, ResultLink: DatastreamResultLink, RecordSchema: DatastreamDataComponent, Encoding: DatastreamEncoding, MessageSchema: DatastreamMessageSchema
-
-### DatastreamResultLink
-- MediaType: string
-
-### DatastreamMessageSchema
-- Inline: *string
-- Link: *common_shared.Link
-
-### DatastreamEncoding
-- Type: string
-- CollapseWhiteSpaces: *bool
-- DecimalSeparator: string
-- TokenSeparator: string
-- BlockSeparator: string
-- RecordsAsArrays: *bool
-- VectorsAsArrays: *bool
-- ByteOrder: string
-- ByteEncoding: string
-- ByteLength: *int
-- Members: []DatastreamBinaryMember
-- Extensions: common_shared.Properties
-
-### DatastreamBinaryMember
-- Ref: string
-- Compression: string
-- Encryption: string
-- DataType: string
-- ByteLength: *int
-- ByteOrder: string
-- Extensions: common_shared.Properties
-
-### DatastreamDataComponent
-- ID: string
-- Name: string
-- Type: string
-- Label: string
-- Description: string
-- Definition: string
-- Updatable: *bool
-- Optional: *bool
-- ReferenceFrame: string
-- LocalFrame: string
-- AxisID: string
-- CodeSpace: string
-- NilValues: []DatastreamNilValue
-- Value: json.RawMessage
-- Fields: []DatastreamNamedComponent
-- Coordinates: []DatastreamNamedComponent
-- Items: []DatastreamNamedComponent
-- Values: json.RawMessage
-- SRS: string
-- Extensions: common_shared.Properties
-- _relations_: UOM: DatastreamUOM, Constraint: DatastreamConstraint, ElementCount: DatastreamElementCount, ElementType: DatastreamNamedComponent, Encoding: DatastreamEncoding, ChoiceValue: DatastreamDataComponent
-
-### DatastreamNamedComponent
-- Name: string
-
-### DatastreamElementCount
-- Fixed: *int
-- _relations_: Component: DatastreamDataComponent
-
-### DatastreamUOM
-- Label: string
-- Symbol: string
-- Code: string
-- Href: string
-
-### DatastreamConstraint
-- Type: string
-- Values: json.RawMessage
-- Intervals: json.RawMessage
-- Pattern: string
-- SignificantFigures: *int
-- Extensions: common_shared.Properties
-
-### DatastreamNilValue
-- Reason: string
-- Value: json.RawMessage
-
 ### Deployment
 - DeploymentType: string
 - ValidTime: *common_shared.TimeRange
@@ -699,53 +207,6 @@
 - Links: common_shared.Links
 - _relations_: Platform: DeployedSystemItem
 
-### DeploymentGeoJSONFeature
-- Type: string
-- ID: string
-- Geometry: *common_shared.GoGeom
-- Properties: DeploymentGeoJSONProperties
-- Links: common_shared.Links
-
-### DeploymentGeoJSONProperties
-- UID: UniqueID
-- Name: string
-- Description: string
-- FeatureType: string
-- ValidTime: *common_shared.TimeRange
-- Definition: string
-- Platform: *common_shared.Link
-- DeployedSystems: common_shared.Links
-
-### DeployedSystemItem
-- Name: string
-- Description: string
-- System: common_shared.Link
-- Configuration: common_shared.ConfigurationSettings
-
-### DeploymentSensorMLFeature
-- ID: string
-- Type: string
-- Label: string
-- Description: string
-- UniqueID: string
-- Definition: string
-- ValidTime: *common_shared.TimeRange
-- Location: *common_shared.GoGeom
-- DeployedSystems: []DeployedSystemItem
-- Links: common_shared.Links
-- Lang: *string
-- Keywords: []string
-- Identifiers: common_shared.Terms
-- Classifiers: common_shared.Terms
-- SecurityConstraints: common_shared.SecurityConstraints
-- LegalConstraints: common_shared.LegalConstraints
-- Characteristics: []common_shared.CharacteristicGroup
-- Capabilities: []common_shared.CapabilityGroup
-- Contacts: []common_shared.ContactWrapper
-- Documentation: common_shared.Documents
-- History: common_shared.History
-- _relations_: Platform: DeployedSystemItem
-
 ### DeploymentClosure
 - AncestorID: string (required, index)
 - DescendantID: string (required, index)
@@ -758,13 +219,6 @@
 - Geometry: *common_shared.GoGeom
 - Links: common_shared.Links
 - Properties: common_shared.Properties
-
-### FeatureGeoJSONFeature
-- Type: string
-- ID: string
-- Geometry: *common_shared.GoGeom
-- Properties: map[string]interface
-- Links: common_shared.Links
 
 ### Observation
 - DatastreamID: string (required, index)
@@ -810,55 +264,6 @@
 - ValidTime: *common_shared.TimeRange
 - Systems: []System
 
-### ProcedureGeoJSONFeature
-- Type: string
-- ID: string
-- Geometry: *common_shared.GoGeom
-- Properties: ProcedureGeoJSONProperties
-- Links: common_shared.Links
-
-### ProcedureGeoJSONProperties
-- UID: UniqueID
-- Name: string
-- Description: string
-- FeatureType: string
-- ValidTime: *common_shared.TimeRange
-
-### ProcedureSensorMLFeature
-- ID: string
-- Type: string
-- Label: string
-- Description: string
-- UniqueID: string
-- Definition: string
-- Lang: *string
-- Keywords: []string
-- Identifiers: common_shared.Terms
-- Classifiers: common_shared.Terms
-- SecurityConstraints: common_shared.SecurityConstraints
-- LegalConstraints: common_shared.LegalConstraints
-- Characteristics: []common_shared.CharacteristicGroup
-- Capabilities: []common_shared.CapabilityGroup
-- Contacts: []common_shared.ContactWrapper
-- Documentation: common_shared.Documents
-- History: common_shared.History
-- TypeOf: *common_shared.Link
-- Configuration: json.RawMessage
-- FeaturesOfInterest: common_shared.Links
-- Inputs: common_shared.IOList
-- Outputs: common_shared.IOList
-- Parameters: common_shared.IOList
-- Modes: json.RawMessage
-- Method: common_shared.Method
-- Components: json.RawMessage
-- Connections: json.RawMessage
-- AttachedTo: *common_shared.Link
-- LocalReferenceFrames: []common_shared.SpatialFrame
-- LocalTimeFrames: []common_shared.TemporalFrame
-- Position: json.RawMessage
-- ValidTime: *common_shared.TimeRange
-- Links: common_shared.Links
-
 ### Property
 - Definition: string
 - PropertyType: string
@@ -869,36 +274,6 @@
 - UnitOfMeasurement: *string
 - Links: common_shared.Links
 - Properties: common_shared.Properties
-
-### PropertySensorMLFeature
-- ID: string
-- Label: string
-- Description: string
-- UniqueID: string
-- BaseProperty: *string
-- ObjectType: *string
-- Statistic: *string
-- Qualifiers: common_shared.ComponentWrappers
-- Links: common_shared.Links
-
-### PropertyGeoJSONFeature
-- Type: string
-- ID: string
-- Geometry: interface
-- Properties: PropertyGeoJSONProperties
-- Links: common_shared.Links
-
-### PropertyGeoJSONProperties
-- UID: UniqueID
-- Name: string
-- Description: string
-- Definition: string
-- PropertyType: string
-- BaseProperty: *string
-- ObjectType: *string
-- Statistic: *string
-- Qualifiers: common_shared.ComponentWrappers
-- UnitOfMeasurement: *string
 
 ### SamplingFeature
 - FeatureType: string
@@ -914,33 +289,6 @@
 - SampleOf: *common_shared.Links
 - Links: common_shared.Links
 - Properties: common_shared.Properties
-
-### SamplingFeatureGeoJSONFeature
-- Type: string
-- ID: string
-- Geometry: *common_shared.GoGeom
-- Properties: SamplingFeatureGeoJSONProperties
-- Links: common_shared.Links
-
-### SamplingFeatureGeoJSONProperties
-- UID: UniqueID
-- Name: string
-- Description: string
-- FeatureType: string
-- ValidTime: *common_shared.TimeRange
-- SampledFeatureLink: *common_shared.Link
-
-### SamplingFeatureSensorMLFeature
-- ID: string
-- Type: string
-- Label: string
-- Description: string
-- UniqueID: string
-- Definition: string
-- ValidTime: *common_shared.TimeRange
-- SampledFeatureLink: *common_shared.Link
-- SampleOf: *common_shared.Links
-- Links: common_shared.Links
 
 ### System
 - SystemType: string (required)
@@ -978,69 +326,6 @@
 - Datastreams: []Datastream
 - Controlstreams: []ControlStream
 
-### SystemGeoJSONFeature
-- Type: string
-- ID: string
-- Geometry: *common_shared.GoGeom
-- Properties: SystemGeoJSONProperties
-- Links: common_shared.Links
-
-### SystemGeoJSONProperties
-- UID: UniqueID
-- Name: string
-- Description: string
-- FeatureType: string
-- AssetType: *string
-- SMLType: *string
-- ValidTime: *common_shared.TimeRange
-- SystemKind: *common_shared.Link
-- Lang: *string
-- Keywords: []string
-- Identifiers: common_shared.Terms
-- Classifiers: common_shared.Terms
-- Contacts: []common_shared.ContactWrapper
-- Documentation: common_shared.Documents
-- History: common_shared.History
-- Configuration: json.RawMessage
-- FeaturesOfInterest: common_shared.Links
-- Inputs: common_shared.IOList
-- Outputs: common_shared.IOList
-- Parameters: common_shared.IOList
-- Modes: json.RawMessage
-- LocalReferenceFrames: []common_shared.SpatialFrame
-- LocalTimeFrames: []common_shared.TemporalFrame
-- Position: json.RawMessage
-
-### SystemSensorMLFeature
-- ID: string
-- Type: string
-- Label: string
-- Description: string
-- UniqueID: string
-- ValidTime: *common_shared.TimeRange
-- Lang: *string
-- Keywords: []string
-- Identifiers: common_shared.Terms
-- Classifiers: common_shared.Terms
-- SecurityConstraints: common_shared.SecurityConstraints
-- LegalConstraints: common_shared.LegalConstraints
-- Contacts: []common_shared.ContactWrapper
-- Documentation: common_shared.Documents
-- History: common_shared.History
-- Definition: string
-- TypeOf: *common_shared.Link
-- Configuration: json.RawMessage
-- FeaturesOfInterest: common_shared.Links
-- Inputs: common_shared.IOList
-- Outputs: common_shared.IOList
-- Parameters: common_shared.IOList
-- Modes: json.RawMessage
-- Position: json.RawMessage
-- AttachedTo: *common_shared.Link
-- LocalReferenceFrames: []common_shared.SpatialFrame
-- LocalTimeFrames: []common_shared.TemporalFrame
-- Links: common_shared.Links
-
 ### SystemEvent
 - SystemID: string (required, index)
 - Definition: string
@@ -1062,183 +347,10 @@
 - Snapshot: json.RawMessage (required)
 - ValidTime: *common_shared.TimeRange
 
-### AnyFeatureCollection
-- Type: string
-- Features: []any
-- NumberMatched: *int
-- NumberReturned: int
-- Links: common_shared.Links
-
-### FeatureQueryParams
-- BBox: []float64
-- CollectionID: string
-- _relations_: DateTime: TimeFilter
-
-### TimeFilter
-- Start: *time.Time
-- End: *time.Time
-
-### link
-- Href: string
-- Rel: string
-- Type: string
-- Title: string
-
-### systemProperties
-- UID: string
-- Name: string
-- Description: string
-- FeatureType: string
-- AssetType: string
-- Keywords: []string
-
-### geoFeaturePayload
-- Type: string
-- Properties: systemProperties
-- Geometry: map[string]any
-- Links: []link
-
-### systemsFeatureCollection
-- Features: []struct
-- ID: string
-- Properties: struct
-- UID: string
-
-### controlStreamCollection
-- Items: []struct
-- ID: string
-- UID: string
-- Name: string
-
-### controlStreamPayload
-- UID: string
-- Name: string
-- Description: string
-- SystemLink: *link
-- InputName: string
-- Type: string
-- Formats: []string
-- ControlledProperties: []map[string]string
-- Schema: map[string]any
-- Links: []map[string]interface
-
-### datastreamCollection
-- Items: []struct
-- ID: string
-- UID: string
-
-### commandCollection
-- Items: []commandResource
-
-### commandResource
-- ID: string
-- ControlStreamID: string
-- SamplingFeatureID: string
-- ProcedureLink: *link
-- IssueTime: string
-- ExecutionTime: []string
-- Sender: string
-- CurrentStatus: string
-- Parameters: json.RawMessage
-
-### continuousMoveCommand
-- PanVelocity: float64
-- TiltVelocity: float64
-- ZoomVelocity: float64
-- TimeoutSec: *float64
-
-### absoluteMoveCommand
-- Pan: *float64
-- Tilt: *float64
-- Zoom: *float64
-- Speed: *float64
-
-### presetCommand
-- Action: string
-- PresetToken: string
-- PresetName: string
-- Speed: *float64
-
 ---
 
 # Libraries
 
-- `cs-api-client/src/client.ts`
-  - class CsApiClient
-  - interface ClientOptions
-  - interface CollectionResponse
-- `cs-api-client/src/codecs/deployment.ts`
-  - function decodeDeploymentGeoJSON: (feature) => Deployment
-  - function encodeDeploymentGeoJSON: (deployment) => GeoJsonFeature<DeploymentGeoJSONProperties>
-  - function decodeDeploymentSensorML: (data) => Deployment
-  - function encodeDeploymentSensorML: (deployment) => SensorMLDeployment
-- `cs-api-client/src/codecs/procedure.ts`
-  - function decodeProcedureGeoJSON: (feature) => Procedure
-  - function encodeProcedureGeoJSON: (procedure) => GeoJsonFeature<ProcedureGeoJSONProperties>
-  - function decodeProcedureSensorML: (data) => Procedure
-  - function encodeProcedureSensorML: (procedure) => SensorMLProcedure
-- `cs-api-client/src/codecs/property.ts`
-  - function decodePropertyGeoJSON: (feature) => Property
-  - function encodePropertyGeoJSON: (property) => GeoJsonFeature<PropertyGeoJSONProperties>
-  - function decodePropertySensorML: (data) => Property
-  - function encodePropertySensorML: (property) => SensorMLProperty
-- `cs-api-client/src/codecs/sampling-feature.ts`
-  - function decodeSamplingFeatureGeoJSON: (feature) => SamplingFeature
-  - function encodeSamplingFeatureGeoJSON: (sf) => GeoJsonFeature<SamplingFeatureGeoJSONProperties>
-  - function decodeSamplingFeatureSensorML: (data) => SamplingFeature
-  - function encodeSamplingFeatureSensorML: (sf) => SensorMLSamplingFeature
-- `cs-api-client/src/codecs/system.ts`
-  - function decodeSystemGeoJSON: (feature) => System
-  - function encodeSystemGeoJSON: (system) => GeoJsonFeature<SystemGeoJSONProperties>
-  - function decodeSystemSensorML: (data) => System
-  - function encodeSystemSensorML: (system) => SensorMLSystem
-- `cs-api-client/src/codecs/utils.ts` — function omitEmpty: (obj) => T
-- `cs-api-client/src/content-types.ts`
-  - function normalizeContentType: (value) => string
-  - function isGeoJSONContentType: (value) => boolean
-  - function isSensorMLContentType: (value) => boolean
-  - function isJSONContentType: (value) => boolean
-  - type ContentType
-  - const CONTENT_TYPES
-- `cs-api-client/src/errors.ts` — class CsApiError
-- `cs-api-client/src/http.ts`
-  - function setAuthHeader: (value) => void
-  - function getAuthHeader: () => string
-  - class HttpClient
-  - interface HttpClientOptions
-  - interface RequestOptions
-  - interface HttpResponse
-- `cs-api-client/src/util.ts`
-  - function toOptionalString: (value) => string | undefined
-  - function deepClone: (value) => T
-  - function ensureArray: (value) => T[]
-  - interface JsonObject
-  - type JsonPrimitive
-  - type JsonValue
-- `cs-api-viewer/src/schema-components/geometry-editor/composable/useGeometry.ts`
-  - function defaultCoordsForType: (type) => unknown
-  - function coordsEqual: (a, b) => boolean
-  - function mapHint: (type) => string | null
-  - function useGeometry: (props) => void
-  - interface UseGeometryProps
-  - const GEOMETRY_TYPES
-- `cs-api-viewer/src/schema-components/required-fields.ts` — function checkRequiredFields: (resourceKey, data) => boolean
-- `cs-api-viewer/src/schema-components/schema-context.ts`
-  - function apiFetch: (url, init?) => Promise<Response>
-  - const schemaApiBase
-  - const schemaCurrentResourceId
-  - const schemaNavigateTo
-  - const schemaOpenFeatureTab
-  - const schemaBuildSystemFromProcedure
-  - _...1 more_
-- `cs-api-viewer/src/schema-components/utils.ts`
-  - function defaultArrayItem: (value, path) => unknown
-  - function normalizeKey: (key) => string
-  - function matchesKey: (normalizedKey, expected) => boolean
-  - function humanizeKey: (key) => string
-  - function formatPrimitive: (value) => string
-  - function readString: (value) => string | undefined
-  - _...16 more_
 - `e2e/schema_validator.go`
   - function GetSchemaValidator: () *SchemaValidator
   - function NewSchemaValidator: () *SchemaValidator
@@ -1519,36 +631,16 @@
   - function PtrTime: (t time.Time) *time.Time
   - function PtrStr: (s string) *string
   - _...13 more_
-- `ptz-test/webapp/src/api.js` — function createApi: (baseUrl) => void
 
 ---
 
 # Config
 
-## Environment Variables
-
-- `CS_API_BASE_URL` **required** — ptz-test/main.go
-- `ONVIF_PASSWORD` **required** — ptz-test/main.go
-- `ONVIF_PROFILE_TOKEN` **required** — ptz-test/main.go
-- `ONVIF_SNAPSHOT_PROFILE_TOKEN` **required** — ptz-test/main.go
-- `ONVIF_USERNAME` **required** — ptz-test/main.go
-- `ONVIF_XADDR` **required** — ptz-test/main.go
-- `PTZ_DISCOVER` **required** — ptz-test/main.go
-- `PTZ_DISCOVER_INTERFACE` **required** — ptz-test/main.go
-- `PTZ_POLL_INTERVAL_SEC` **required** — ptz-test/main.go
-- `PTZ_REDISCOVER_INTERVAL_SEC` **required** — ptz-test/main.go
-- `PTZ_SNAPSHOT_INTERVAL_MS` **required** — ptz-test/main.go
-- `PTZ_SNAPSHOT_RTSP_URI` **required** — ptz-test/main.go
-- `PTZ_SNAPSHOT_SOURCE` **required** — ptz-test/main.go
-- `VITE_API_PROXY_TARGET` **required** — cs-api-viewer/vite.config.ts
-
 ## Config Files
 
 - `Dockerfile`
-- `cs-api-viewer/vite.config.ts`
 - `docker-compose.yml`
 - `go.mod`
-- `ptz-test/webapp/vite.config.js`
 
 ---
 
@@ -1556,39 +648,105 @@
 
 ## Most Imported Files (change these carefully)
 
-- `encoding/json` — imported by **72** files
-- `net/http` — imported by **44** files
+- `encoding/json` — imported by **71** files
+- `net/http` — imported by **43** files
 - `database/sql/driver` — imported by **21** files
-- `cs-api-viewer/src/schema-components/utils.ts` — imported by **12** files
-- `cs-api-client/src/types/common.ts` — imported by **10** files
-- `cs-api-viewer/src/app/types.ts` — imported by **9** files
-- `cs-api-client/src/codecs/wire-types.ts` — imported by **7** files
-- `cs-api-client/src/types/resources.ts` — imported by **7** files
-- `net/url` — imported by **6** files
 - `math/rand` — imported by **6** files
-- `cs-api-client/src/codecs/utils.ts` — imported by **5** files
-- `cs-api-viewer/src/schema-components/schema-context.ts` — imported by **5** files
-- `cs-api-viewer/src/app/shared.ts` — imported by **5** files
-- `cs-api-viewer/src/app/constants.ts` — imported by **4** files
-- `cs-api-client/src/content-types.ts` — imported by **3** files
-- `cs-api-viewer/src/schema-components/geometry-editor/geometry-editor.vue` — imported by **3** files
-- `cs-api-viewer/src/schema-components/types.ts` — imported by **3** files
-- `os/signal` — imported by **2** files
-- `cs-api-client/src/http.ts` — imported by **2** files
-- `cs-api-client/src/errors.ts` — imported by **2** files
+- `net/url` — imported by **5** files
+- `os/signal` — imported by **1** files
+- `path/filepath` — imported by **1** files
+- `net/http/httptest` — imported by **1** files
+- `encoding/hex` — imported by **1** files
 
 ## Import Map (who imports what)
 
-- `encoding/json` ← `e2e/collections_test.go`, `e2e/control_streams_test.go`, `e2e/datastreams_test.go`, `e2e/deployments_test.go`, `e2e/features_test.go` +67 more
-- `net/http` ← `cmd/server/main.go`, `e2e/collections_test.go`, `e2e/control_streams_test.go`, `e2e/datastreams_test.go`, `e2e/deployments_test.go` +39 more
+- `encoding/json` ← `e2e/collections_test.go`, `e2e/control_streams_test.go`, `e2e/datastreams_test.go`, `e2e/deployments_test.go`, `e2e/features_test.go` +66 more
+- `net/http` ← `cmd/server/main.go`, `e2e/collections_test.go`, `e2e/control_streams_test.go`, `e2e/datastreams_test.go`, `e2e/deployments_test.go` +38 more
 - `database/sql/driver` ← `internal/model/common_shared/capabilities.go`, `internal/model/common_shared/characteristics.go`, `internal/model/common_shared/codeList.go`, `internal/model/common_shared/configurationSettings.go`, `internal/model/common_shared/contacts.go` +16 more
-- `cs-api-viewer/src/schema-components/utils.ts` ← `cs-api-viewer/src/app/use-association-graph.ts`, `cs-api-viewer/src/schema-components/fields/characteristic-capability-field.tsx`, `cs-api-viewer/src/schema-components/fields/component-field.tsx`, `cs-api-viewer/src/schema-components/fields/constraints-field.tsx`, `cs-api-viewer/src/schema-components/fields/contacts-field.tsx` +7 more
-- `cs-api-client/src/types/common.ts` ← `cs-api-client/src/client.ts`, `cs-api-client/src/codecs/deployment.ts`, `cs-api-client/src/codecs/procedure.ts`, `cs-api-client/src/codecs/property.ts`, `cs-api-client/src/codecs/sampling-feature.ts` +5 more
-- `cs-api-viewer/src/app/types.ts` ← `cs-api-viewer/src/app/association-helpers.ts`, `cs-api-viewer/src/app/collection-data.ts`, `cs-api-viewer/src/app/constants.ts`, `cs-api-viewer/src/app/schema-summary.ts`, `cs-api-viewer/src/app/url-state.ts` +4 more
-- `cs-api-client/src/codecs/wire-types.ts` ← `cs-api-client/src/client.ts`, `cs-api-client/src/codecs/deployment.ts`, `cs-api-client/src/codecs/index.ts`, `cs-api-client/src/codecs/procedure.ts`, `cs-api-client/src/codecs/property.ts` +2 more
-- `cs-api-client/src/types/resources.ts` ← `cs-api-client/src/codecs/deployment.ts`, `cs-api-client/src/codecs/procedure.ts`, `cs-api-client/src/codecs/property.ts`, `cs-api-client/src/codecs/sampling-feature.ts`, `cs-api-client/src/codecs/system.ts` +2 more
-- `net/url` ← `internal/model/formaters/association_links.go`, `internal/model/formaters/formatter.go`, `internal/model/formaters/multi_format_serializer.go`, `internal/model/query_params/query_params.go`, `internal/model/query_params/query_params_test.go` +1 more
 - `math/rand` ← `internal/model/generators/generators_common_shared.go`, `internal/model/generators/generators_datastream.go`, `internal/model/generators/generators_deployment.go`, `internal/model/generators/generators_procedure.go`, `internal/model/generators/generators_sensorml_shared.go` +1 more
+- `net/url` ← `internal/model/formaters/association_links.go`, `internal/model/formaters/formatter.go`, `internal/model/formaters/multi_format_serializer.go`, `internal/model/query_params/query_params.go`, `internal/model/query_params/query_params_test.go`
+- `os/signal` ← `cmd/server/main.go`
+- `path/filepath` ← `e2e/schema_validator.go`
+- `net/http/httptest` ← `e2e/setup_test.go`
+- `encoding/hex` ← `internal/model/common_shared/go_geom.go`
+
+---
+
+# Test Coverage
+
+> **38%** of routes and models are covered by tests
+> 31 test files found
+
+## Covered Routes
+
+- GET:content-type
+- GET:/systems
+- POST:/systems
+- PUT:/systems
+- DELETE:/systems
+- GET:/datastreams
+- PUT:/datastreams
+- DELETE:/datastreams
+- GET:/controlstreams
+- PUT:/controlstreams
+- DELETE:/controlstreams
+- GET:/commands
+- PUT:/commands
+- DELETE:/commands
+- GET:/observations
+- PUT:/observations
+- DELETE:/observations
+- GET:/deployments
+- POST:/deployments
+- PUT:/deployments
+- DELETE:/deployments
+- GET:/procedures
+- POST:/procedures
+- PUT:/procedures
+- DELETE:/procedures
+- GET:/properties
+- POST:/properties
+- PUT:/properties
+- DELETE:/properties
+- GET:/
+- POST:/collections
+- GET:/collections
+- POST:/
+- PUT:/
+- DELETE:/
+- GET:/subsystems
+- POST:/subsystems
+- GET:/events
+- POST:/events
+- GET:/history
+- POST:/datastreams
+- POST:/controlstreams
+- GET:/schema
+- PUT:/schema
+- POST:/observations
+- POST:/commands
+- GET:/subdeployments
+- POST:/subdeployments
+- GET:limit
+- GET:offset
+- GET:id
+
+## Covered Models
+
+- Command
+- Base
+- CommonSSN
+- ControlStream
+- Datastream
+- Deployment
+- Feature
+- Observation
+- Procedure
+- Property
+- SamplingFeature
+- System
+- SystemEvent
+- SystemHistoryRevision
 
 ---
 

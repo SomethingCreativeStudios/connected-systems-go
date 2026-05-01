@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -207,9 +208,15 @@ func (h *FeatureHandler) DeleteFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.Delete(featureID); err != nil {
-		h.logger.Error("Failed to delete feature", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete feature"})
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Feature not found"})
+		default:
+			h.logger.Error("Failed to delete feature", zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to delete feature"})
+		}
 		return
 	}
 

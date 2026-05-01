@@ -80,7 +80,14 @@ func (r *ObservationRepository) Update(observation *domains.Observation) error {
 }
 
 func (r *ObservationRepository) Delete(id string) error {
-	return r.db.Delete(&domains.Observation{}, "id = ?", id).Error
+	result := r.db.Delete(&domains.Observation{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *ObservationRepository) applyFilters(query *gorm.DB, params *queryparams.ObservationsQueryParams, datastreamFixed bool) *gorm.DB {

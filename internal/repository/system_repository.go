@@ -183,7 +183,52 @@ func (r *SystemRepository) syncProcedures(tx *gorm.DB, system *domains.System) e
 // Delete deletes a system
 func (r *SystemRepository) Delete(id string, cascade bool) error {
 	if !cascade {
-		return r.db.Delete(&domains.System{}, "id = ?", id).Error
+		// Application-level child check (no DB FK constraints on these columns).
+		var childCount int64
+		if err := r.db.Model(&domains.System{}).Where("parent_system_id = ?", id).Count(&childCount).Error; err != nil {
+			return err
+		}
+		if childCount > 0 {
+			return ErrHasChildren
+		}
+		var sfCount int64
+		if err := r.db.Model(&domains.SamplingFeature{}).Where("parent_system_id = ?", id).Count(&sfCount).Error; err != nil {
+			return err
+		}
+		if sfCount > 0 {
+			return ErrHasChildren
+		}
+		var dsCount int64
+		if err := r.db.Model(&domains.Datastream{}).Where("system_id = ?", id).Count(&dsCount).Error; err != nil {
+			return err
+		}
+		if dsCount > 0 {
+			return ErrHasChildren
+		}
+		var csCount int64
+		if err := r.db.Model(&domains.ControlStream{}).Where("system_id = ?", id).Count(&csCount).Error; err != nil {
+			return err
+		}
+		if csCount > 0 {
+			return ErrHasChildren
+		}
+
+		result := r.db.Delete(&domains.System{}, "id = ?", id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
+	}
+
+	var count int64
+	if err := r.db.Model(&domains.System{}).Where("id = ?", id).Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrNotFound
 	}
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
@@ -240,6 +285,9 @@ func (r *SystemRepository) deleteSystemDatastreams(tx *gorm.DB, systemID string)
 	}
 
 	if len(datastreamIDs) > 0 {
+		if err := tx.Exec("DELETE FROM system_datastreams WHERE datastream_id IN ?", datastreamIDs).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("datastream_id IN ?", datastreamIDs).Delete(&domains.Observation{}).Error; err != nil {
 			return err
 		}
@@ -255,6 +303,9 @@ func (r *SystemRepository) deleteSystemControlStreams(tx *gorm.DB, systemID stri
 	}
 
 	if len(controlStreamIDs) > 0 {
+		if err := tx.Exec("DELETE FROM system_controlstreams WHERE control_stream_id IN ?", controlStreamIDs).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("control_stream_id IN ?", controlStreamIDs).Delete(&domains.Command{}).Error; err != nil {
 			return err
 		}

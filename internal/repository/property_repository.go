@@ -65,7 +65,14 @@ func (r *PropertyRepository) Update(property *domains.Property) error {
 
 // Delete deletes a property
 func (r *PropertyRepository) Delete(id string) error {
-	return r.db.Delete(&domains.Property{}, "id = ?", id).Error
+	result := r.db.Delete(&domains.Property{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *PropertyRepository) applyFilters(query *gorm.DB, params *queryparams.PropertiesQueryParams) *gorm.DB {

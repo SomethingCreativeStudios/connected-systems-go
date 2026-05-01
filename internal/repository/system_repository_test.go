@@ -38,11 +38,6 @@ func setupTestDB(t *testing.T) (*gorm.DB, func()) {
 		t.Fatalf("Failed to ensure closure support: %v", err)
 	}
 
-	// Ensure delete-reparent trigger for deployments (reparent children to deleted node's parent)
-	if err := EnsureDeleteReparentSupport(db, "deployments", "id", "parent_deployment_id"); err != nil {
-		t.Fatalf("Failed to ensure delete-reparent support: %v", err)
-	}
-
 	return db, cleanup
 }
 

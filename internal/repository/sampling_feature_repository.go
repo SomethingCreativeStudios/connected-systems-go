@@ -68,7 +68,14 @@ func (r *SamplingFeatureRepository) Update(sf *domains.SamplingFeature) error {
 
 // Delete deletes a sampling feature
 func (r *SamplingFeatureRepository) Delete(id string) error {
-	return r.db.Delete(&domains.SamplingFeature{}, "id = ?", id).Error
+	result := r.db.Delete(&domains.SamplingFeature{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *SamplingFeatureRepository) applyFilters(query *gorm.DB, params *queryparams.SamplingFeatureQueryParams, systemID *string) *gorm.DB {

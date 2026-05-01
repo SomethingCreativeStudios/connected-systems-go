@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -198,9 +199,18 @@ func (h *ControlStreamHandler) DeleteControlStream(w http.ResponseWriter, r *htt
 	id := chi.URLParam(r, "controlStreamId")
 	cascade := r.URL.Query().Get("cascade") == "true"
 	if err := h.repo.Delete(id, cascade); err != nil {
-		h.logger.Error("Failed to delete control stream", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete control stream"})
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Control stream not found"})
+		case errors.Is(err, repository.ErrHasChildren):
+			render.Status(r, http.StatusConflict)
+			render.JSON(w, r, map[string]string{"error": "Control stream has dependent records; use ?cascade=true to delete"})
+		default:
+			h.logger.Error("Failed to delete control stream", zap.String("id", id), zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to delete control stream"})
+		}
 		return
 	}
 

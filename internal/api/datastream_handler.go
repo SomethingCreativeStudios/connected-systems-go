@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -187,9 +188,18 @@ func (h *DatastreamHandler) DeleteDatastream(w http.ResponseWriter, r *http.Requ
 	id := chi.URLParam(r, "dataStreamId")
 	cascade := r.URL.Query().Get("cascade") == "true"
 	if err := h.repo.Delete(id, cascade); err != nil {
-		h.logger.Error("Failed to delete datastream", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete datastream"})
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Datastream not found"})
+		case errors.Is(err, repository.ErrHasChildren):
+			render.Status(r, http.StatusConflict)
+			render.JSON(w, r, map[string]string{"error": "Datastream has dependent records; use ?cascade=true to delete"})
+		default:
+			h.logger.Error("Failed to delete datastream", zap.String("id", id), zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to delete datastream"})
+		}
 		return
 	}
 

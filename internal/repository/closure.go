@@ -111,30 +111,3 @@ $$ LANGUAGE plpgsql;
 	return nil
 }
 
-// EnsureDeleteReparentSupport creates a trigger function that, when a row is
-// deleted from `table`, reparents its immediate children to the deleted row's
-// parent (i.e. sets child's parent_col = OLD.parent_col). This preserves the
-// hierarchy for direct children when a node is removed.
-func EnsureDeleteReparentSupport(db *gorm.DB, table, idCol, parentCol string) error {
-	// create the trigger function
-	deleteReparentFn := fmt.Sprintf(`
-CREATE OR REPLACE FUNCTION %s_reparent_after_delete() RETURNS trigger AS $$
-BEGIN
-	UPDATE %s SET %s = OLD.%s WHERE %s = OLD.%s;
-	RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
-`, table, table, parentCol, parentCol, parentCol, idCol)
-
-	if err := db.Exec(deleteReparentFn).Error; err != nil {
-		return err
-	}
-
-	// attach trigger
-	_ = db.Exec(fmt.Sprintf("DROP TRIGGER IF EXISTS trg_%s_reparent_delete ON %s;", table, table))
-	if err := db.Exec(fmt.Sprintf("CREATE TRIGGER trg_%s_reparent_delete AFTER DELETE ON %s FOR EACH ROW EXECUTE FUNCTION %s_reparent_after_delete();", table, table, table)).Error; err != nil {
-		return err
-	}
-
-	return nil
-}

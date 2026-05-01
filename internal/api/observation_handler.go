@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -152,17 +153,16 @@ func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Re
 func (h *ObservationHandler) DeleteObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
-	if _, err := h.repo.GetByID(id); err != nil {
-		h.logger.Error("Observation not found", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Observation not found"})
-		return
-	}
-
 	if err := h.repo.Delete(id); err != nil {
-		h.logger.Error("Failed to delete observation", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete observation"})
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Observation not found"})
+		default:
+			h.logger.Error("Failed to delete observation", zap.String("id", id), zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to delete observation"})
+		}
 		return
 	}
 

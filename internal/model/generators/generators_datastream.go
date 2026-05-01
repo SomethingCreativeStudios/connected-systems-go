@@ -1,7 +1,6 @@
 package generators
 
 import (
-	"fmt"
 	"math/rand"
 
 	"github.com/google/uuid"
@@ -173,12 +172,9 @@ func FakeDatastreamWithSchema(schema *domains.DatastreamSchema) domains.Datastre
 	}
 
 	return domains.Datastream{
-		Base: domains.Base{ID: id},
-		CommonSSN: domains.CommonSSN{
-			UniqueIdentifier: domains.UniqueID(fmt.Sprintf("urn:uuid:%s", id)),
-			Name:             "Datastream " + f.Lorem().Word(),
-			Description:      f.Lorem().Sentence(6),
-		},
+		Base:        domains.Base{ID: id},
+		Name:        "Datastream " + f.Lorem().Word(),
+		Description: f.Lorem().Sentence(6),
 		ValidTime:          FakeValidTimeCurrent(),
 		Formats:            formats,
 		SystemID:           &systemID,

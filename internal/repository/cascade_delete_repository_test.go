@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"errors"
+
 	"github.com/stretchr/testify/require"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
@@ -17,10 +19,7 @@ func TestDatastreamRepository_DeleteCascade_RemovesObservations(t *testing.T) {
 	observationRepo := NewObservationRepository(db)
 
 	datastream := &domains.Datastream{
-		CommonSSN: domains.CommonSSN{
-			UniqueIdentifier: domains.UniqueID("urn:test:ds:cascade:1"),
-			Name:             "Cascade Datastream",
-		},
+		Name: "Cascade Datastream",
 	}
 	require.NoError(t, datastreamRepo.Create(datastream))
 
@@ -107,14 +106,14 @@ func TestSystemRepository_DeleteCascade_RemovesAssociatedResourcesRecursively(t 
 	}))
 
 	parentDS := &domains.Datastream{
-		CommonSSN: domains.CommonSSN{UniqueIdentifier: domains.UniqueID("urn:test:ds:cascade:parent"), Name: "Parent DS"},
-		SystemID:  &parent.ID,
+		Name:     "Parent DS",
+		SystemID: &parent.ID,
 	}
 	require.NoError(t, datastreamRepo.Create(parentDS))
 
 	childDS := &domains.Datastream{
-		CommonSSN: domains.CommonSSN{UniqueIdentifier: domains.UniqueID("urn:test:ds:cascade:child"), Name: "Child DS"},
-		SystemID:  &child.ID,
+		Name:     "Child DS",
+		SystemID: &child.ID,
 	}
 	require.NoError(t, datastreamRepo.Create(childDS))
 
@@ -204,4 +203,156 @@ func TestSystemRepository_DeleteCascade_RemovesAssociatedResourcesRecursively(t 
 	}
 	require.Nil(t, updatedDeployment.Platform)
 	require.Nil(t, updatedDeployment.PlatformID)
+}
+
+func TestSystemRepository_Delete_ReturnsErrNotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	err := NewSystemRepository(db).Delete("nonexistent-id", false)
+	require.True(t, errors.Is(err, ErrNotFound))
+}
+
+func TestSystemRepository_Delete_ReturnsErrHasChildren(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	systemRepo := NewSystemRepository(db)
+
+	parent := &domains.System{
+		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sys:err:parent", Name: "Error Parent"},
+		SystemType: domains.SystemTypePlatform,
+	}
+	require.NoError(t, systemRepo.Create(parent))
+
+	child := &domains.System{
+		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:sys:err:child", Name: "Error Child"},
+		SystemType:     domains.SystemTypeSensor,
+		ParentSystemID: &parent.ID,
+	}
+	require.NoError(t, systemRepo.Create(child))
+
+	err := systemRepo.Delete(parent.ID, false)
+	require.True(t, errors.Is(err, ErrHasChildren))
+}
+
+func TestDatastreamRepository_Delete_ReturnsErrNotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	err := NewDatastreamRepository(db).Delete("nonexistent-id", false)
+	require.True(t, errors.Is(err, ErrNotFound))
+}
+
+func TestDatastreamRepository_Delete_ReturnsErrHasChildren(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	datastreamRepo := NewDatastreamRepository(db)
+	observationRepo := NewObservationRepository(db)
+
+	ds := &domains.Datastream{Name: "Has Children DS"}
+	require.NoError(t, datastreamRepo.Create(ds))
+	require.NoError(t, observationRepo.Create(&domains.Observation{
+		DatastreamID: ds.ID,
+		ResultTime:   time.Now().UTC(),
+	}))
+
+	err := datastreamRepo.Delete(ds.ID, false)
+	require.True(t, errors.Is(err, ErrHasChildren))
+}
+
+func TestControlStreamRepository_Delete_ReturnsErrNotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	err := NewControlStreamRepository(db).Delete("nonexistent-id", false)
+	require.True(t, errors.Is(err, ErrNotFound))
+}
+
+func TestControlStreamRepository_Delete_ReturnsErrHasChildren(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	controlStreamRepo := NewControlStreamRepository(db)
+	commandRepo := NewCommandRepository(db)
+
+	cs := &domains.ControlStream{
+		CommonSSN: domains.CommonSSN{UniqueIdentifier: "urn:test:cs:err:1", Name: "Has Children CS"},
+	}
+	require.NoError(t, controlStreamRepo.Create(cs))
+	require.NoError(t, commandRepo.Create(&domains.Command{
+		ControlStreamID: cs.ID,
+		Sender:          "tester",
+	}))
+
+	err := controlStreamRepo.Delete(cs.ID, false)
+	require.True(t, errors.Is(err, ErrHasChildren))
+}
+
+func TestDeploymentRepository_Delete_ReturnsErrNotFound(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	err := NewDeploymentRepository(db).Delete("nonexistent-id", false)
+	require.True(t, errors.Is(err, ErrNotFound))
+}
+
+func TestDeploymentRepository_Delete_ReturnsErrHasChildren(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	deploymentRepo := NewDeploymentRepository(db)
+
+	parent := &domains.Deployment{
+		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:dep:err:parent", Name: "Error Parent Dep"},
+		DeploymentType: domains.DeploymentTypeDeployment,
+	}
+	require.NoError(t, deploymentRepo.Create(parent))
+
+	child := &domains.Deployment{
+		CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:dep:err:child", Name: "Error Child Dep"},
+		DeploymentType:     domains.DeploymentTypeDeployment,
+		ParentDeploymentID: &parent.ID,
+	}
+	require.NoError(t, deploymentRepo.Create(child))
+
+	err := deploymentRepo.Delete(parent.ID, false)
+	require.True(t, errors.Is(err, ErrHasChildren))
+}
+
+func TestDeploymentRepository_DeleteCascade_RemovesSubdeployments(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	deploymentRepo := NewDeploymentRepository(db)
+
+	parent := &domains.Deployment{
+		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:dep:cascade:parent", Name: "Cascade Parent Dep"},
+		DeploymentType: domains.DeploymentTypeDeployment,
+	}
+	require.NoError(t, deploymentRepo.Create(parent))
+
+	child := &domains.Deployment{
+		CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:dep:cascade:child", Name: "Cascade Child Dep"},
+		DeploymentType:     domains.DeploymentTypeDeployment,
+		ParentDeploymentID: &parent.ID,
+	}
+	require.NoError(t, deploymentRepo.Create(child))
+
+	grandchild := &domains.Deployment{
+		CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:dep:cascade:grandchild", Name: "Cascade Grandchild Dep"},
+		DeploymentType:     domains.DeploymentTypeDeployment,
+		ParentDeploymentID: &child.ID,
+	}
+	require.NoError(t, deploymentRepo.Create(grandchild))
+
+	require.NoError(t, deploymentRepo.Delete(parent.ID, true))
+
+	_, err := deploymentRepo.GetByID(parent.ID)
+	require.Error(t, err)
+	_, err = deploymentRepo.GetByID(child.ID)
+	require.Error(t, err)
+	_, err = deploymentRepo.GetByID(grandchild.ID)
+	require.Error(t, err)
 }

@@ -132,15 +132,42 @@ func (r *ControlStreamRepository) deriveFOIFromSamplingFeature(cs *domains.Contr
 // Delete deletes a control stream.
 // If cascade is true, all commands associated with the control stream are deleted first.
 func (r *ControlStreamRepository) Delete(id string, cascade bool) error {
+	// Always clean join table first to unblock FK constraints.
+	if err := r.db.Exec("DELETE FROM system_controlstreams WHERE control_stream_id = ?", id).Error; err != nil {
+		return err
+	}
+
 	if !cascade {
-		return r.db.Delete(&domains.ControlStream{}, "id = ?", id).Error
+		var cmdCount int64
+		if err := r.db.Model(&domains.Command{}).Where("control_stream_id = ?", id).Count(&cmdCount).Error; err != nil {
+			return err
+		}
+		if cmdCount > 0 {
+			return ErrHasChildren
+		}
+
+		result := r.db.Delete(&domains.ControlStream{}, "id = ?", id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
 	}
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("control_stream_id = ?", id).Delete(&domains.Command{}).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&domains.ControlStream{}, "id = ?", id).Error
+		result := tx.Delete(&domains.ControlStream{}, "id = ?", id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
 	})
 }
 

@@ -79,7 +79,14 @@ func (r *CommandRepository) Update(cmd *domains.Command) error {
 
 // Delete deletes a command.
 func (r *CommandRepository) Delete(id string) error {
-	return r.db.Delete(&domains.Command{}, "id = ?", id).Error
+	result := r.db.Delete(&domains.Command{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *CommandRepository) applyFilters(query *gorm.DB, params *queryparams.CommandsQueryParams, controlStreamFixed bool) *gorm.DB {

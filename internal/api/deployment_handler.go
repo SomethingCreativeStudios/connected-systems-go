@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -117,11 +118,21 @@ func (h *DeploymentHandler) UpdateDeployment(w http.ResponseWriter, r *http.Requ
 
 func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	cascade := r.URL.Query().Get("cascade") == "true"
 
-	if err := h.repo.Delete(id); err != nil {
-		h.logger.Error("Failed to delete deployment", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete deployment"})
+	if err := h.repo.Delete(id, cascade); err != nil {
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Deployment not found"})
+		case errors.Is(err, repository.ErrHasChildren):
+			render.Status(r, http.StatusConflict)
+			render.JSON(w, r, map[string]string{"error": "Deployment has dependent records; use ?cascade=true to delete"})
+		default:
+			h.logger.Error("Failed to delete deployment", zap.String("id", id), zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to delete deployment"})
+		}
 		return
 	}
 

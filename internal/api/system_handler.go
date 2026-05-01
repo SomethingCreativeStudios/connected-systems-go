@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -153,9 +154,18 @@ func (h *SystemHandler) DeleteSystem(w http.ResponseWriter, r *http.Request) {
 	cascade := r.URL.Query().Get("cascade") == "true"
 
 	if err := h.repo.Delete(id, cascade); err != nil {
-		h.logger.Error("Failed to delete system", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete system"})
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "System not found"})
+		case errors.Is(err, repository.ErrHasChildren):
+			render.Status(r, http.StatusConflict)
+			render.JSON(w, r, map[string]string{"error": "System has dependent records; use ?cascade=true to delete"})
+		default:
+			h.logger.Error("Failed to delete system", zap.String("id", id), zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to delete system"})
+		}
 		return
 	}
 
