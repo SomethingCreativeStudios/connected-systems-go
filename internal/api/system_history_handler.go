@@ -24,7 +24,12 @@ func (h *SystemHandler) ListSystemHistory(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	params := queryparams.SystemHistoryQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params , err := queryparams.SystemHistoryQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 	revisions, total, err := h.historyRepo.List(systemID, params)
 	if err != nil {
 		h.logger.Error("Failed to list system history", zap.String("systemId", systemID), zap.Error(err))

@@ -829,6 +829,99 @@ func TestCommand_GetNonexistent(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
+// =============================================================================
+// ?issueTime=latest must return only the single control stream with the
+// most-recent issue_time_start value regardless of insertion order.
+// =============================================================================
+
+func TestControlStream_List_LatestIssueTime_ReturnsMostRecent(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemForControlStreamTest(t)
+
+	csWithIssueTime := func(start, end string) map[string]interface{} {
+		p := baseControlStreamPayload()
+		p["issueTime"] = []string{start, end}
+		return p
+	}
+
+	// Create 3 control streams with issueTime starts in non-monotonic order.
+	createControlStreamViaAPI(t, systemID, csWithIssueTime("2025-01-01T00:00:00Z", "2025-12-31T23:59:59Z"))
+	newestID := createControlStreamViaAPI(t, systemID, csWithIssueTime("2027-01-01T00:00:00Z", "2027-12-31T23:59:59Z"))
+	createControlStreamViaAPI(t, systemID, csWithIssueTime("2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/controlstreams?issueTime=latest", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	items := getJSONItems(t, body)
+	require.Equal(t, 1, len(items), "expected exactly one control stream for ?issueTime=latest")
+
+	cs, ok := items[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, newestID, cs["id"], "expected the control stream with the most-recent issueTime start")
+}
+
+// =============================================================================
+// ?issueTime=latest must return only the single command with the most-recent
+// issue_time value regardless of insertion order.
+// =============================================================================
+
+func TestCommand_List_LatestIssueTime_ReturnsMostRecent(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemForControlStreamTest(t)
+	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
+
+	postCommand := func(issueTime string) string {
+		t.Helper()
+		payload := map[string]interface{}{
+			"parameters": map[string]interface{}{"setPoint": 21.0},
+			"issueTime":  issueTime,
+		}
+		body, _ := json.Marshal(payload)
+		req, _ := http.NewRequest(http.MethodPost, testServer.URL+"/controlstreams/"+csID+"/commands", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+		return parseID(resp.Header.Get("Location"), "/commands/")
+	}
+
+	// Create 3 commands with issueTime in non-monotonic order.
+	postCommand("2025-01-01T00:00:00Z")
+	newestID := postCommand("2027-01-01T00:00:00Z")
+	postCommand("2024-01-01T00:00:00Z")
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/commands?issueTime=latest", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	items := getJSONItems(t, body)
+	require.Equal(t, 1, len(items), "expected exactly one command for ?issueTime=latest")
+
+	cmd, ok := items[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, newestID, cmd["id"], "expected the command with the most-recent issueTime")
+}
+
 // ---------------------------------------------------------------------------
 // doGet is a tiny helper to do a GET request on the test server.
 // ---------------------------------------------------------------------------

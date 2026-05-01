@@ -30,7 +30,12 @@ func NewProcedureHandler(cfg *config.Config, logger *zap.Logger, repo *repositor
 }
 
 func (h *ProcedureHandler) ListProcedures(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.ProceduresQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params , err := queryparams.ProceduresQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	procedures, total, err := h.repo.List(params)
 	if err != nil {

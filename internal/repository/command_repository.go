@@ -52,6 +52,11 @@ func (r *CommandRepository) List(params *queryparams.CommandsQueryParams, contro
 	}
 	query = r.applyFilters(query, params, controlStreamID != nil)
 
+	if params.IssueTime != nil && params.IssueTime.Latest {
+		err := query.Order("issue_time desc").Limit(1).Find(&commands).Error
+		return commands, int64(len(commands)), err
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -120,7 +125,7 @@ func (r *CommandRepository) applyFilters(query *gorm.DB, params *queryparams.Com
 		query = query.Where("current_status IN ?", params.CurrentStatus)
 	}
 
-	if params.IssueTime != nil {
+	if params.IssueTime != nil && !params.IssueTime.Latest {
 		if params.IssueTime.Start != nil && params.IssueTime.End != nil {
 			query = query.Where("issue_time <= ? AND issue_time >= ?", params.IssueTime.End, params.IssueTime.Start)
 		} else if params.IssueTime.Start != nil {

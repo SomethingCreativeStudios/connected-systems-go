@@ -1,6 +1,7 @@
 package queryparams
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -15,13 +16,16 @@ type SystemHistoryQueryParams struct {
 	Keyword   []string
 }
 
-func (SystemHistoryQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *SystemHistoryQueryParams {
+func (SystemHistoryQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*SystemHistoryQueryParams, error) {
 	params := &SystemHistoryQueryParams{
 		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
 	if vals := r.URL.Query()["validTime"]; len(vals) > 0 {
-		tr := common_shared.ParseTimeRange(vals)
+		tr, err := common_shared.ParseTimeRangeStrict(vals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid validTime: %w", err)
+		}
 		params.ValidTime = &tr
 	}
 
@@ -29,5 +33,5 @@ func (SystemHistoryQueryParams) BuildFromRequest(r *http.Request, defaultLimit i
 		params.Keyword = strings.Split(keyword, ",")
 	}
 
-	return params
+	return params, nil
 }

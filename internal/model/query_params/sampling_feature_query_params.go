@@ -1,6 +1,7 @@
 package queryparams
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -33,13 +34,10 @@ func (SamplingFeatureQueryParams) BuildFromRequest(r *http.Request, defaultLimit
 		params.ObservedProperty = strings.Split(observedProperty, ",")
 	}
 
-	// dateTime may be provided either as a single value or as repeated params
 	if dateVals := r.URL.Query()["dateTime"]; len(dateVals) > 0 {
-		var tr common_shared.TimeRange
-		if len(dateVals) == 1 {
-			tr = common_shared.ToTimeRange(dateVals[0])
-		} else {
-			tr = common_shared.ToTimeRangeFromSlice(dateVals)
+		tr, err := common_shared.ParseTimeRangeStrict(dateVals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid dateTime: %w", err)
 		}
 		params.DateTime = &tr
 	}

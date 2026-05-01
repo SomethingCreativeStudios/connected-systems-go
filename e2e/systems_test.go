@@ -519,6 +519,37 @@ func TestSystem_AssociationLinks_AppearInSystemCollection(t *testing.T) {
 }
 
 // =============================================================================
+// ?dateTime=latest must return only the single system with the most-recent
+// valid_time_start value regardless of insertion order.
+// =============================================================================
+
+func TestSystem_List_LatestDateTime_ReturnsMostRecent(t *testing.T) {
+	cleanupDB(t)
+
+	// Create 3 systems with validTime starts in non-monotonic order so the result
+	// depends on sorting, not on insertion order.
+	createSystemViaAPI(t, "/systems", baseSystemWithValidTimePayload("System Middle", "2025-01-01T00:00:00Z", "2025-12-31T23:59:59Z"))
+	newestID := createSystemViaAPI(t, "/systems", baseSystemWithValidTimePayload("System Newest", "2027-01-01T00:00:00Z", "2027-12-31T23:59:59Z"))
+	createSystemViaAPI(t, "/systems", baseSystemWithValidTimePayload("System Oldest", "2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systems?dateTime=latest", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	ids := getFeatureCollectionIDs(t, body)
+	require.Equal(t, 1, len(ids), "expected exactly one system for ?dateTime=latest")
+	assert.Equal(t, newestID, ids[0], "expected the system with the most-recent validTime start")
+}
+
+// =============================================================================
 // Conformance Class: /conf/subsystem
 // Requirements: /req/subsystem/recursive-search-systems and /req/subsystem/recursive-search-subsystems
 // Abstract Tests: /conf/subsystem/recursive-search-systems (A.15), /conf/subsystem/recursive-search-subsystems (A.16)

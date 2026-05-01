@@ -1,6 +1,7 @@
 package queryparams
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -21,7 +22,7 @@ type SystemQueryParams struct {
 	Recursive          bool
 }
 
-func (SystemQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *SystemQueryParams {
+func (SystemQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*SystemQueryParams, error) {
 	params := &SystemQueryParams{
 		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
@@ -32,13 +33,10 @@ func (SystemQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *Sy
 		params.Parent = strings.Split(parent, ",")
 	}
 
-	// dateTime may be supplied as a single string or as repeated parameters
 	if dateVals := r.URL.Query()["dateTime"]; len(dateVals) > 0 {
-		var tr common_shared.TimeRange
-		if len(dateVals) == 1 {
-			tr = common_shared.ToTimeRange(dateVals[0])
-		} else {
-			tr = common_shared.ToTimeRangeFromSlice(dateVals)
+		tr, err := common_shared.ParseTimeRangeStrict(dateVals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid dateTime: %w", err)
 		}
 		params.Datetime = &tr
 	}
@@ -63,5 +61,5 @@ func (SystemQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *Sy
 		params.Geom = geom
 	}
 
-	return params
+	return params, nil
 }

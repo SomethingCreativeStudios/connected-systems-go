@@ -53,6 +53,11 @@ func (r *DatastreamRepository) List(params *queryparams.DatastreamsQueryParams, 
 	query := r.db.Model(&domains.Datastream{})
 	query = r.applyFilters(query, params, systemID)
 
+	if params.PhenomenonTime != nil && params.PhenomenonTime.Latest {
+		err := query.Order("phenomenon_time_start desc").Limit(1).Find(&datastreams).Error
+		return datastreams, int64(len(datastreams)), err
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -206,7 +211,7 @@ func (r *DatastreamRepository) applyFilters(query *gorm.DB, params *queryparams.
 		query = query.Where(strings.Join(clauses, " OR "), args...)
 	}
 
-	if params.PhenomenonTime != nil {
+	if params.PhenomenonTime != nil && !params.PhenomenonTime.Latest {
 		if params.PhenomenonTime.Start != nil && params.PhenomenonTime.End != nil {
 			query = query.Where("phenomenon_time_start <= ? AND (phenomenon_time_end IS NULL OR phenomenon_time_end >= ?)", params.PhenomenonTime.End, params.PhenomenonTime.Start)
 		} else if params.PhenomenonTime.Start != nil {

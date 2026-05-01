@@ -48,6 +48,11 @@ func (r *SystemHistoryRepository) List(systemID string, params *queryparams.Syst
 	query := r.db.Model(&domains.SystemHistoryRevision{}).Where("system_id = ?", systemID)
 	query = r.applyFilters(query, params)
 
+	if params.ValidTime != nil && params.ValidTime.Latest {
+		err := query.Order("valid_time_start desc").Limit(1).Find(&revisions).Error
+		return revisions, int64(len(revisions)), err
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -119,7 +124,7 @@ func (r *SystemHistoryRepository) applyFilters(query *gorm.DB, params *querypara
 		return query
 	}
 
-	if params.ValidTime != nil {
+	if params.ValidTime != nil && !params.ValidTime.Latest {
 		if params.ValidTime.Start != nil && params.ValidTime.End != nil {
 			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.ValidTime.End, params.ValidTime.Start)
 		} else if params.ValidTime.Start != nil {

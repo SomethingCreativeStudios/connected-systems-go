@@ -986,3 +986,41 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// ?dateTime=latest must return only the single sampling feature with the
+// most-recent valid_time_start value regardless of insertion order.
+// =============================================================================
+
+func TestSamplingFeature_List_LatestDateTime_ReturnsMostRecent(t *testing.T) {
+	cleanupDB(t)
+
+	sysID := createSystemViaAPI(t, "/systems", baseSystemPayload("SF Latest System"))
+
+	sfWithValidTime := func(name, start, end string) map[string]interface{} {
+		p := baseSamplingFeaturePayload(name)
+		p["properties"].(map[string]interface{})["validTime"] = []string{start, end}
+		return p
+	}
+
+	// Create 3 sampling features with validTime starts in non-monotonic order.
+	createSamplingFeatureViaAPI(t, sysID, sfWithValidTime("SF Middle", "2025-01-01T00:00:00Z", "2025-12-31T23:59:59Z"))
+	newestID := createSamplingFeatureViaAPI(t, sysID, sfWithValidTime("SF Newest", "2027-01-01T00:00:00Z", "2027-12-31T23:59:59Z"))
+	createSamplingFeatureViaAPI(t, sysID, sfWithValidTime("SF Oldest", "2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/samplingFeatures?dateTime=latest", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	ids := getFeatureCollectionIDs(t, body)
+	require.Equal(t, 1, len(ids), "expected exactly one sampling feature for ?dateTime=latest")
+	assert.Equal(t, newestID, ids[0], "expected the sampling feature with the most-recent validTime start")
+}

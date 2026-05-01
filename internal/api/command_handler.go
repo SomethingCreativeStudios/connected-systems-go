@@ -47,7 +47,12 @@ func NewCommandHandler(
 
 // ListCommands handles GET /commands
 func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params , err := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	commands, total, err := h.repo.List(params, nil)
 	if err != nil {
@@ -78,7 +83,12 @@ func (h *CommandHandler) ListControlStreamCommands(w http.ResponseWriter, r *htt
 		return
 	}
 
-	params := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params , err := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	commands, total, err := h.repo.ListByControlStream(controlStreamID, params)
 	if err != nil {

@@ -1,6 +1,7 @@
 package queryparams
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -20,7 +21,7 @@ type DatastreamsQueryParams struct {
 }
 
 // BuildFromRequest parses datastream query parameters from request.
-func (DatastreamsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *DatastreamsQueryParams {
+func (DatastreamsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*DatastreamsQueryParams, error) {
 	params := &DatastreamsQueryParams{
 		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
@@ -38,14 +39,20 @@ func (DatastreamsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int
 	}
 
 	if vals := r.URL.Query()["phenomenonTime"]; len(vals) > 0 {
-		tr := common_shared.ParseTimeRange(vals)
+		tr, err := common_shared.ParseTimeRangeStrict(vals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid phenomenonTime: %w", err)
+		}
 		params.PhenomenonTime = &tr
 	}
 
 	if vals := r.URL.Query()["resultTime"]; len(vals) > 0 {
-		tr := common_shared.ParseTimeRange(vals)
+		tr, err := common_shared.ParseTimeRangeStrict(vals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid resultTime: %w", err)
+		}
 		params.ResultTime = &tr
 	}
 
-	return params
+	return params, nil
 }

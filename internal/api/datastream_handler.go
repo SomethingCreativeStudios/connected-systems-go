@@ -35,7 +35,12 @@ func NewDatastreamHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 }
 
 func (h *DatastreamHandler) ListDatastreams(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params , err := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	datastreams, total, err := h.repo.List(params, nil)
 	if err != nil {
@@ -66,7 +71,12 @@ func (h *DatastreamHandler) ListSystemDatastreams(w http.ResponseWriter, r *http
 	if systemID == "" {
 		systemID = chi.URLParam(r, "id")
 	}
-	params := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params , err := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	datastreams, total, err := h.repo.List(params, &systemID)
 	if err != nil {

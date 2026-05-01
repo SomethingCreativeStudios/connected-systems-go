@@ -517,3 +517,126 @@ func TestSystemHistory_PaginationLinks(t *testing.T) {
 	assert.NotEmpty(t, byRel["next"])
 	assert.True(t, strings.Contains(byRel["next"], "offset=1"), "next link must advance offset")
 }
+
+// =============================================================================
+// ?datetime=latest must return only the single system event with the
+// most-recent time_start value regardless of insertion order.
+// =============================================================================
+
+func TestSystemEvent_List_LatestDatetime_ReturnsMostRecent(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Event Latest System"))
+
+	makeEvent := func(label, ts string) map[string]interface{} {
+		return map[string]interface{}{
+			"definition":  "https://example.org/event/calibration",
+			"label":       label,
+			"description": "Test event",
+			"time":        ts,
+		}
+	}
+
+	// Create 3 events with times in non-monotonic order.
+	createSystemEventViaAPI(t, systemID, makeEvent("Event Middle", "2025-06-01T00:00:00Z"))
+	newestID := createSystemEventViaAPI(t, systemID, makeEvent("Event Newest", "2027-06-01T00:00:00Z"))
+	createSystemEventViaAPI(t, systemID, makeEvent("Event Oldest", "2024-06-01T00:00:00Z"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systemEvents?datetime=latest", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	items := getJSONItems(t, body)
+	require.Equal(t, 1, len(items), "expected exactly one system event for ?datetime=latest")
+
+	ev, ok := items[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, newestID, ev["id"], "expected the system event with the most-recent time")
+}
+
+// =============================================================================
+// ?eventTime=latest (alias) must behave identically to ?datetime=latest.
+// =============================================================================
+
+func TestSystemEvent_List_LatestEventTimeAlias_ReturnsMostRecent(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Event Alias System"))
+
+	makeEvent := func(label, ts string) map[string]interface{} {
+		return map[string]interface{}{
+			"definition":  "https://example.org/event/calibration",
+			"label":       label,
+			"description": "Test event",
+			"time":        ts,
+		}
+	}
+
+	createSystemEventViaAPI(t, systemID, makeEvent("Alias Middle", "2025-06-01T00:00:00Z"))
+	newestID := createSystemEventViaAPI(t, systemID, makeEvent("Alias Newest", "2027-06-01T00:00:00Z"))
+	createSystemEventViaAPI(t, systemID, makeEvent("Alias Oldest", "2024-06-01T00:00:00Z"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systemEvents?eventTime=latest", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	items := getJSONItems(t, body)
+	require.Equal(t, 1, len(items), "expected exactly one system event for ?eventTime=latest")
+
+	ev, ok := items[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, newestID, ev["id"], "expected the system event with the most-recent time via alias")
+}
+
+// =============================================================================
+// ?validTime=latest must return only the single system history revision with
+// the most-recent valid_time_start value regardless of insertion order.
+// =============================================================================
+
+func TestSystemHistory_ValidTime_LatestReturnsMostRecent(t *testing.T) {
+	cleanupDB(t)
+
+	// Create a system — this produces the first history revision.
+	systemID := createSystemViaAPI(t, "/systems", baseSystemWithValidTimePayload("History Latest Parent", "2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z"))
+
+	putSystem := func(name, start, end string) {
+		t.Helper()
+		payload := baseSystemWithValidTimePayload(name, start, end)
+		body, _ := json.Marshal(payload)
+		req, _ := http.NewRequest(http.MethodPut, testServer.URL+"/systems/"+systemID, bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/geo+json")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	}
+
+	// Second revision with a middle validTime.
+	putSystem("History Latest Middle", "2025-01-01T00:00:00Z", "2025-12-31T23:59:59Z")
+	// Third revision with the newest validTime.
+	putSystem("History Latest Newest", "2027-01-01T00:00:00Z", "2027-12-31T23:59:59Z")
+
+	resp := doGet(t, "/systems/"+systemID+"/history?validTime=latest")
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	ids := getFeatureCollectionIDs(t, body)
+	require.Equal(t, 1, len(ids), "expected exactly one history revision for ?validTime=latest")
+}

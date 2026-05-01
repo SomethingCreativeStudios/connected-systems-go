@@ -1,6 +1,7 @@
 package queryparams
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -17,16 +18,21 @@ type SystemEventsQueryParams struct {
 	System    []string
 }
 
-func (SystemEventsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *SystemEventsQueryParams {
+func (SystemEventsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*SystemEventsQueryParams, error) {
 	params := &SystemEventsQueryParams{
 		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
 
-	if vals := r.URL.Query()["datetime"]; len(vals) > 0 {
-		tr := common_shared.ParseTimeRange(vals)
-		params.EventTime = &tr
-	} else if vals := r.URL.Query()["eventTime"]; len(vals) > 0 {
-		tr := common_shared.ParseTimeRange(vals)
+	// Accept both "datetime" (OGC standard) and "eventTime" (legacy alias)
+	timeKey := "datetime"
+	if vals := r.URL.Query()["datetime"]; len(vals) == 0 {
+		timeKey = "eventTime"
+	}
+	if vals := r.URL.Query()[timeKey]; len(vals) > 0 {
+		tr, err := common_shared.ParseTimeRangeStrict(vals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s: %w", timeKey, err)
+		}
 		params.EventTime = &tr
 	}
 
@@ -42,5 +48,5 @@ func (SystemEventsQueryParams) BuildFromRequest(r *http.Request, defaultLimit in
 		params.System = strings.Split(system, ",")
 	}
 
-	return params
+	return params, nil
 }

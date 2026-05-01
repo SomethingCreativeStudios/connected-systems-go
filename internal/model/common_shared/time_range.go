@@ -11,9 +11,15 @@ import (
 // It is intentionally a plain struct (no driver.Valuer/sql.Scanner)
 // so it can be embedded into domain models and have Start/End
 // stored as separate DB columns via GORM's `embedded` support.
+//
+// Latest signals "most recent record only" semantics (the ?resultTime=latest
+// query keyword). When true, Start/End are ignored by the repository and the
+// query uses ORDER BY <time_col> DESC LIMIT 1 instead of a WHERE filter.
+// Latest is never serialized to JSON and is only meaningful in query params.
 type TimeRange struct {
-	Start *time.Time `json:"start,omitempty"`
-	End   *time.Time `json:"end,omitempty"`
+	Start  *time.Time `json:"start,omitempty"`
+	End    *time.Time `json:"end,omitempty"`
+	Latest bool       `json:"-"`
 }
 
 // MarshalJSON serializes TimeRange as a JSON array [start, end].
@@ -43,6 +49,8 @@ func (tr TimeRange) MarshalJSON() ([]byte, error) {
 // - JSON array: [start, end] where elements are RFC3339 strings or null
 // - JSON object: {"start":"...","end":"..."}
 // - JSON string: "start/end" (existing ToTimeRange string format)
+//
+// Non-null, non-".." elements that are not valid RFC3339 strings are rejected.
 func (tr *TimeRange) UnmarshalJSON(b []byte) error {
 	// allow null
 	if len(b) == 0 || string(b) == "null" {
@@ -54,17 +62,29 @@ func (tr *TimeRange) UnmarshalJSON(b []byte) error {
 	var arr []interface{}
 	if err := json.Unmarshal(b, &arr); err == nil {
 		if len(arr) > 0 && arr[0] != nil {
-			if s, ok := arr[0].(string); ok {
-				if t, err := time.Parse(time.RFC3339, s); err == nil {
-					tr.Start = &t
+			s, ok := arr[0].(string)
+			if !ok {
+				return fmt.Errorf("time array element 0 must be a string or null")
+			}
+			if s != "" && s != ".." {
+				t, err := time.Parse(time.RFC3339, s)
+				if err != nil {
+					return fmt.Errorf("invalid time %q: must be RFC3339 or \"..\"", s)
 				}
+				tr.Start = &t
 			}
 		}
 		if len(arr) > 1 && arr[1] != nil {
-			if s, ok := arr[1].(string); ok {
-				if t, err := time.Parse(time.RFC3339, s); err == nil {
-					tr.End = &t
+			s, ok := arr[1].(string)
+			if !ok {
+				return fmt.Errorf("time array element 1 must be a string or null")
+			}
+			if s != "" && s != ".." {
+				t, err := time.Parse(time.RFC3339, s)
+				if err != nil {
+					return fmt.Errorf("invalid time %q: must be RFC3339 or \"..\"", s)
 				}
+				tr.End = &t
 			}
 		}
 		return nil
@@ -76,15 +96,19 @@ func (tr *TimeRange) UnmarshalJSON(b []byte) error {
 		End   *string `json:"end,omitempty"`
 	}
 	if err := json.Unmarshal(b, &obj); err == nil {
-		if obj.Start != nil && *obj.Start != "" {
-			if t, err := time.Parse(time.RFC3339, *obj.Start); err == nil {
-				tr.Start = &t
+		if obj.Start != nil && *obj.Start != "" && *obj.Start != ".." {
+			t, err := time.Parse(time.RFC3339, *obj.Start)
+			if err != nil {
+				return fmt.Errorf("invalid start time %q: must be RFC3339 or \"..\"", *obj.Start)
 			}
+			tr.Start = &t
 		}
-		if obj.End != nil && *obj.End != "" {
-			if t, err := time.Parse(time.RFC3339, *obj.End); err == nil {
-				tr.End = &t
+		if obj.End != nil && *obj.End != "" && *obj.End != ".." {
+			t, err := time.Parse(time.RFC3339, *obj.End)
+			if err != nil {
+				return fmt.Errorf("invalid end time %q: must be RFC3339 or \"..\"", *obj.End)
 			}
+			tr.End = &t
 		}
 		return nil
 	}
@@ -100,11 +124,18 @@ func (tr *TimeRange) UnmarshalJSON(b []byte) error {
 }
 
 // ToTimeRange converts string/time-range expressions (e.g. "2020-01-01T00:00:00Z/2020-02-01T00:00:00Z")
-// into a TimeRange. Special values like "now" or "latest" map to a Start = now, End = nil.
+// into a TimeRange. "latest" sets Latest=true (most-recent-record semantics). "now" maps to
+// Start=now. ".." / "../.." means unbounded (nil-nil, no filter).
 func ToTimeRange(timeValue string) TimeRange {
-	if timeValue == "latest" || timeValue == "../.." || timeValue == ".." || timeValue == "now" {
+	if timeValue == "latest" {
+		return TimeRange{Latest: true}
+	}
+	if timeValue == "now" {
 		now := time.Now().UTC()
 		return TimeRange{Start: &now, End: nil}
+	}
+	if timeValue == "../.." || timeValue == ".." {
+		return TimeRange{}
 	}
 
 	parts := strings.Split(timeValue, "/")
@@ -154,6 +185,87 @@ func ToTimeRangeFromSlice(parts []string) TimeRange {
 	}
 
 	return TimeRange{Start: startTime, End: endTime}
+}
+
+// ParseTimeRangeStrict parses a query parameter value into a TimeRange, returning
+// an error when a non-special value cannot be parsed as RFC3339. Use this for
+// request query parameter validation where garbage input should produce HTTP 400.
+// Accepts string or []string. Special values ("latest", "now", "..", "../..") are
+// accepted. ".." is allowed in range parts to mean unbounded.
+func ParseTimeRangeStrict(value interface{}) (TimeRange, error) {
+	if value == nil {
+		return TimeRange{}, nil
+	}
+	switch v := value.(type) {
+	case string:
+		return toTimeRangeStrict(v)
+	case []string:
+		return toTimeRangeFromSliceStrict(v)
+	default:
+		return TimeRange{}, fmt.Errorf("unsupported time range format")
+	}
+}
+
+func toTimeRangeStrict(s string) (TimeRange, error) {
+	if s == "latest" {
+		return TimeRange{Latest: true}, nil
+	}
+	if s == "now" {
+		now := time.Now().UTC()
+		return TimeRange{Start: &now, End: nil}, nil
+	}
+	if s == "../.." || s == ".." {
+		return TimeRange{}, nil
+	}
+	parts := strings.Split(s, "/")
+	if len(parts) != 2 {
+		return TimeRange{}, fmt.Errorf("invalid time range %q: expected RFC3339/RFC3339, RFC3339/.., or ../RFC3339", s)
+	}
+	return toTimeRangeFromSliceStrict(parts)
+}
+
+func toTimeRangeFromSliceStrict(parts []string) (TimeRange, error) {
+	// A single element is treated as a standalone value: delegate to toTimeRangeStrict
+	// so special keywords ("latest", "now", "..") and slash-delimited ranges both work.
+	if len(parts) == 1 {
+		return toTimeRangeStrict(parts[0])
+	}
+	var tr TimeRange
+	if len(parts) > 0 {
+		start, err := parseRangePart(parts[0], "start")
+		if err != nil {
+			return TimeRange{}, err
+		}
+		tr.Start = start
+	}
+	if len(parts) > 1 {
+		end, err := parseRangePart(parts[1], "end")
+		if err != nil {
+			return TimeRange{}, err
+		}
+		tr.End = end
+	}
+	return tr, nil
+}
+
+// parseRangePart parses one side of a time range interval.
+// "" and ".." mean unbounded (nil). "now" resolves to the current time.
+// "latest" in a range endpoint is treated as unbounded (open-ended).
+// Any other value must be a valid RFC3339 string.
+func parseRangePart(s, side string) (*time.Time, error) {
+	switch s {
+	case "", "..", "latest":
+		return nil, nil
+	case "now":
+		now := time.Now().UTC()
+		return &now, nil
+	default:
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s time %q: expected RFC3339, \"now\", or \"..\"", side, s)
+		}
+		return &t, nil
+	}
 }
 
 // ParseTimeRange accepts a value of various possible shapes and returns a TimeRange.

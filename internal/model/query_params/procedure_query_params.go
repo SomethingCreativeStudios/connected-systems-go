@@ -1,6 +1,7 @@
 package queryparams
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -16,8 +17,7 @@ type ProceduresQueryParams struct {
 	ControlledProperty []string
 }
 
-// parseQueryParams parses common query parameters
-func (ProceduresQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *ProceduresQueryParams {
+func (ProceduresQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*ProceduresQueryParams, error) {
 	params := &ProceduresQueryParams{
 		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
@@ -30,17 +30,13 @@ func (ProceduresQueryParams) BuildFromRequest(r *http.Request, defaultLimit int)
 		params.ObservedProperty = strings.Split(observedProperties, ",")
 	}
 
-	// dateTime may be provided as a single value (string) or as repeated query params
-	// where index 0 = start, index 1 = end.
 	if dateVals := r.URL.Query()["dateTime"]; len(dateVals) > 0 {
-		var tr common_shared.TimeRange
-		if len(dateVals) == 1 {
-			tr = common_shared.ToTimeRange(dateVals[0])
-		} else {
-			tr = common_shared.ToTimeRangeFromSlice(dateVals)
+		tr, err := common_shared.ParseTimeRangeStrict(dateVals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid dateTime: %w", err)
 		}
 		params.DateTime = &tr
 	}
 
-	return params
+	return params, nil
 }

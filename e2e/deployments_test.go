@@ -448,3 +448,42 @@ func TestSubdeploymentCRUD_CreateAndCanonicalRead(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 	assert.Equal(t, childID, feature["id"])
 }
+
+// =============================================================================
+// ?dateTime=latest must return only the single deployment with the most-recent
+// valid_time_start value regardless of insertion order.
+// =============================================================================
+
+func TestDeployment_List_LatestDateTime_ReturnsMostRecent(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Deployment Latest System"))
+
+	// Build a helper for deployments with a custom validTime start.
+	depWithValidTime := func(name, start, end string) map[string]interface{} {
+		p := baseDeploymentPayload(name, systemID)
+		p["properties"].(map[string]interface{})["validTime"] = []string{start, end}
+		return p
+	}
+
+	// Create 3 deployments with validTime starts in non-monotonic order.
+	createDeploymentViaAPI(t, "/deployments", depWithValidTime("Dep Middle", "2025-01-01T00:00:00Z", "2025-12-31T23:59:59Z"))
+	newestID := createDeploymentViaAPI(t, "/deployments", depWithValidTime("Dep Newest", "2027-01-01T00:00:00Z", "2027-12-31T23:59:59Z"))
+	createDeploymentViaAPI(t, "/deployments", depWithValidTime("Dep Oldest", "2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/deployments?dateTime=latest", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	ids := getDeploymentCollectionIDs(t, body)
+	require.Equal(t, 1, len(ids), "expected exactly one deployment for ?dateTime=latest")
+	assert.Equal(t, newestID, ids[0], "expected the deployment with the most-recent validTime start")
+}

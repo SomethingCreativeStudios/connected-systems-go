@@ -1,6 +1,7 @@
 package queryparams
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -19,8 +20,7 @@ type DeploymentsQueryParams struct {
 	Recursive          bool
 }
 
-// BuildFromRequest parses common query parameters
-func (DeploymentsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *DeploymentsQueryParams {
+func (DeploymentsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*DeploymentsQueryParams, error) {
 	params := &DeploymentsQueryParams{
 		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
@@ -49,5 +49,13 @@ func (DeploymentsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int
 		params.Recursive = true
 	}
 
-	return params
+	if dateVals := r.URL.Query()["dateTime"]; len(dateVals) > 0 {
+		tr, err := common_shared.ParseTimeRangeStrict(dateVals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid dateTime: %w", err)
+		}
+		params.DateTime = &tr
+	}
+
+	return params, nil
 }

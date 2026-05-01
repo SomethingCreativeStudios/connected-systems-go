@@ -1,6 +1,7 @@
 package queryparams
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -21,7 +22,8 @@ type ObservationsQueryParams struct {
 }
 
 // BuildFromRequest parses observation query parameters from request.
-func (ObservationsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *ObservationsQueryParams {
+// Returns an error if a temporal parameter value is present but unparseable.
+func (ObservationsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*ObservationsQueryParams, error) {
 	params := &ObservationsQueryParams{
 		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
 	}
@@ -43,14 +45,20 @@ func (ObservationsQueryParams) BuildFromRequest(r *http.Request, defaultLimit in
 	}
 
 	if vals := r.URL.Query()["phenomenonTime"]; len(vals) > 0 {
-		tr := common_shared.ParseTimeRange(vals)
+		tr, err := common_shared.ParseTimeRangeStrict(vals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid phenomenonTime: %w", err)
+		}
 		params.PhenomenonTime = &tr
 	}
 
 	if vals := r.URL.Query()["resultTime"]; len(vals) > 0 {
-		tr := common_shared.ParseTimeRange(vals)
+		tr, err := common_shared.ParseTimeRangeStrict(vals)
+		if err != nil {
+			return nil, fmt.Errorf("invalid resultTime: %w", err)
+		}
 		params.ResultTime = &tr
 	}
 
-	return params
+	return params, nil
 }

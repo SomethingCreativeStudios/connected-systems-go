@@ -221,3 +221,173 @@ func TestObservation_Create_ValidatesParentDatastreamSchema(t *testing.T) {
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
+
+// helper: POST to observations endpoint, return status + body
+func postObservation(t *testing.T, datastreamID string, payload map[string]interface{}) (int, map[string]interface{}) {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/datastreams/"+datastreamID+"/observations", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	return resp.StatusCode, result
+}
+
+// =============================================================================
+// Issue #19 — numeric phenomenonTime must be rejected (not silently dropped)
+// =============================================================================
+func TestObservation_Create_NumericPhenomenonTime_Returns400(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	status, body := postObservation(t, ds.ID, map[string]interface{}{
+		"phenomenonTime": 1773100000,
+		"resultTime":     "2026-01-01T00:00:00Z",
+		"result":         map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+	})
+	assert.Equal(t, http.StatusBadRequest, status)
+	assert.Contains(t, body["error"], "phenomenonTime")
+}
+
+// =============================================================================
+// Issue #20 — numeric resultTime must give an accurate type error, not "required"
+// =============================================================================
+func TestObservation_Create_NumericResultTime_Returns400WithTypeError(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	status, body := postObservation(t, ds.ID, map[string]interface{}{
+		"resultTime": 1773100000,
+		"result":     map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+	})
+	assert.Equal(t, http.StatusBadRequest, status)
+	errMsg, _ := body["error"].(string)
+	assert.Contains(t, errMsg, "resultTime")
+	assert.NotContains(t, errMsg, "required", "error message should not say 'required' when field is present but wrong type")
+}
+
+// =============================================================================
+// Regression — resultTime truly absent must still say "required"
+// =============================================================================
+func TestObservation_Create_MissingResultTime_Returns400Required(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	status, body := postObservation(t, ds.ID, map[string]interface{}{
+		"result": map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+	})
+	assert.Equal(t, http.StatusBadRequest, status)
+	errMsg, _ := body["error"].(string)
+	assert.Contains(t, errMsg, "required")
+}
+
+// =============================================================================
+// Regression — valid ISO 8601 phenomenonTime must still be accepted
+// =============================================================================
+func TestObservation_Create_ValidPhenomenonTime_Returns201(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	status, _ := postObservation(t, ds.ID, map[string]interface{}{
+		"phenomenonTime": "2026-01-01T00:00:00Z",
+		"resultTime":     "2026-01-01T00:00:00Z",
+		"result":         map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+	})
+	assert.Equal(t, http.StatusCreated, status)
+}
+
+// =============================================================================
+// Issue #11 — garbage resultTime query param must return 400
+// =============================================================================
+func TestObservation_List_GarbageResultTimeParam_Returns400(t *testing.T) {
+	cleanupDB(t)
+	seedDatastreamForObservationTests(t)
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/observations?resultTime=frobnicate", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+// =============================================================================
+// ?resultTime=latest must return only the single most-recent observation
+// =============================================================================
+func TestObservation_List_LatestResultTime_ReturnsMostRecent(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	// Older observation
+	createObservationViaAPI(t, ds.ID, map[string]interface{}{
+		"resultTime": "2025-01-01T00:00:00Z",
+		"result":     map[string]interface{}{"temperature": 10.0, "humidity": 40.0},
+	})
+	// Newer observation
+	newerID := createObservationViaAPI(t, ds.ID, map[string]interface{}{
+		"resultTime": "2026-01-01T00:00:00Z",
+		"result":     map[string]interface{}{"temperature": 20.0, "humidity": 60.0},
+	})
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/observations?resultTime=latest", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
+	items, ok := result["items"].([]interface{})
+	require.True(t, ok)
+	require.Equal(t, 1, len(items), "expected exactly one observation for ?resultTime=latest")
+
+	obs, ok := items[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, newerID, obs["id"], "expected the most recent observation to be returned")
+}
+
+// =============================================================================
+// Issue #11 — valid resultTime range must filter correctly (positive test)
+// =============================================================================
+func TestObservation_List_ValidResultTimeRange_Filters(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	// Create one observation in 2025 and one in 2027
+	createObservationViaAPI(t, ds.ID, map[string]interface{}{
+		"resultTime": "2025-06-01T00:00:00Z",
+		"result":     map[string]interface{}{"temperature": 10.0, "humidity": 40.0},
+	})
+	createObservationViaAPI(t, ds.ID, map[string]interface{}{
+		"resultTime": "2027-06-01T00:00:00Z",
+		"result":     map[string]interface{}{"temperature": 20.0, "humidity": 60.0},
+	})
+
+	// Query only the 2025 window
+	url := testServer.URL + "/observations?resultTime=2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
+	items, ok := result["items"].([]interface{})
+	require.True(t, ok)
+	assert.Equal(t, 1, len(items), "expected only the 2025 observation to be returned")
+}

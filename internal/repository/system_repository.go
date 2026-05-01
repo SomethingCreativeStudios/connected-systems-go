@@ -106,16 +106,17 @@ func (r *SystemRepository) List(params *queryparams.SystemQueryParams) ([]*domai
 	var total int64
 
 	query := r.db.Model(&domains.System{})
-
-	// Apply filters
 	query = r.applyFilters(query, params)
 
-	// Count total
+	if params.Datetime != nil && params.Datetime.Latest {
+		err := query.Order("valid_time_start desc").Limit(1).Find(&systems).Error
+		return systems, int64(len(systems)), err
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Apply pagination
 	if params.Limit > 0 {
 		query = query.Limit(params.Limit)
 	}
@@ -460,7 +461,7 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 		query = query.Where("parent_system_id IN ?", params.Parent)
 	}
 
-	if params.Datetime != nil {
+	if params.Datetime != nil && !params.Datetime.Latest {
 		// Only add conditions if start/end are not nil
 		if params.Datetime.Start != nil && params.Datetime.End != nil {
 			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.Datetime.End, params.Datetime.Start)

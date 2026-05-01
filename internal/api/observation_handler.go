@@ -41,7 +41,12 @@ func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *reposit
 }
 
 func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	observations, total, err := h.repo.List(params, nil)
 	if err != nil {
@@ -71,7 +76,12 @@ func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r
 		return
 	}
 
-	params := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	observations, total, err := h.repo.ListByDatastream(datastreamID, params)
 	if err != nil {
@@ -225,20 +235,32 @@ func decodeObservationPayload(r *http.Request) (*domains.Observation, error) {
 		obs.ProcedureLink = &procLink
 	}
 
-	if resultTimeRaw, ok := raw["resultTime"].(string); ok && resultTimeRaw != "" {
-		resultTime, err := time.Parse(time.RFC3339, resultTimeRaw)
-		if err != nil {
-			return nil, &decodeError{msg: "Invalid resultTime format"}
+	if rtRaw, exists := raw["resultTime"]; exists {
+		rtStr, ok := rtRaw.(string)
+		if !ok {
+			return nil, &decodeError{msg: `resultTime must be an ISO 8601 string (e.g. "2026-01-01T00:00:00Z")`}
 		}
-		obs.ResultTime = resultTime
+		if rtStr != "" {
+			t, err := time.Parse(time.RFC3339, rtStr)
+			if err != nil {
+				return nil, &decodeError{msg: `resultTime must be an ISO 8601 string (e.g. "2026-01-01T00:00:00Z")`}
+			}
+			obs.ResultTime = t
+		}
 	}
 
-	if phenomenonTimeRaw, ok := raw["phenomenonTime"].(string); ok && phenomenonTimeRaw != "" {
-		phenomenonTime, err := time.Parse(time.RFC3339, phenomenonTimeRaw)
-		if err != nil {
-			return nil, &decodeError{msg: "Invalid phenomenonTime format"}
+	if ptRaw, exists := raw["phenomenonTime"]; exists {
+		ptStr, ok := ptRaw.(string)
+		if !ok {
+			return nil, &decodeError{msg: `phenomenonTime must be an ISO 8601 string (e.g. "2026-01-01T00:00:00Z")`}
 		}
-		obs.PhenomenonTime = &phenomenonTime
+		if ptStr != "" {
+			t, err := time.Parse(time.RFC3339, ptStr)
+			if err != nil {
+				return nil, &decodeError{msg: `phenomenonTime must be an ISO 8601 string (e.g. "2026-01-01T00:00:00Z")`}
+			}
+			obs.PhenomenonTime = &t
+		}
 	}
 
 	if parametersRaw, exists := raw["parameters"]; exists {

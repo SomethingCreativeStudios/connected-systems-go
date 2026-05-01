@@ -41,7 +41,12 @@ func NewControlStreamHandler(
 
 // ListControlStreams handles GET /controlstreams
 func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params , err := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	controlStreams, total, err := h.repo.List(params, nil)
 	if err != nil {
@@ -73,7 +78,12 @@ func (h *ControlStreamHandler) ListSystemControlStreams(w http.ResponseWriter, r
 	if systemID == "" {
 		systemID = chi.URLParam(r, "id")
 	}
-	params := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params , err := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	controlStreams, total, err := h.repo.List(params, &systemID)
 	if err != nil {

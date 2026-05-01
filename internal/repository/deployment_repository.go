@@ -52,6 +52,11 @@ func (r *DeploymentRepository) List(params *queryparams.DeploymentsQueryParams, 
 	query := r.db.Model(&domains.Deployment{})
 	query = r.applyFilters(query, params, parentId)
 
+	if params.DateTime != nil && params.DateTime.Latest {
+		err := query.Order("valid_time_start desc").Limit(1).Find(&deployments).Error
+		return deployments, int64(len(deployments)), err
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -189,7 +194,7 @@ func (r *DeploymentRepository) applyFilters(query *gorm.DB, params *queryparams.
 		query = query.Where(strings.Join(clauses, " OR "), args...)
 	}
 
-	if params.DateTime != nil {
+	if params.DateTime != nil && !params.DateTime.Latest {
 		// Only add conditions if start/end are not nil
 		if params.DateTime.Start != nil && params.DateTime.End != nil {
 			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.DateTime.End, params.DateTime.Start)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 
 	"github.com/emicklei/proto"
@@ -77,6 +78,11 @@ func validateDataComponentValue(component *domains.DatastreamDataComponent, valu
 		componentType = "datarecord"
 	}
 
+	// A value matching a declared nilValue is valid regardless of type.
+	if matchesNilValue(component, value) {
+		return nil
+	}
+
 	switch componentType {
 	case "datarecord":
 		obj, ok := value.(map[string]any)
@@ -93,6 +99,10 @@ func validateDataComponentValue(component *domains.DatastreamDataComponent, valu
 					continue
 				}
 				return fmt.Errorf("%s.%s is required by datastream schema", path, field.Name)
+			}
+			// null JSON value for an optional field is acceptable (treat as absent).
+			if fieldVal == nil && field.Optional != nil && *field.Optional {
+				continue
 			}
 			if err := validateDataComponentValue(&field.DatastreamDataComponent, fieldVal, path+"."+field.Name); err != nil {
 				return err
@@ -116,6 +126,10 @@ func validateDataComponentValue(component *domains.DatastreamDataComponent, valu
 					continue
 				}
 				return fmt.Errorf("%s.%s is required by datastream vector schema", path, coord.Name)
+			}
+			// null JSON value for an optional coordinate is acceptable (treat as absent).
+			if coordVal == nil && coord.Optional != nil && *coord.Optional {
+				continue
 			}
 			if err := validateDataComponentValue(&coord.DatastreamDataComponent, coordVal, path+"."+coord.Name); err != nil {
 				return err
@@ -349,4 +363,21 @@ func isIntegerNumber(v any) bool {
 		return false
 	}
 	return math.Mod(f, 1) == 0
+}
+
+// matchesNilValue reports whether value equals any declared nilValue in component.
+func matchesNilValue(component *domains.DatastreamDataComponent, value any) bool {
+	if component == nil || len(component.NilValues) == 0 {
+		return false
+	}
+	for _, nv := range component.NilValues {
+		var decoded any
+		if err := json.Unmarshal(nv.Value, &decoded); err != nil {
+			continue
+		}
+		if reflect.DeepEqual(decoded, value) {
+			return true
+		}
+	}
+	return false
 }

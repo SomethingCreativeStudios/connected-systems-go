@@ -39,6 +39,11 @@ func (r *SystemEventRepository) List(params *queryparams.SystemEventsQueryParams
 	query := r.db.Model(&domains.SystemEvent{})
 	query = r.applyFilters(query, params, fixedSystemID)
 
+	if params.EventTime != nil && params.EventTime.Latest {
+		err := query.Order("time_start desc").Limit(1).Find(&events).Error
+		return events, int64(len(events)), err
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -78,7 +83,7 @@ func (r *SystemEventRepository) applyFilters(query *gorm.DB, params *queryparams
 		query = query.Where("definition IN ?", params.EventType)
 	}
 
-	if params.EventTime != nil {
+	if params.EventTime != nil && !params.EventTime.Latest {
 		if params.EventTime.Start != nil && params.EventTime.End != nil {
 			query = query.Where("time_start <= ? AND (time_end IS NULL OR time_end >= ?)", params.EventTime.End, params.EventTime.Start)
 		} else if params.EventTime.Start != nil {

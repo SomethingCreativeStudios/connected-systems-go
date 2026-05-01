@@ -53,6 +53,11 @@ func (r *ControlStreamRepository) List(params *queryparams.ControlStreamsQueryPa
 	query := r.db.Model(&domains.ControlStream{})
 	query = r.applyFilters(query, params, systemID)
 
+	if params.IssueTime != nil && params.IssueTime.Latest {
+		err := query.Order("issue_time_start desc").Limit(1).Find(&controlStreams).Error
+		return controlStreams, int64(len(controlStreams)), err
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -206,7 +211,7 @@ func (r *ControlStreamRepository) applyFilters(query *gorm.DB, params *querypara
 		query = query.Where(strings.Join(clauses, " OR "), args...)
 	}
 
-	if params.IssueTime != nil {
+	if params.IssueTime != nil && !params.IssueTime.Latest {
 		if params.IssueTime.Start != nil && params.IssueTime.End != nil {
 			query = query.Where("issue_time_start <= ? AND (issue_time_end IS NULL OR issue_time_end >= ?)", params.IssueTime.End, params.IssueTime.Start)
 		} else if params.IssueTime.Start != nil {
