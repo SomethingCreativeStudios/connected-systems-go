@@ -2,7 +2,6 @@ package geojson_formatters
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -65,15 +64,18 @@ func (f *ProcedureGeoJSONFormatter) SerializeAll(ctx context.Context, procedures
 // --- Deserialization ---
 
 func (f *ProcedureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Reader) (*domains.Procedure, error) {
-	var geoJSON struct {
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	geoJSON, err := common_shared.DecodeWithFieldErrors[struct {
 		Type       string                             `json:"type"`
 		ID         string                             `json:"id,omitempty"`
 		Properties domains.ProcedureGeoJSONProperties `json:"properties"`
 		Geometry   *common_shared.GoGeom              `json:"geometry,omitempty"`
 		Links      common_shared.Links                `json:"links,omitempty"`
-	}
-
-	if err := json.NewDecoder(reader).Decode(&geoJSON); err != nil {
+	}](body)
+	if err != nil {
 		return nil, err
 	}
 

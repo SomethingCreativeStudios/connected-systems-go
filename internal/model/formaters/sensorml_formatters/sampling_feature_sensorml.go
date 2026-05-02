@@ -109,8 +109,8 @@ func (f *SamplingFeatureSensorMLFormatter) Deserialize(ctx context.Context, read
 		return nil, err
 	}
 
-	var sensorML domains.SamplingFeatureSensorMLFeature
-	if err := json.Unmarshal(body, &sensorML); err != nil {
+	sensorML, err := common_shared.DecodeWithFieldErrors[domains.SamplingFeatureSensorMLFeature](body)
+	if err != nil {
 		return nil, err
 	}
 

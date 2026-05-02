@@ -100,8 +100,8 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 		return nil, err
 	}
 
-	var sensorML domains.DeploymentSensorMLFeature
-	if err := json.Unmarshal(body, &sensorML); err != nil {
+	sensorML, err := common_shared.DecodeWithFieldErrors[domains.DeploymentSensorMLFeature](body)
+	if err != nil {
 		return nil, err
 	}
 

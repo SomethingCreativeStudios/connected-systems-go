@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/render"
+	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
 // writeDeserializeError writes a 400 Bad Request response with a cleaned-up
@@ -22,6 +23,15 @@ func writeDeserializeError(w http.ResponseWriter, r *http.Request, err error) {
 // messages suitable for API error responses.
 func sanitizeJSONError(err error) string {
 	msg := err.Error()
+
+	// common_shared.UnknownFieldError — strict-mode unknown field
+	var ufErr *common_shared.UnknownFieldError
+	if errors.As(err, &ufErr) {
+		if ufErr.Path == "" {
+			return fmt.Sprintf("unknown field '%s'", ufErr.Field)
+		}
+		return fmt.Sprintf("unknown field '%s' in %s", ufErr.Field, ufErr.Path)
+	}
 
 	// json.UnmarshalTypeError — field-level type mismatch
 	var typeErr *json.UnmarshalTypeError

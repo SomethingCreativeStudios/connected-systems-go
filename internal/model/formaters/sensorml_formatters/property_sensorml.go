@@ -2,7 +2,6 @@ package sensorml_formatters
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -62,9 +61,12 @@ func (f *PropertySensorMLFormatter) SerializeAll(ctx context.Context, properties
 // --- Deserialization ---
 
 func (f *PropertySensorMLFormatter) Deserialize(ctx context.Context, reader io.Reader) (*domains.Property, error) {
-	var sensorML domains.PropertySensorMLFeature
-
-	if err := json.NewDecoder(reader).Decode(&sensorML); err != nil {
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	sensorML, err := common_shared.DecodeWithFieldErrors[domains.PropertySensorMLFeature](body)
+	if err != nil {
 		return nil, err
 	}
 

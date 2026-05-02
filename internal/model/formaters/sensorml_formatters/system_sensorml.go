@@ -156,8 +156,10 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 		return nil, err
 	}
 
-	var sml domains.SystemSensorMLFeature
-	_ = json.Unmarshal(body, &sml)
+	sml, err := common_shared.DecodeWithFieldErrors[domains.SystemSensorMLFeature](body)
+	if err != nil {
+		return nil, err
+	}
 
 	system := &domains.System{
 		Links: common_shared.StripAssociationLinks(sml.Links),

@@ -3,6 +3,7 @@ package common_shared
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 )
 
 // ObservablePropertyInline models the inline ObservableProperty variant
@@ -26,6 +27,9 @@ type IOItem struct {
 // UnmarshalJSON detects which variant is present and populates the
 // appropriate field.
 func (io *IOItem) UnmarshalJSON(b []byte) error {
+	if string(b) == "null" {
+		return nil
+	}
 	io.Raw = append([]byte(nil), b...)
 
 	// quick probe for "type"
@@ -77,8 +81,7 @@ func (io IOItem) MarshalJSON() ([]byte, error) {
 		return json.Marshal(io.Component)
 	}
 
-	// Nothing to emit; return empty object
-	return []byte("{}"), nil
+	return []byte("null"), nil
 }
 
 // IOList is a JSONB-friendly slice of IOItem values.
@@ -86,18 +89,21 @@ type IOList []IOItem
 
 // Value implements driver.Valuer for storing IOList as JSONB in the DB.
 func (l IOList) Value() (driver.Value, error) {
+	if l == nil {
+		return nil, nil
+	}
 	return json.Marshal(l)
 }
 
 // Scan implements sql.Scanner to load IOList from a JSONB column.
-func (l *IOList) Scan(value interface{}) error {
+func (l *IOList) Scan(value any) error {
 	if value == nil {
 		*l = nil
 		return nil
 	}
 	b, ok := value.([]byte)
 	if !ok {
-		return nil
+		return fmt.Errorf("cannot scan type %T into IOList", value)
 	}
 	return json.Unmarshal(b, l)
 }

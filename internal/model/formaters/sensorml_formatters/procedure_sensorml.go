@@ -204,8 +204,8 @@ func (f *ProcedureSensorMLFormatter) Deserialize(ctx context.Context, reader io.
 		return nil, err
 	}
 
-	var sensorML domains.ProcedureSensorMLFeature
-	if err := json.Unmarshal(body, &sensorML); err != nil {
+	sensorML, err := common_shared.DecodeWithFieldErrors[domains.ProcedureSensorMLFeature](body)
+	if err != nil {
 		return nil, err
 	}
 

@@ -2,7 +2,6 @@ package json_formatters
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -67,11 +66,15 @@ func (f *ControlStreamJSONFormatter) SerializeAll(ctx context.Context, controlSt
 }
 
 func (f *ControlStreamJSONFormatter) Deserialize(ctx context.Context, reader io.Reader) (*domains.ControlStream, error) {
-	var wire struct {
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	wire, err := common_shared.DecodeWithFieldErrors[struct {
 		domains.ControlStream
 		SystemLink *common_shared.Link `json:"system@link,omitempty"`
-	}
-	if err := json.NewDecoder(reader).Decode(&wire); err != nil {
+	}](raw)
+	if err != nil {
 		return nil, err
 	}
 	cs := wire.ControlStream
