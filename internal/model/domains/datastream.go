@@ -53,7 +53,7 @@ type Datastream struct {
 	FeatureOfInterestID *string `gorm:"type:varchar(255);index" json:"-"`
 	SamplingFeatureID   *string `gorm:"type:varchar(255);index" json:"-"`
 
-	Systems []System `gorm:"many2many:system_datastreams;"`
+	Systems []System `gorm:"many2many:system_datastreams;" json:"-"`
 }
 
 // TableName specifies the table name.
