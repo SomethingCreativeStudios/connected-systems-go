@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
@@ -98,6 +99,31 @@ func (r *SystemRepository) GetByUID(uid string) (*domains.System, error) {
 		return nil, err
 	}
 	return &system, nil
+}
+
+// GetByIDs returns systems keyed by ID or unique identifier
+func (r *SystemRepository) GetByIDs(ctx context.Context, ids []string) (map[string]*domains.System, error) {
+	result := make(map[string]*domains.System)
+	if len(ids) == 0 {
+		return result, nil
+	}
+
+	var systems []*domains.System
+	if err := r.db.WithContext(ctx).Where("id IN ? OR unique_identifier IN ?", ids, ids).Find(&systems).Error; err != nil {
+		return nil, err
+	}
+
+	for _, s := range systems {
+		if s == nil {
+			continue
+		}
+		result[s.ID] = s
+		if string(s.UniqueIdentifier) != "" {
+			result[string(s.UniqueIdentifier)] = s
+		}
+	}
+
+	return result, nil
 }
 
 // List retrieves systems with filtering

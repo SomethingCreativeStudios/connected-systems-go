@@ -30,7 +30,7 @@ func NewProcedureHandler(cfg *config.Config, logger *zap.Logger, repo *repositor
 }
 
 func (h *ProcedureHandler) ListProcedures(w http.ResponseWriter, r *http.Request) {
-	params , err := queryparams.ProceduresQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.ProceduresQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -83,8 +83,7 @@ func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Reques
 	procedure, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize procedure", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -107,8 +106,7 @@ func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Reques
 	procedure, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize procedure", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 

@@ -78,8 +78,7 @@ func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request)
 	property, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize property", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -104,8 +103,7 @@ func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request)
 	property, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize property", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 

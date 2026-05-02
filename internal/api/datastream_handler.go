@@ -35,7 +35,7 @@ func NewDatastreamHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 }
 
 func (h *DatastreamHandler) ListDatastreams(w http.ResponseWriter, r *http.Request) {
-	params , err := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -71,7 +71,7 @@ func (h *DatastreamHandler) ListSystemDatastreams(w http.ResponseWriter, r *http
 	if systemID == "" {
 		systemID = chi.URLParam(r, "id")
 	}
-	params , err := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -136,8 +136,7 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 	datastream, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize datastream", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -171,8 +170,7 @@ func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Requ
 	datastream, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize datastream", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 

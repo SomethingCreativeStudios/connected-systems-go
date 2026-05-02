@@ -34,7 +34,7 @@ func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *reposit
 }
 
 func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Request) {
-	params , err := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -73,7 +73,7 @@ func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	params , err := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -114,8 +114,7 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 	// OpenAPI allows either a single event or an array.
 	var raw any
 	if err := render.DecodeJSON(r.Body, &raw); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -220,8 +219,7 @@ func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Requ
 
 	var event domains.SystemEvent
 	if err := render.DecodeJSON(r.Body, &event); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 

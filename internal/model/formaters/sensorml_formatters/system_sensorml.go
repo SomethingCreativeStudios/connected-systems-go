@@ -53,6 +53,27 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 		return []domains.SystemSensorMLFeature{}, nil
 	}
 
+	// Collect IDs for batch loading
+	kindIDs := make([]string, 0, len(systems))
+	parentIDs := make([]string, 0, len(systems))
+	for _, s := range systems {
+		if s.TypeOfID != nil && *s.TypeOfID != "" {
+			kindIDs = append(kindIDs, *s.TypeOfID)
+		}
+		if s.ParentSystemID != nil && strings.TrimSpace(*s.ParentSystemID) != "" {
+			parentIDs = append(parentIDs, strings.TrimSpace(*s.ParentSystemID))
+		}
+	}
+
+	// Build resource cache for enriching association links
+	cache := formaters.NewResourceCache()
+	if len(kindIDs) > 0 && f.repos != nil {
+		_ = cache.FetchProcedures(ctx, f.repos.Procedure, kindIDs)
+	}
+	if len(parentIDs) > 0 && f.repos != nil {
+		_ = cache.FetchParentSystems(ctx, f.repos.System, parentIDs)
+	}
+
 	var features []domains.SystemSensorMLFeature
 	for _, system := range systems {
 
@@ -60,7 +81,7 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 		var attachedTo *common_shared.Link
 		if system.ParentSystemID != nil && strings.TrimSpace(*system.ParentSystemID) != "" {
 			attachedTo = &common_shared.Link{
-				Href: "/systems/" + strings.TrimSpace(*system.ParentSystemID),
+				Href: formaters.ToFunctionalAssociationHref("/systems/" + strings.TrimSpace(*system.ParentSystemID)),
 				Rel:  common_shared.OGCRel("attachedTo"),
 			}
 		}
@@ -70,7 +91,7 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 		typeOf := system.TypeOf
 		if typeOf == nil && system.TypeOfID != nil && strings.TrimSpace(*system.TypeOfID) != "" {
 			typeOf = &common_shared.Link{
-				Href: "/procedures/" + strings.TrimSpace(*system.TypeOfID),
+				Href: formaters.ToFunctionalAssociationHref("/procedures/" + strings.TrimSpace(*system.TypeOfID)),
 				Rel:  common_shared.OGCRel("systemKind"),
 			}
 		}
@@ -115,7 +136,7 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 			AttachedTo:           attachedTo,
 			LocalReferenceFrames: system.LocalReferenceFrames,
 			LocalTimeFrames:      system.LocalTimeFrames,
-			Links:                formaters.AppendSensorMLSystemAssociationLinks(system),
+			Links:                formaters.AppendSensorMLSystemAssociationLinks(system, cache),
 		}
 		features = append(features, feature)
 	}

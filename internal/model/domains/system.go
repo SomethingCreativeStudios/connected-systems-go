@@ -148,7 +148,7 @@ type SystemSensorMLFeature struct {
 	SecurityConstraints  common_shared.SecurityConstraints `json:"securityConstraints,omitempty"`
 	LegalConstraints     common_shared.LegalConstraints    `json:"legalConstraints,omitempty"`
 	Contacts             []common_shared.ContactWrapper    `json:"contacts,omitempty"`
-	Documentation        common_shared.Documents           `json:"documentation,omitempty"`
+	Documentation        common_shared.Documents           `json:"documents,omitempty"`
 	History              common_shared.History             `json:"history,omitempty"`
 	Definition           string                            `json:"definition,omitempty"`
 	TypeOf               *common_shared.Link               `json:"typeOf,omitempty"`

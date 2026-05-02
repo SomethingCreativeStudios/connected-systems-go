@@ -98,8 +98,7 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 	sampledFeature, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize sampling feature", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -143,8 +142,7 @@ func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r 
 	sampledFeature, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize sampling feature", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 

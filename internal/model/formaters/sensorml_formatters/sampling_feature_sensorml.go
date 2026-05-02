@@ -51,13 +51,49 @@ func (f *SamplingFeatureSensorMLFormatter) SerializeAll(ctx context.Context, sam
 			UniqueID:           string(sf.UniqueIdentifier),
 			Definition:         sf.FeatureType,
 			ValidTime:          sf.ValidTime,
-			SampledFeatureLink: sf.SampledFeatureLink,
-			SampleOf:           sf.SampleOf,
+			SampledFeatureLink: absolutizeLink(sf.SampledFeatureLink),
+			SampleOf:           absolutizeLinks(sf.SampleOf),
 			Links:              sf.Links,
 		}
 		features = append(features, feature)
 	}
 	return features, nil
+}
+
+// absolutizeLink returns a copy of the link with an absolute href.
+func absolutizeLink(link *common_shared.Link) *common_shared.Link {
+	if link == nil {
+		return nil
+	}
+	cp := *link
+	cp.Href = formaters.ToFunctionalAssociationHref(cp.Href)
+	return &cp
+}
+
+// absolutizeLinks returns a copy of the links with absolute hrefs.
+func absolutizeLinks(links *common_shared.Links) *common_shared.Links {
+	if links == nil {
+		return nil
+	}
+	result := make(common_shared.Links, len(*links))
+	for i, l := range *links {
+		result[i] = l
+		result[i].Href = formaters.ToFunctionalAssociationHref(result[i].Href)
+	}
+	return &result
+}
+
+// absolutizeLinksValue returns a copy of the links (value type) with absolute hrefs.
+func absolutizeLinksValue(links common_shared.Links) common_shared.Links {
+	if len(links) == 0 {
+		return nil
+	}
+	result := make(common_shared.Links, len(links))
+	for i, l := range links {
+		result[i] = l
+		result[i].Href = formaters.ToFunctionalAssociationHref(result[i].Href)
+	}
+	return result
 }
 
 // --- Deserialization ---

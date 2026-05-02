@@ -53,7 +53,7 @@ func (f *SamplingFeatureGeoJSONFormatter) SerializeAll(ctx context.Context, samp
 				Description:        sf.Description,
 				FeatureType:        sf.FeatureType,
 				ValidTime:          sf.ValidTime,
-				SampledFeatureLink: sf.SampledFeatureLink,
+				SampledFeatureLink: absolutizeLink(sf.SampledFeatureLink),
 			},
 			Links: formaters.AppendSamplingFeatureGeoJSONAssociationLinks(sf),
 		}
@@ -109,4 +109,14 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 	formaters.ApplySamplingFeatureGeoJSONAssociationLinks(sf, associationLinks)
 
 	return sf, nil
+}
+
+// absolutizeLink returns a copy of the link with an absolute href.
+func absolutizeLink(link *common_shared.Link) *common_shared.Link {
+	if link == nil {
+		return nil
+	}
+	cp := *link
+	cp.Href = formaters.ToFunctionalAssociationHref(cp.Href)
+	return &cp
 }

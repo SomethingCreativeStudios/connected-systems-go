@@ -43,6 +43,20 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 
 	var features []domains.DeploymentSensorMLFeature
 	for _, deployment := range deployments {
+		// Absolutize inline link hrefs
+		var platform *domains.DeployedSystemItem
+		if deployment.Platform != nil {
+			cp := *deployment.Platform
+			cp.System.Href = formaters.ToFunctionalAssociationHref(cp.System.Href)
+			platform = &cp
+		}
+		var deployedSystems []domains.DeployedSystemItem
+		for _, ds := range deployment.DeployedSystems {
+			cp := ds
+			cp.System.Href = formaters.ToFunctionalAssociationHref(cp.System.Href)
+			deployedSystems = append(deployedSystems, cp)
+		}
+
 		feature := domains.DeploymentSensorMLFeature{
 			ID:              deployment.ID,
 			Type:            "Deployment",
@@ -52,8 +66,8 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 			Definition:      deployment.DeploymentType,
 			ValidTime:       deployment.ValidTime,
 			Location:        deployment.Geometry,
-			Platform:        deployment.Platform,
-			DeployedSystems: deployment.DeployedSystems,
+			Platform:        platform,
+			DeployedSystems: deployedSystems,
 			Links:           formaters.AppendDeploymentAssociationLinks(deployment),
 
 			Lang:                deployment.Lang,

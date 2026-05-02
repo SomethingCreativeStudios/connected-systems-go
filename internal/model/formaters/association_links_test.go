@@ -41,7 +41,7 @@ func TestAppendGeoJSONSystemAssociationLinks(t *testing.T) {
 		},
 	}
 
-	links := AppendGeoJSONSystemAssociationLinks(system)
+	links := AppendGeoJSONSystemAssociationLinks(system, nil)
 
 	assertHasRel(t, links, "alternate")
 	assertHasRel(t, links, common_shared.OGCRel("parentSystem"))
@@ -66,10 +66,55 @@ func TestAppendGeoJSONSystemAssociationLinks_DedupesDerivedAndExisting(t *testin
 		},
 	}
 
-	links := AppendGeoJSONSystemAssociationLinks(system)
+	links := AppendGeoJSONSystemAssociationLinks(system, nil)
 
 	assertRelCount(t, links, common_shared.OGCRel("parentSystem"), 1)
 	assertRelCount(t, links, common_shared.OGCRel("subsystems"), 1)
+}
+
+func TestAppendGeoJSONSystemAssociationLinks_EnrichesFromCache(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	parentID := "parent-1"
+	parentName := "Parent System"
+	parentUID := "urn:system:parent-1"
+
+	system := &domains.System{
+		Base:           domains.Base{ID: "sys-1"},
+		ParentSystemID: &parentID,
+	}
+
+	cache := NewResourceCache()
+	cache.Systems[parentID] = &domains.System{
+		Base:      domains.Base{ID: parentID},
+		CommonSSN: domains.CommonSSN{Name: parentName, UniqueIdentifier: domains.UniqueID(parentUID)},
+	}
+
+	links := AppendGeoJSONSystemAssociationLinks(system, cache)
+
+	// Find the parentSystem link and verify enrichment
+	var parentLink *common_shared.Link
+	for i := range links {
+		if common_shared.RelEquals(links[i].Rel, common_shared.OGCRel("parentSystem")) {
+			parentLink = &links[i]
+			break
+		}
+	}
+	if parentLink == nil {
+		t.Fatal("expected parentSystem link")
+	}
+	if parentLink.Title != parentName {
+		t.Fatalf("expected title %q, got %q", parentName, parentLink.Title)
+	}
+	if parentLink.UID == nil || *parentLink.UID != parentUID {
+		t.Fatalf("expected uid %q, got %v", parentUID, parentLink.UID)
+	}
+	if parentLink.Type != GeoJSONContentType {
+		t.Fatalf("expected type %q, got %q", GeoJSONContentType, parentLink.Type)
+	}
+	if parentLink.Href != "http://example.test/systems/parent-1" {
+		t.Fatalf("expected absolute href, got %q", parentLink.Href)
+	}
 }
 
 func TestAppendSensorMLSystemAssociationLinksIncludesParentSystem(t *testing.T) {
@@ -89,7 +134,7 @@ func TestAppendSensorMLSystemAssociationLinksIncludesParentSystem(t *testing.T) 
 		},
 	}
 
-	links := AppendSensorMLSystemAssociationLinks(system)
+	links := AppendSensorMLSystemAssociationLinks(system, nil)
 
 	assertHasRel(t, links, "alternate")
 	assertHasRel(t, links, common_shared.OGCRel("samplingFeatures"))

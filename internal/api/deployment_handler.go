@@ -29,7 +29,7 @@ func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 }
 
 func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Request) {
-	params , err := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -81,8 +81,7 @@ func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Requ
 	deployment, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize deployment", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -105,8 +104,7 @@ func (h *DeploymentHandler) UpdateDeployment(w http.ResponseWriter, r *http.Requ
 	deployment, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize deployment", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -147,7 +145,7 @@ func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Requ
 // List all subdeployments
 func (h *DeploymentHandler) ListSubdeployments(w http.ResponseWriter, r *http.Request) {
 	parentID := chi.URLParam(r, "id")
-	params , err := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})

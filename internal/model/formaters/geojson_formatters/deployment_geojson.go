@@ -58,12 +58,15 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 
 		var systemLinks common_shared.Links
 		for _, ds := range deployment.DeployedSystems {
-			systemLinks = append(systemLinks, ds.System)
+			link := ds.System
+			link.Href = formaters.ToFunctionalAssociationHref(link.Href)
+			systemLinks = append(systemLinks, link)
 		}
 
 		var platformLink *common_shared.Link
 		if deployment.Platform != nil {
 			platform := deployment.Platform.System
+			platform.Href = formaters.ToFunctionalAssociationHref(platform.Href)
 			platformLink = &platform
 		}
 

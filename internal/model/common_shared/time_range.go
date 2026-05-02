@@ -156,6 +156,12 @@ func ToTimeRange(timeValue string) TimeRange {
 		return TimeRange{Start: startTime, End: endTime}
 	}
 
+	// Single value (no slash): treat as start time only
+	if len(parts) == 1 && parts[0] != "" && parts[0] != ".." {
+		t, _ := time.Parse(time.RFC3339, parts[0])
+		return TimeRange{Start: &t, End: nil}
+	}
+
 	return TimeRange{Start: nil, End: nil}
 }
 
@@ -218,10 +224,18 @@ func toTimeRangeStrict(s string) (TimeRange, error) {
 		return TimeRange{}, nil
 	}
 	parts := strings.Split(s, "/")
-	if len(parts) != 2 {
-		return TimeRange{}, fmt.Errorf("invalid time range %q: expected RFC3339/RFC3339, RFC3339/.., or ../RFC3339", s)
+	if len(parts) == 2 {
+		return toTimeRangeFromSliceStrict(parts)
 	}
-	return toTimeRangeFromSliceStrict(parts)
+	// Single value (no slash): treat as start time only
+	if len(parts) == 1 {
+		start, err := parseRangePart(parts[0], "start")
+		if err != nil {
+			return TimeRange{}, err
+		}
+		return TimeRange{Start: start}, nil
+	}
+	return TimeRange{}, fmt.Errorf("invalid time range %q: expected RFC3339, RFC3339/RFC3339, RFC3339/.., or ../RFC3339", s)
 }
 
 func toTimeRangeFromSliceStrict(parts []string) (TimeRange, error) {

@@ -24,7 +24,7 @@ func (h *SystemHandler) ListSystemHistory(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	params , err := queryparams.SystemHistoryQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.SystemHistoryQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -116,8 +116,7 @@ func (h *SystemHandler) UpdateSystemHistoryRevision(w http.ResponseWriter, r *ht
 	contentType := r.Header.Get("Content-Type")
 	updatedSystem, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 

@@ -41,7 +41,7 @@ func NewControlStreamHandler(
 
 // ListControlStreams handles GET /controlstreams
 func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http.Request) {
-	params , err := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -78,7 +78,7 @@ func (h *ControlStreamHandler) ListSystemControlStreams(w http.ResponseWriter, r
 	if systemID == "" {
 		systemID = chi.URLParam(r, "id")
 	}
-	params , err := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -145,8 +145,7 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 	cs, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize control stream", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -181,8 +180,7 @@ func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *htt
 	cs, err := h.fc.Deserialize(contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize control stream", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeDeserializeError(w, r, err)
 		return
 	}
 
