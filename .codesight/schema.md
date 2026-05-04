@@ -23,7 +23,6 @@
 ### ControlStream
 - ValidTime: *common_shared.TimeRange
 - Formats: common_shared.StringArray
-- SystemLink: *common_shared.Link
 - InputName: string
 - ProcedureLink: *common_shared.Link
 - DeploymentLink: *common_shared.Link
@@ -47,7 +46,6 @@
 - Description: string
 - ValidTime: *common_shared.TimeRange
 - Formats: common_shared.StringArray
-- SystemLink: *common_shared.Link
 - OutputName: string
 - ProcedureLink: *common_shared.Link
 - DeploymentLink: *common_shared.Link
@@ -181,7 +179,7 @@
 - ValidTime: *common_shared.TimeRange
 - Geometry: *common_shared.GoGeom
 - ParentSystemID: *string (index)
-- SystemKindID: *string (index)
+- TypeOfID: *string (index)
 - Lang: *string
 - Keywords: common_shared.StringArray
 - Identifiers: common_shared.Terms
@@ -203,7 +201,7 @@
 - LocalTimeFrames: []common_shared.TemporalFrame
 - Position: json.RawMessage
 - Links: common_shared.Links
-- SystemKind: Procedure (fk)
+- LinkedProcedure: Procedure (fk)
 - Procedures: []Procedure
 - Deployments: []Deployment
 - SamplingFeatures: []SamplingFeature (fk)

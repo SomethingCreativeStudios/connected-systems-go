@@ -1,7 +1,7 @@
 # Test Coverage
 
 > **38%** of routes and models are covered by tests
-> 31 test files found
+> 36 test files found
 
 ## Covered Routes
 
@@ -56,6 +56,7 @@
 - GET:limit
 - GET:offset
 - GET:id
+- DELETE:nonexistent-id
 
 ## Covered Models
 

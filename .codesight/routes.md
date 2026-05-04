@@ -81,6 +81,7 @@
 - `POST` `/subdeployments` params() [auth, db] ✓
 - `GET` `/api` params() [auth, db]
 - `GET` `recursive` params() [db]
+- `GET` `json` params()
 - `GET` `controlStream` params() [db]
 - `GET` `system` params() [db]
 - `GET` `foi` params() [db]
@@ -101,3 +102,4 @@
 - `GET` `keyword` params() [db]
 - `GET` `procedure` params() [db]
 - `GET` `geom` params() [db]
+- `DELETE` `nonexistent-id` params() [db] ✓

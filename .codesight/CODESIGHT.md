@@ -2,9 +2,9 @@
 
 > **Stack:** chi | gorm | unknown | go
 
-> 155 routes | 15 models | 0 components | 113 lib files | 0 env vars | 0 middleware | 38% test coverage
-> **Token savings:** this file is ~10,200 tokens. Without it, AI exploration would cost ~122,800 tokens. **Saves ~112,500 tokens per conversation.**
-> **Last scanned:** 2026-05-01 03:12 — re-run after significant changes
+> 157 routes | 15 models | 0 components | 114 lib files | 0 env vars | 0 middleware | 38% test coverage
+> **Token savings:** this file is ~10,300 tokens. Without it, AI exploration would cost ~124,100 tokens. **Saves ~113,800 tokens per conversation.**
+> **Last scanned:** 2026-05-02 03:20 — re-run after significant changes
 
 ---
 
@@ -91,6 +91,7 @@
 - `POST` `/subdeployments` params() [auth, db] ✓
 - `GET` `/api` params() [auth, db]
 - `GET` `recursive` params() [db]
+- `GET` `json` params()
 - `GET` `controlStream` params() [db]
 - `GET` `system` params() [db]
 - `GET` `foi` params() [db]
@@ -111,6 +112,7 @@
 - `GET` `keyword` params() [db]
 - `GET` `procedure` params() [db]
 - `GET` `geom` params() [db]
+- `DELETE` `nonexistent-id` params() [db] ✓
 
 ---
 
@@ -139,7 +141,6 @@
 ### ControlStream
 - ValidTime: *common_shared.TimeRange
 - Formats: common_shared.StringArray
-- SystemLink: *common_shared.Link
 - InputName: string
 - ProcedureLink: *common_shared.Link
 - DeploymentLink: *common_shared.Link
@@ -163,7 +164,6 @@
 - Description: string
 - ValidTime: *common_shared.TimeRange
 - Formats: common_shared.StringArray
-- SystemLink: *common_shared.Link
 - OutputName: string
 - ProcedureLink: *common_shared.Link
 - DeploymentLink: *common_shared.Link
@@ -297,7 +297,7 @@
 - ValidTime: *common_shared.TimeRange
 - Geometry: *common_shared.GoGeom
 - ParentSystemID: *string (index)
-- SystemKindID: *string (index)
+- TypeOfID: *string (index)
 - Lang: *string
 - Keywords: common_shared.StringArray
 - Identifiers: common_shared.Terms
@@ -319,7 +319,7 @@
 - LocalTimeFrames: []common_shared.TemporalFrame
 - Position: json.RawMessage
 - Links: common_shared.Links
-- SystemKind: Procedure (fk)
+- LinkedProcedure: Procedure (fk)
 - Procedures: []Procedure
 - Deployments: []Deployment
 - SamplingFeatures: []SamplingFeature (fk)
@@ -380,7 +380,7 @@
 - `internal/api/procedure_handler.go` — function NewProcedureHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.ProcedureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Procedure]) *ProcedureHandler, class ProcedureHandler
 - `internal/api/property_handler.go` — function NewPropertyHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.PropertyRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Property]) *PropertyHandler, class PropertyHandler
 - `internal/api/router.go` — function NewRouter: (cfg *config.Config, logger *zap.Logger, repos *repository.Repositories) http.Handler
-- `internal/api/sampling_feature_handler.go` — function NewSamplingFeatureHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.SamplingFeatureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]) *SamplingFeatureHandler, class SamplingFeatureHandler
+- `internal/api/sampling_feature_handler.go` — function NewSamplingFeatureHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.SamplingFeatureRepository, systemRepo *repository.SystemRepository, fc *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]) *SamplingFeatureHandler, class SamplingFeatureHandler
 - `internal/api/system_event_handler.go`
   - function NewSystemEventHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository) *SystemEventHandler
   - class SystemEventCollectionResponse
@@ -425,6 +425,7 @@
   - class ContactPersonOrg
   - class ContactLink
   - class ContactWrapper
+- `internal/model/common_shared/decode.go` — class UnknownFieldError
 - `internal/model/common_shared/documents.go` — class Document
 - `internal/model/common_shared/extent.go` — class Extent
 - `internal/model/common_shared/geometry.go` — class Geometry
@@ -450,6 +451,7 @@
 - `internal/model/common_shared/time_range.go`
   - function ToTimeRange: (timeValue string) TimeRange
   - function ToTimeRangeFromSlice: (parts []string) TimeRange
+  - function ParseTimeRangeStrict: (value interface{}) (TimeRange, error)
   - function ParseTimeRange: (value interface{}) TimeRange
   - class TimeRange
 - `internal/model/domains/collection.go`
@@ -503,12 +505,12 @@
 - `internal/model/domains/system_history_revision.go` — class SystemHistoryRevision
 - `internal/model/formaters/association_links.go`
   - function SetAssociationLinksBaseURL: (baseURL string)
+  - function NewResourceCache: () *ResourceCache
   - function GeoJSONSystemAssociationLinks: (links common_shared.Links) common_shared.Links
   - function DeploymentAssociationLinks: (links common_shared.Links) common_shared.Links
   - function SamplingFeatureGeoJSONAssociationLinks: (links common_shared.Links) common_shared.Links
-  - function AppendGeoJSONSystemAssociationLinks: (system *domains.System) common_shared.Links
-  - function AppendSensorMLSystemAssociationLinks: (system *domains.System) common_shared.Links
-  - _...7 more_
+  - function AppendGeoJSONSystemAssociationLinks: (system *domains.System, cache *ResourceCache) common_shared.Links
+  - _...9 more_
 - `internal/model/formaters/geojson_formatters/collection_geojson.go` — function NewFeatureCollectionGeoJSONFormatter: (repos *repository.Repositories) *FeatureCollectionGeoJSONFormatter, class FeatureCollectionGeoJSONFormatter
 - `internal/model/formaters/geojson_formatters/deployment_geojson.go` — function NewDeploymentGeoJSONFormatter: (repos *repository.Repositories) *DeploymentGeoJSONFormatter, class DeploymentGeoJSONFormatter
 - `internal/model/formaters/geojson_formatters/feature_geojson.go` — function NewFeatureGeoJSONFormatter: (repos *repository.Repositories) *FeatureGeoJSONFormatter, class FeatureGeoJSONFormatter
@@ -516,8 +518,14 @@
 - `internal/model/formaters/geojson_formatters/property_geojson.go` — function NewPropertyGeoJSONFormatter: (repos *repository.Repositories) *PropertyGeoJSONFormatter, class PropertyGeoJSONFormatter
 - `internal/model/formaters/geojson_formatters/sampling_feature_geojson.go` — function NewSamplingFeatureGeoJSONFormatter: (repos *repository.Repositories) *SamplingFeatureGeoJSONFormatter, class SamplingFeatureGeoJSONFormatter
 - `internal/model/formaters/geojson_formatters/system_geojson.go` — function NewSystemGeoJSONFormatter: (repos *repository.Repositories) *SystemGeoJSONFormatter, class SystemGeoJSONFormatter
-- `internal/model/formaters/json_formatters/control_stream_json.go` — function NewControlStreamJSONFormatter: () *ControlStreamJSONFormatter, class ControlStreamJSONFormatter
-- `internal/model/formaters/json_formatters/datastream_json.go` — function NewDatastreamJSONFormatter: () *DatastreamJSONFormatter, class DatastreamJSONFormatter
+- `internal/model/formaters/json_formatters/control_stream_json.go`
+  - function NewControlStreamJSONFormatter: () *ControlStreamJSONFormatter
+  - class ControlStreamJSONFeature
+  - class ControlStreamJSONFormatter
+- `internal/model/formaters/json_formatters/datastream_json.go`
+  - function NewDatastreamJSONFormatter: () *DatastreamJSONFormatter
+  - class DatastreamJSONFeature
+  - class DatastreamJSONFormatter
 - `internal/model/formaters/multi_format_serializer.go` — class AnyFeatureCollection
 - `internal/model/formaters/sensorml_formatters/deployment_sensorml.go` — function NewDeploymentSensorMLFormatter: (repos *repository.Repositories) *DeploymentSensorMLFormatter, class DeploymentSensorMLFormatter
 - `internal/model/formaters/sensorml_formatters/procedure_sensorml.go` — function NewProcedureSensorMLFormatter: (repos *repository.Repositories) *ProcedureSensorMLFormatter, class ProcedureSensorMLFormatter
@@ -601,7 +609,7 @@
 - `internal/model/query_params/system_event_query_params.go` — class SystemEventsQueryParams
 - `internal/model/query_params/system_history_query_params.go` — class SystemHistoryQueryParams
 - `internal/model/query_params/system_query_params.go` — class SystemQueryParams
-- `internal/repository/closure.go` — function EnsureClosureSupport: (db *gorm.DB, table, idCol, parentCol, closureTable string) error, function EnsureDeleteReparentSupport: (db *gorm.DB, table, idCol, parentCol string) error
+- `internal/repository/closure.go` — function EnsureClosureSupport: (db *gorm.DB, table, idCol, parentCol, closureTable string) error
 - `internal/repository/collection_repository.go` — function NewCollectionRepository: (db *gorm.DB) *CollectionRepository, class CollectionRepository
 - `internal/repository/command_repository.go` — function NewCommandRepository: (db *gorm.DB) *CommandRepository, class CommandRepository
 - `internal/repository/control_stream_repository.go` — function NewControlStreamRepository: (db *gorm.DB) *ControlStreamRepository, class ControlStreamRepository
@@ -648,8 +656,8 @@
 
 ## Most Imported Files (change these carefully)
 
-- `encoding/json` — imported by **71** files
-- `net/http` — imported by **43** files
+- `encoding/json` — imported by **68** files
+- `net/http` — imported by **45** files
 - `database/sql/driver` — imported by **21** files
 - `math/rand` — imported by **6** files
 - `net/url` — imported by **5** files
@@ -660,8 +668,8 @@
 
 ## Import Map (who imports what)
 
-- `encoding/json` ← `e2e/collections_test.go`, `e2e/control_streams_test.go`, `e2e/datastreams_test.go`, `e2e/deployments_test.go`, `e2e/features_test.go` +66 more
-- `net/http` ← `cmd/server/main.go`, `e2e/collections_test.go`, `e2e/control_streams_test.go`, `e2e/datastreams_test.go`, `e2e/deployments_test.go` +38 more
+- `encoding/json` ← `e2e/collections_test.go`, `e2e/control_streams_test.go`, `e2e/datastreams_test.go`, `e2e/deployments_test.go`, `e2e/features_test.go` +63 more
+- `net/http` ← `cmd/server/main.go`, `e2e/collections_test.go`, `e2e/control_streams_test.go`, `e2e/datastreams_test.go`, `e2e/delete_test.go` +40 more
 - `database/sql/driver` ← `internal/model/common_shared/capabilities.go`, `internal/model/common_shared/characteristics.go`, `internal/model/common_shared/codeList.go`, `internal/model/common_shared/configurationSettings.go`, `internal/model/common_shared/contacts.go` +16 more
 - `math/rand` ← `internal/model/generators/generators_common_shared.go`, `internal/model/generators/generators_datastream.go`, `internal/model/generators/generators_deployment.go`, `internal/model/generators/generators_procedure.go`, `internal/model/generators/generators_sensorml_shared.go` +1 more
 - `net/url` ← `internal/model/formaters/association_links.go`, `internal/model/formaters/formatter.go`, `internal/model/formaters/multi_format_serializer.go`, `internal/model/query_params/query_params.go`, `internal/model/query_params/query_params_test.go`
@@ -675,7 +683,7 @@
 # Test Coverage
 
 > **38%** of routes and models are covered by tests
-> 31 test files found
+> 36 test files found
 
 ## Covered Routes
 
@@ -730,6 +738,7 @@
 - GET:limit
 - GET:offset
 - GET:id
+- DELETE:nonexistent-id
 
 ## Covered Models
 

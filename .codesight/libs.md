@@ -29,7 +29,7 @@
 - `internal/api/procedure_handler.go` — function NewProcedureHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.ProcedureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Procedure]) *ProcedureHandler, class ProcedureHandler
 - `internal/api/property_handler.go` — function NewPropertyHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.PropertyRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Property]) *PropertyHandler, class PropertyHandler
 - `internal/api/router.go` — function NewRouter: (cfg *config.Config, logger *zap.Logger, repos *repository.Repositories) http.Handler
-- `internal/api/sampling_feature_handler.go` — function NewSamplingFeatureHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.SamplingFeatureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]) *SamplingFeatureHandler, class SamplingFeatureHandler
+- `internal/api/sampling_feature_handler.go` — function NewSamplingFeatureHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.SamplingFeatureRepository, systemRepo *repository.SystemRepository, fc *formaters.MultiFormatFormatterCollection[*domains.SamplingFeature]) *SamplingFeatureHandler, class SamplingFeatureHandler
 - `internal/api/system_event_handler.go`
   - function NewSystemEventHandler: (cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository) *SystemEventHandler
   - class SystemEventCollectionResponse
@@ -74,6 +74,7 @@
   - class ContactPersonOrg
   - class ContactLink
   - class ContactWrapper
+- `internal/model/common_shared/decode.go` — class UnknownFieldError
 - `internal/model/common_shared/documents.go` — class Document
 - `internal/model/common_shared/extent.go` — class Extent
 - `internal/model/common_shared/geometry.go` — class Geometry
@@ -99,6 +100,7 @@
 - `internal/model/common_shared/time_range.go`
   - function ToTimeRange: (timeValue string) TimeRange
   - function ToTimeRangeFromSlice: (parts []string) TimeRange
+  - function ParseTimeRangeStrict: (value interface{}) (TimeRange, error)
   - function ParseTimeRange: (value interface{}) TimeRange
   - class TimeRange
 - `internal/model/domains/collection.go`
@@ -152,12 +154,12 @@
 - `internal/model/domains/system_history_revision.go` — class SystemHistoryRevision
 - `internal/model/formaters/association_links.go`
   - function SetAssociationLinksBaseURL: (baseURL string)
+  - function NewResourceCache: () *ResourceCache
   - function GeoJSONSystemAssociationLinks: (links common_shared.Links) common_shared.Links
   - function DeploymentAssociationLinks: (links common_shared.Links) common_shared.Links
   - function SamplingFeatureGeoJSONAssociationLinks: (links common_shared.Links) common_shared.Links
-  - function AppendGeoJSONSystemAssociationLinks: (system *domains.System) common_shared.Links
-  - function AppendSensorMLSystemAssociationLinks: (system *domains.System) common_shared.Links
-  - _...7 more_
+  - function AppendGeoJSONSystemAssociationLinks: (system *domains.System, cache *ResourceCache) common_shared.Links
+  - _...9 more_
 - `internal/model/formaters/geojson_formatters/collection_geojson.go` — function NewFeatureCollectionGeoJSONFormatter: (repos *repository.Repositories) *FeatureCollectionGeoJSONFormatter, class FeatureCollectionGeoJSONFormatter
 - `internal/model/formaters/geojson_formatters/deployment_geojson.go` — function NewDeploymentGeoJSONFormatter: (repos *repository.Repositories) *DeploymentGeoJSONFormatter, class DeploymentGeoJSONFormatter
 - `internal/model/formaters/geojson_formatters/feature_geojson.go` — function NewFeatureGeoJSONFormatter: (repos *repository.Repositories) *FeatureGeoJSONFormatter, class FeatureGeoJSONFormatter
@@ -165,8 +167,14 @@
 - `internal/model/formaters/geojson_formatters/property_geojson.go` — function NewPropertyGeoJSONFormatter: (repos *repository.Repositories) *PropertyGeoJSONFormatter, class PropertyGeoJSONFormatter
 - `internal/model/formaters/geojson_formatters/sampling_feature_geojson.go` — function NewSamplingFeatureGeoJSONFormatter: (repos *repository.Repositories) *SamplingFeatureGeoJSONFormatter, class SamplingFeatureGeoJSONFormatter
 - `internal/model/formaters/geojson_formatters/system_geojson.go` — function NewSystemGeoJSONFormatter: (repos *repository.Repositories) *SystemGeoJSONFormatter, class SystemGeoJSONFormatter
-- `internal/model/formaters/json_formatters/control_stream_json.go` — function NewControlStreamJSONFormatter: () *ControlStreamJSONFormatter, class ControlStreamJSONFormatter
-- `internal/model/formaters/json_formatters/datastream_json.go` — function NewDatastreamJSONFormatter: () *DatastreamJSONFormatter, class DatastreamJSONFormatter
+- `internal/model/formaters/json_formatters/control_stream_json.go`
+  - function NewControlStreamJSONFormatter: () *ControlStreamJSONFormatter
+  - class ControlStreamJSONFeature
+  - class ControlStreamJSONFormatter
+- `internal/model/formaters/json_formatters/datastream_json.go`
+  - function NewDatastreamJSONFormatter: () *DatastreamJSONFormatter
+  - class DatastreamJSONFeature
+  - class DatastreamJSONFormatter
 - `internal/model/formaters/multi_format_serializer.go` — class AnyFeatureCollection
 - `internal/model/formaters/sensorml_formatters/deployment_sensorml.go` — function NewDeploymentSensorMLFormatter: (repos *repository.Repositories) *DeploymentSensorMLFormatter, class DeploymentSensorMLFormatter
 - `internal/model/formaters/sensorml_formatters/procedure_sensorml.go` — function NewProcedureSensorMLFormatter: (repos *repository.Repositories) *ProcedureSensorMLFormatter, class ProcedureSensorMLFormatter
@@ -250,7 +258,7 @@
 - `internal/model/query_params/system_event_query_params.go` — class SystemEventsQueryParams
 - `internal/model/query_params/system_history_query_params.go` — class SystemHistoryQueryParams
 - `internal/model/query_params/system_query_params.go` — class SystemQueryParams
-- `internal/repository/closure.go` — function EnsureClosureSupport: (db *gorm.DB, table, idCol, parentCol, closureTable string) error, function EnsureDeleteReparentSupport: (db *gorm.DB, table, idCol, parentCol string) error
+- `internal/repository/closure.go` — function EnsureClosureSupport: (db *gorm.DB, table, idCol, parentCol, closureTable string) error
 - `internal/repository/collection_repository.go` — function NewCollectionRepository: (db *gorm.DB) *CollectionRepository, class CollectionRepository
 - `internal/repository/command_repository.go` — function NewCommandRepository: (db *gorm.DB) *CommandRepository, class CommandRepository
 - `internal/repository/control_stream_repository.go` — function NewControlStreamRepository: (db *gorm.DB) *ControlStreamRepository, class ControlStreamRepository
