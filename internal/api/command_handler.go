@@ -13,6 +13,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/yourusername/connected-systems-go/internal/mqtt"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -29,6 +30,7 @@ type CommandHandler struct {
 	logger            *zap.Logger
 	repo              *repository.CommandRepository
 	controlStreamRepo *repository.ControlStreamRepository
+	mqttManager       *mqtt.Manager
 }
 
 func NewCommandHandler(
@@ -36,18 +38,20 @@ func NewCommandHandler(
 	logger *zap.Logger,
 	repo *repository.CommandRepository,
 	controlStreamRepo *repository.ControlStreamRepository,
+	mqttManager *mqtt.Manager,
 ) *CommandHandler {
 	return &CommandHandler{
 		cfg:               cfg,
 		logger:            logger,
 		repo:              repo,
 		controlStreamRepo: controlStreamRepo,
+		mqttManager:       mqttManager,
 	}
 }
 
 // ListCommands handles GET /commands
 func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
-	params , err := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -83,7 +87,7 @@ func (h *CommandHandler) ListControlStreamCommands(w http.ResponseWriter, r *htt
 		return
 	}
 
-	params , err := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": err.Error()})
@@ -153,6 +157,9 @@ func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *ht
 	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/commands/" + cmd.ID
 	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusCreated)
+
+	// Publish to MQTT (fire-and-forget)
+	h.publishCommandToMQTT(controlStreamID, cmd)
 }
 
 // UpdateCommand handles PUT /commands/{id}
@@ -266,4 +273,20 @@ func decodeCommandPayload(r *http.Request) (*domains.Command, error) {
 	}
 
 	return cmd, nil
+}
+
+// publishCommandToMQTT publishes a command to the MQTT topic for its control stream.
+// Non-blocking — errors are logged.
+func (h *CommandHandler) publishCommandToMQTT(controlStreamID string, cmd *domains.Command) {
+	if h.mqttManager == nil || !h.mqttManager.IsConnected() {
+		return
+	}
+
+	payload, err := json.Marshal(cmd)
+	if err != nil {
+		h.logger.Error("Failed to marshal command for MQTT", zap.Error(err))
+		return
+	}
+
+	h.mqttManager.Publish(mqtt.CommandTopic(controlStreamID), payload)
 }

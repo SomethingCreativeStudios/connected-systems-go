@@ -117,14 +117,14 @@ func TestMain(m *testing.M) {
 
 	// Create router with a placeholder handler so we can reserve a URL,
 	// then update config and rebuild the router with the correct BaseURL.
-	placeholderRouter := api.NewRouter(cfg, logger, testRepos)
+	placeholderRouter := api.NewRouter(cfg, logger, testRepos, nil)
 	testServer = httptest.NewServer(placeholderRouter)
 	cfg.API.BaseURL = testServer.URL
 	formaters.SetAssociationLinksBaseURL(testServer.URL)
 
 	// Rebuild the router with the correct BaseURL so association links
 	// and Location headers use the real test server address.
-	router := api.NewRouter(cfg, logger, testRepos)
+	router := api.NewRouter(cfg, logger, testRepos, nil)
 	testServer.Config.Handler = router
 
 	// Run tests

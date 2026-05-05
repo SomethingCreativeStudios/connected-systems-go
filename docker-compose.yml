@@ -17,6 +17,20 @@ services:
       timeout: 5s
       retries: 10
 
+  mqtt:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -t 'health/check' -m '1' -q 0 2>/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     image: docker.monogatari.dev/connected-systems/cs-api-server
     networks:
@@ -69,6 +83,7 @@ services:
 
 volumes:
   postgres_data:
+  mosquitto_data:
 
 networks:
   proxy:

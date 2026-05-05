@@ -11,6 +11,7 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
 	API      APIConfig      `mapstructure:"api"`
+	MQTT     MQTTConfig     `mapstructure:"mqtt"`
 }
 
 // ServerConfig holds server configuration
@@ -37,6 +38,17 @@ type APIConfig struct {
 	DefaultLimit int    `mapstructure:"default_limit"`
 }
 
+// MQTTConfig holds MQTT broker connection configuration.
+type MQTTConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Broker   string `mapstructure:"broker"`
+	ClientID string `mapstructure:"client_id"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	QoS      byte   `mapstructure:"qos"`
+	Retained bool   `mapstructure:"retained"`
+}
+
 // Load loads configuration from file and environment
 func Load() (*Config, error) {
 	viper.SetConfigName("config")
@@ -56,6 +68,11 @@ func Load() (*Config, error) {
 	viper.SetDefault("api.version", "1.0.0")
 	viper.SetDefault("api.description", "OGC API - Connected Systems - Part 1: Feature Resources")
 	viper.SetDefault("api.default_limit", 10)
+	viper.SetDefault("mqtt.enabled", false)
+	viper.SetDefault("mqtt.broker", "tcp://localhost:1883")
+	viper.SetDefault("mqtt.client_id", "cs-api-server")
+	viper.SetDefault("mqtt.qos", 1)
+	viper.SetDefault("mqtt.retained", false)
 
 	// Read from environment — replace "." with "_" so database.host → DATABASE_HOST
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

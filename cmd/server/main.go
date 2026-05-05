@@ -9,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	paho "github.com/eclipse/paho.mqtt.golang"
 	"github.com/yourusername/connected-systems-go/internal/api"
 	"github.com/yourusername/connected-systems-go/internal/config"
+	"github.com/yourusername/connected-systems-go/internal/mqtt"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -54,8 +56,45 @@ func main() {
 	// Initialize repositories
 	repos := repository.NewRepositories(db)
 
+	// Initialize MQTT manager (if enabled)
+	var mqttManager *mqtt.Manager
+	if cfg.MQTT.Enabled {
+		mqttManager = mqtt.NewManager(mqtt.Config{
+			Broker:   cfg.MQTT.Broker,
+			ClientID: cfg.MQTT.ClientID,
+			Username: cfg.MQTT.Username,
+			Password: cfg.MQTT.Password,
+			QoS:      cfg.MQTT.QoS,
+			Retained: cfg.MQTT.Retained,
+		}, logger)
+
+		if err := mqttManager.Connect(); err != nil {
+			logger.Fatal("Failed to connect to MQTT broker", zap.Error(err))
+		}
+		defer mqttManager.Disconnect()
+
+		logger.Info("MQTT pub/sub enabled", zap.String("broker", cfg.MQTT.Broker))
+
+		// Set up MQTT → DB ingestion handlers
+		ingestion := mqtt.NewIngestionHandlers(logger, repos)
+
+		// Subscribe to observations from external sources
+		if err := mqttManager.Subscribe(mqtt.ObservationsWildcardTopic(), func(client paho.Client, msg paho.Message) {
+			ingestion.HandleObservation(msg.Topic(), msg.Payload())
+		}); err != nil {
+			logger.Fatal("Failed to subscribe to observation topics", zap.Error(err))
+		}
+
+		// Subscribe to command status updates from external sources
+		if err := mqttManager.Subscribe(mqtt.CommandStatusWildcardTopic(), func(client paho.Client, msg paho.Message) {
+			ingestion.HandleCommandStatus(msg.Topic(), msg.Payload())
+		}); err != nil {
+			logger.Fatal("Failed to subscribe to command status topics", zap.Error(err))
+		}
+	}
+
 	// Initialize API router
-	router := api.NewRouter(cfg, logger, repos)
+	router := api.NewRouter(cfg, logger, repos, mqttManager)
 
 	// Create HTTP server
 	server := &http.Server{
