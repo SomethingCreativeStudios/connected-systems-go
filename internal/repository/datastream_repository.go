@@ -193,7 +193,7 @@ func (r *DatastreamRepository) UpdateSchema(id string, schema *domains.Datastrea
 
 func (r *DatastreamRepository) applyFilters(query *gorm.DB, params *queryparams.DatastreamsQueryParams, systemID *string) *gorm.DB {
 	if len(params.IDs) > 0 {
-		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
+		query = query.Where("id IN ?", params.IDs)
 	}
 
 	if len(params.Q) > 0 {
