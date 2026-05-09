@@ -1,17 +1,16 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
@@ -29,6 +28,7 @@ type CommandHandler struct {
 	logger            *zap.Logger
 	repo              *repository.CommandRepository
 	controlStreamRepo *repository.ControlStreamRepository
+	fc                *formaters.MultiFormatFormatterCollection[*domains.Command]
 }
 
 func NewCommandHandler(
@@ -36,12 +36,14 @@ func NewCommandHandler(
 	logger *zap.Logger,
 	repo *repository.CommandRepository,
 	controlStreamRepo *repository.ControlStreamRepository,
+	fc *formaters.MultiFormatFormatterCollection[*domains.Command],
 ) *CommandHandler {
 	return &CommandHandler{
 		cfg:               cfg,
 		logger:            logger,
 		repo:              repo,
 		controlStreamRepo: controlStreamRepo,
+		fc:                fc,
 	}
 }
 
@@ -62,15 +64,19 @@ func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items := make([]any, 0, len(commands))
-	for _, cmd := range commands {
-		items = append(items, cmd)
+	acceptHeader := r.Header.Get("Accept")
+	items, err := h.fc.SerializeAll(acceptHeader, commands)
+	if err != nil {
+		h.logger.Error("Failed to serialize commands", zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize commands"})
+		return
 	}
 
 	totalInt := int(total)
 	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(commands))
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, CommandCollectionResponse{Items: items, Links: links})
 }
 
@@ -98,15 +104,19 @@ func (h *CommandHandler) ListControlStreamCommands(w http.ResponseWriter, r *htt
 		return
 	}
 
-	items := make([]any, 0, len(commands))
-	for _, cmd := range commands {
-		items = append(items, cmd)
+	acceptHeader := r.Header.Get("Accept")
+	items, err := h.fc.SerializeAll(acceptHeader, commands)
+	if err != nil {
+		h.logger.Error("Failed to serialize commands", zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize commands"})
+		return
 	}
 
 	totalInt := int(total)
 	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(commands))
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, CommandCollectionResponse{Items: items, Links: links})
 }
 
@@ -122,8 +132,17 @@ func (h *CommandHandler) GetCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	render.JSON(w, r, cmd)
+	acceptHeader := r.Header.Get("Accept")
+	serialized, err := h.fc.Serialize(acceptHeader, cmd)
+	if err != nil {
+		h.logger.Error("Failed to serialize command", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize command"})
+		return
+	}
+
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	render.JSON(w, r, serialized)
 }
 
 // CreateControlStreamCommand handles POST /controlstreams/{id}/commands
@@ -135,10 +154,10 @@ func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *ht
 		return
 	}
 
-	cmd, err := decodeCommandPayload(r)
+	cmd, err := h.fc.Deserialize(r.Header.Get("Content-Type"), r.Body)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		h.logger.Error("Failed to deserialize command", zap.Error(err))
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -167,10 +186,10 @@ func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd, err := decodeCommandPayload(r)
+	cmd, err := h.fc.Deserialize(r.Header.Get("Content-Type"), r.Body)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		h.logger.Error("Failed to deserialize command", zap.Error(err))
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -204,66 +223,4 @@ func (h *CommandHandler) DeleteCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func decodeCommandPayload(r *http.Request) (*domains.Command, error) {
-	var raw map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		return nil, err
-	}
-
-	cmd := &domains.Command{}
-
-	if sfID, ok := raw["samplingFeature@id"].(string); ok && sfID != "" {
-		cmd.SamplingFeatureID = &sfID
-	}
-
-	if sender, ok := raw["sender"].(string); ok {
-		cmd.Sender = sender
-	}
-
-	if status, ok := raw["currentStatus"].(string); ok && status != "" {
-		cmd.CurrentStatus = domains.CommandStatus(status)
-	}
-
-	if issueTimeStr, ok := raw["issueTime"].(string); ok && issueTimeStr != "" {
-		if t, err := time.Parse(time.RFC3339, issueTimeStr); err == nil {
-			cmd.IssueTime = &t
-		}
-	}
-
-	if execTimeArr, ok := raw["executionTime"].([]interface{}); ok && len(execTimeArr) == 2 {
-		tr := &common_shared.TimeRange{}
-		if s, ok := execTimeArr[0].(string); ok {
-			if t, err := time.Parse(time.RFC3339, s); err == nil {
-				tr.Start = &t
-			}
-		}
-		if e, ok := execTimeArr[1].(string); ok {
-			if t, err := time.Parse(time.RFC3339, e); err == nil {
-				tr.End = &t
-			}
-		}
-		cmd.ExecutionTime = tr
-	}
-
-	if procLink, ok := raw["procedure@link"].(map[string]any); ok {
-		link := &common_shared.Link{}
-		if href, ok := procLink["href"].(string); ok {
-			link.Href = href
-		}
-		if rel, ok := procLink["rel"].(string); ok {
-			link.Rel = rel
-		}
-		cmd.ProcedureLink = link
-	}
-
-	if params, ok := raw["parameters"]; ok {
-		paramBytes, err := json.Marshal(params)
-		if err == nil {
-			cmd.Parameters = paramBytes
-		}
-	}
-
-	return cmd, nil
 }

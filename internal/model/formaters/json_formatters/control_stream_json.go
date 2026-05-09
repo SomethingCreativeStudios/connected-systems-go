@@ -41,6 +41,18 @@ func (f *ControlStreamJSONFormatter) Serialize(ctx context.Context, cs *domains.
 			Href: formaters.ToFunctionalAssociationHref("/systems/" + *cs.SystemID),
 		}
 	}
+	if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
+		out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
+	}
+	if out.DeploymentLink != nil && out.DeploymentLink.Href != "" {
+		out.DeploymentLink.Href = formaters.ToFunctionalAssociationHref(out.DeploymentLink.Href)
+	}
+	if out.FeatureOfInterest != nil && out.FeatureOfInterest.Href != "" {
+		out.FeatureOfInterest.Href = formaters.ToFunctionalAssociationHref(out.FeatureOfInterest.Href)
+	}
+	if out.SamplingFeatureLink != nil && out.SamplingFeatureLink.Href != "" {
+		out.SamplingFeatureLink.Href = formaters.ToFunctionalAssociationHref(out.SamplingFeatureLink.Href)
+	}
 	return out, nil
 }
 
@@ -59,6 +71,18 @@ func (f *ControlStreamJSONFormatter) SerializeAll(ctx context.Context, controlSt
 			out.SystemLink = &common_shared.Link{
 				Href: formaters.ToFunctionalAssociationHref("/systems/" + *cs.SystemID),
 			}
+		}
+		if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
+			out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
+		}
+		if out.DeploymentLink != nil && out.DeploymentLink.Href != "" {
+			out.DeploymentLink.Href = formaters.ToFunctionalAssociationHref(out.DeploymentLink.Href)
+		}
+		if out.FeatureOfInterest != nil && out.FeatureOfInterest.Href != "" {
+			out.FeatureOfInterest.Href = formaters.ToFunctionalAssociationHref(out.FeatureOfInterest.Href)
+		}
+		if out.SamplingFeatureLink != nil && out.SamplingFeatureLink.Href != "" {
+			out.SamplingFeatureLink.Href = formaters.ToFunctionalAssociationHref(out.SamplingFeatureLink.Href)
 		}
 		items = append(items, out)
 	}

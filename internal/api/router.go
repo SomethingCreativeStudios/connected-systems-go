@@ -58,6 +58,8 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	datastreamFormatterCollection := buildDatastreamFormatterCollection(repos)
 	collectionFormatterCollection := buildCollectionFormatterCollection(repos)
 	controlStreamFormatterCollection := buildControlStreamFormatterCollection(repos)
+	commandFormatterCollection := buildCommandFormatterCollection(repos)
+	observationFormatterCollection := buildObservationFormatterCollection(repos)
 
 	collectionHandler := NewCollectionHandler(cfg, logger, repos.Collection, collectionFormatterCollection)
 	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentFormatterCollection)
@@ -67,9 +69,9 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertyFormatterCollection)
 	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureFormatterCollection)
 	datastreamHandler := NewDatastreamHandler(cfg, logger, repos.Datastream, datastreamFormatterCollection)
-	observationHandler := NewObservationHandler(cfg, logger, repos.Observation, repos.Datastream)
+	observationHandler := NewObservationHandler(cfg, logger, repos.Observation, repos.Datastream, observationFormatterCollection)
 	controlStreamHandler := NewControlStreamHandler(cfg, logger, repos.ControlStream, controlStreamFormatterCollection)
-	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream)
+	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream, commandFormatterCollection)
 	systemEventHandler := NewSystemEventHandler(cfg, logger, repos.SystemEvent, repos.System)
 
 	// Routes
@@ -394,6 +396,26 @@ func buildControlStreamFormatterCollection(_ *repository.Repositories) *serializ
 	collection := serializers.NewMultiFormatFormatterCollection[*domains.ControlStream]("application/json")
 
 	jsonFormatter := json_formatters.NewControlStreamJSONFormatter()
+	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
+	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
+
+	return collection
+}
+
+func buildCommandFormatterCollection(_ *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Command] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Command]("application/json")
+
+	jsonFormatter := json_formatters.NewCommandJSONFormatter()
+	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
+	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
+
+	return collection
+}
+
+func buildObservationFormatterCollection(_ *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Observation] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Observation]("application/json")
+
+	jsonFormatter := json_formatters.NewObservationJSONFormatter()
 	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
 	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
 
