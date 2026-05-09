@@ -74,6 +74,7 @@ func TestSystemRepository_DeleteCascade_RemovesAssociatedResourcesRecursively(t 
 
 	systemRepo := NewSystemRepository(db)
 	historyRepo := NewSystemHistoryRepository(db)
+	systemEventRepo := NewSystemEventRepository(db)
 	samplingFeatureRepo := NewSamplingFeatureRepository(db)
 	datastreamRepo := NewDatastreamRepository(db)
 	observationRepo := NewObservationRepository(db)
@@ -139,7 +140,16 @@ func TestSystemRepository_DeleteCascade_RemovesAssociatedResourcesRecursively(t 
 	require.NoError(t, err)
 	_, err = historyRepo.CreateFromSystem(child)
 	require.NoError(t, err)
-
+	require.NoError(t, systemEventRepo.Create(&domains.SystemEvent{
+		SystemID: parent.ID,
+		Label:    "Parent Event",
+		Time:     common_shared.HistoryTime{Instant: ptrTime(time.Now().UTC())},
+	}))
+	require.NoError(t, systemEventRepo.Create(&domains.SystemEvent{
+		SystemID: child.ID,
+		Label:    "Child Event",
+		Time:     common_shared.HistoryTime{Instant: ptrTime(time.Now().UTC())},
+	}))
 	systemIDs := common_shared.StringArray{parent.ID, child.ID}
 	deployment := &domains.Deployment{
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:dep:cascade:1", Name: "Cascade Deployment"},
@@ -185,6 +195,10 @@ func TestSystemRepository_DeleteCascade_RemovesAssociatedResourcesRecursively(t 
 	require.NoError(t, db.Model(&domains.SystemHistoryRevision{}).Where("system_id IN ?", []string{parent.ID, child.ID}).Count(&histCount).Error)
 	require.Equal(t, int64(0), histCount)
 
+	var eventCount int64
+	require.NoError(t, db.Model(&domains.SystemEvent{}).Where("system_id IN ?", []string{parent.ID, child.ID}).Count(&eventCount).Error)
+	require.Equal(t, int64(0), eventCount)
+
 	updatedDeployment, err := deploymentRepo.GetByID(deployment.ID)
 	require.NoError(t, err)
 
@@ -204,6 +218,8 @@ func TestSystemRepository_DeleteCascade_RemovesAssociatedResourcesRecursively(t 
 	require.Nil(t, updatedDeployment.Platform)
 	require.Nil(t, updatedDeployment.PlatformID)
 }
+
+func ptrTime(t time.Time) *time.Time { return &t }
 
 func TestSystemRepository_Delete_ReturnsErrNotFound(t *testing.T) {
 	db, cleanup := setupTestDB(t)
