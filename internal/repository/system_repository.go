@@ -291,6 +291,10 @@ func (r *SystemRepository) deleteCascade(tx *gorm.DB, systemID string) error {
 		return err
 	}
 
+	if err := tx.Where("system_id = ?", systemID).Delete(&domains.SystemEvent{}).Error; err != nil {
+		return err
+	}
+
 	if err := r.removeSystemFromDeployments(tx, systemID); err != nil {
 		return err
 	}
