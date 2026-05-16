@@ -431,3 +431,39 @@ func TestObservation_Create_RejectsOutOfConstraintValue(t *testing.T) {
 	errMsg, _ := body["error"].(string)
 	assert.Contains(t, errMsg, "interval", "error message should mention the violated constraint")
 }
+
+// =============================================================================
+// Issue #7 — empty-string resultTime must return 400 with "non-empty" message
+// =============================================================================
+func TestObservation_Create_EmptyResultTime_Returns400WithNonEmptyError(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	status, body := postObservation(t, ds.ID, map[string]interface{}{
+		"resultTime": "",
+		"result":     map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+	})
+	assert.Equal(t, http.StatusBadRequest, status)
+	errMsg, _ := body["error"].(string)
+	assert.Contains(t, errMsg, "resultTime")
+	assert.Contains(t, errMsg, "non-empty", "error message should say 'non-empty' when field is present but empty")
+	assert.NotContains(t, errMsg, "required", "error message should not say 'required' when field is present but empty")
+}
+
+// =============================================================================
+// Issue #7 — empty-string phenomenonTime must return 400 with "non-empty" message
+// =============================================================================
+func TestObservation_Create_EmptyPhenomenonTime_Returns400WithNonEmptyError(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	status, body := postObservation(t, ds.ID, map[string]interface{}{
+		"phenomenonTime": "",
+		"resultTime":     "2026-01-01T00:00:00Z",
+		"result":         map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+	})
+	assert.Equal(t, http.StatusBadRequest, status)
+	errMsg, _ := body["error"].(string)
+	assert.Contains(t, errMsg, "phenomenonTime")
+	assert.Contains(t, errMsg, "non-empty", "error message should say 'non-empty' when field is present but empty")
+}

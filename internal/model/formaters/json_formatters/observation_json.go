@@ -122,14 +122,22 @@ func (f *ObservationJSONFormatter) Deserialize(ctx context.Context, reader io.Re
 	if !hasResultTime {
 		return nil, fmt.Errorf("resultTime is required")
 	}
-	if _, ok := rtRaw.(string); !ok {
+	rtStr, ok := rtRaw.(string)
+	if !ok {
 		return nil, fmt.Errorf("resultTime must be an ISO 8601 string (e.g. \"2026-01-01T00:00:00Z\")")
+	}
+	if rtStr == "" {
+		return nil, fmt.Errorf("resultTime must be a non-empty ISO 8601 string (e.g. \"2026-01-01T00:00:00Z\")")
 	}
 
 	// Validate phenomenonTime is a string if present
 	if ptRaw, exists := rawMap["phenomenonTime"]; exists {
-		if _, ok := ptRaw.(string); !ok {
+		ptStr, ok := ptRaw.(string)
+		if !ok {
 			return nil, fmt.Errorf("phenomenonTime must be an ISO 8601 string (e.g. \"2026-01-01T00:00:00Z\")")
+		}
+		if ptStr == "" {
+			return nil, fmt.Errorf("phenomenonTime must be a non-empty ISO 8601 string (e.g. \"2026-01-01T00:00:00Z\")")
 		}
 	}
 
