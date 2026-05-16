@@ -28,6 +28,17 @@ func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository
 	return &PropertyHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
 }
 
+// ListProperties returns a paginated list of properties
+//
+// @Summary     List properties
+// @Description Returns a paginated collection of property resources
+// @Tags        Properties
+// @Produce     json
+// @Param       limit   query  int  false  "Maximum number of results"
+// @Param       offset  query  int  false  "Result offset"
+// @Success     200  {object}  map[string]any
+// @Failure     500  {object}  map[string]string
+// @Router      /properties [get]
 func (h *PropertyHandler) ListProperties(w http.ResponseWriter, r *http.Request) {
 	params := queryparams.PropertiesQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
@@ -48,6 +59,17 @@ func (h *PropertyHandler) ListProperties(w http.ResponseWriter, r *http.Request)
 	render.JSON(w, r, collection)
 }
 
+// GetProperty returns a single property by ID
+//
+// @Summary     Get property
+// @Description Returns a single property resource by ID
+// @Tags        Properties
+// @Produce     json
+// @Param       id  path  string  true  "Property ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /properties/{id} [get]
 func (h *PropertyHandler) GetProperty(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -73,6 +95,17 @@ func (h *PropertyHandler) GetProperty(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, serialized)
 }
 
+// CreateProperty creates a new property
+//
+// @Summary     Create property
+// @Description Creates a new property resource
+// @Tags        Properties
+// @Accept      json
+// @Param       property  body  map[string]any  true  "Property resource"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /properties [post]
 func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 	property, err := h.fc.Deserialize(contentType, r.Body)
@@ -96,6 +129,18 @@ func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusCreated)
 }
 
+// UpdateProperty replaces a property by ID
+//
+// @Summary     Update property
+// @Description Replaces a property resource by ID
+// @Tags        Properties
+// @Accept      json
+// @Param       id        path  string          true  "Property ID"
+// @Param       property  body  map[string]any  true  "Property resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /properties/{id} [put]
 func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -118,6 +163,16 @@ func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DeleteProperty deletes a property by ID
+//
+// @Summary     Delete property
+// @Description Deletes a property resource by ID
+// @Tags        Properties
+// @Param       id  path  string  true  "Property ID"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /properties/{id} [delete]
 func (h *PropertyHandler) DeleteProperty(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 

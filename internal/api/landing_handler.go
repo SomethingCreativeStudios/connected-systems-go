@@ -25,6 +25,13 @@ func NewLandingHandler(cfg *config.Config, logger *zap.Logger) *LandingHandler {
 }
 
 // GetLandingPage returns the API landing page
+//
+// @Summary     Get landing page
+// @Description Returns the API landing page with links to available resources
+// @Tags        Core
+// @Produce     json
+// @Success     200  {object}  map[string]any
+// @Router      / [get]
 func (h *LandingHandler) GetLandingPage(w http.ResponseWriter, r *http.Request) {
 	baseURL := h.cfg.API.BaseURL
 

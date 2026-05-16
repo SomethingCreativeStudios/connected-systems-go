@@ -34,6 +34,18 @@ func NewDatastreamHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 	return &DatastreamHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
 }
 
+// ListDatastreams returns a paginated list of datastreams
+//
+// @Summary     List datastreams
+// @Description Returns a paginated collection of datastream resources
+// @Tags        Datastreams
+// @Produce     json
+// @Param       limit   query  int  false  "Maximum number of results"
+// @Param       offset  query  int  false  "Result offset"
+// @Success     200  {object}  DatastreamCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /datastreams [get]
 func (h *DatastreamHandler) ListDatastreams(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
@@ -66,6 +78,19 @@ func (h *DatastreamHandler) ListDatastreams(w http.ResponseWriter, r *http.Reque
 	render.JSON(w, r, DatastreamCollectionResponse{Items: items, Links: links})
 }
 
+// ListSystemDatastreams returns datastreams for a system
+//
+// @Summary     List system datastreams
+// @Description Returns datastreams associated with a given system
+// @Tags        Datastreams
+// @Produce     json
+// @Param       id      path   string  true   "System ID"
+// @Param       limit   query  int     false  "Maximum number of results"
+// @Param       offset  query  int     false  "Result offset"
+// @Success     200  {object}  DatastreamCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/datastreams [get]
 func (h *DatastreamHandler) ListSystemDatastreams(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -102,6 +127,17 @@ func (h *DatastreamHandler) ListSystemDatastreams(w http.ResponseWriter, r *http
 	render.JSON(w, r, DatastreamCollectionResponse{Items: items, Links: links})
 }
 
+// GetDatastream returns a single datastream by ID
+//
+// @Summary     Get datastream
+// @Description Returns a single datastream resource by ID
+// @Tags        Datastreams
+// @Produce     json
+// @Param       dataStreamId  path  string  true  "Datastream ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /datastreams/{dataStreamId} [get]
 func (h *DatastreamHandler) GetDatastream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
 
@@ -126,6 +162,18 @@ func (h *DatastreamHandler) GetDatastream(w http.ResponseWriter, r *http.Request
 	render.JSON(w, r, serialized)
 }
 
+// CreateDatastream creates a new datastream under a system
+//
+// @Summary     Create datastream
+// @Description Creates a new datastream resource under the given system
+// @Tags        Datastreams
+// @Accept      json
+// @Param       id          path  string          true  "System ID"
+// @Param       datastream  body  map[string]any  true  "Datastream resource"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/datastreams [post]
 func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -156,6 +204,19 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusCreated)
 }
 
+// UpdateDatastream replaces a datastream by ID
+//
+// @Summary     Update datastream
+// @Description Replaces a datastream resource by ID
+// @Tags        Datastreams
+// @Accept      json
+// @Param       dataStreamId  path  string          true  "Datastream ID"
+// @Param       datastream    body  map[string]any  true  "Datastream resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /datastreams/{dataStreamId} [put]
 func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
 	existing, err := h.repo.GetByID(id)
@@ -188,6 +249,18 @@ func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DeleteDatastream deletes a datastream by ID
+//
+// @Summary     Delete datastream
+// @Description Deletes a datastream resource by ID
+// @Tags        Datastreams
+// @Param       dataStreamId  path   string  true   "Datastream ID"
+// @Param       cascade       query  bool    false  "Cascade delete to dependent resources"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     409  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /datastreams/{dataStreamId} [delete]
 func (h *DatastreamHandler) DeleteDatastream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
 	cascade := r.URL.Query().Get("cascade") == "true"
@@ -210,6 +283,16 @@ func (h *DatastreamHandler) DeleteDatastream(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetDatastreamSchema returns the schema for a datastream
+//
+// @Summary     Get datastream schema
+// @Description Returns the observation schema for a given datastream
+// @Tags        Datastreams
+// @Produce     json
+// @Param       dataStreamId  path  string  true  "Datastream ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Router      /datastreams/{dataStreamId}/schema [get]
 func (h *DatastreamHandler) GetDatastreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
 	schema, err := h.repo.GetSchema(id)
@@ -230,6 +313,18 @@ func (h *DatastreamHandler) GetDatastreamSchema(w http.ResponseWriter, r *http.R
 	render.JSON(w, r, schema)
 }
 
+// UpdateDatastreamSchema replaces the schema for a datastream
+//
+// @Summary     Update datastream schema
+// @Description Replaces the observation schema for a given datastream
+// @Tags        Datastreams
+// @Accept      json
+// @Param       dataStreamId  path  string          true  "Datastream ID"
+// @Param       schema        body  map[string]any  true  "Datastream schema"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /datastreams/{dataStreamId}/schema [put]
 func (h *DatastreamHandler) UpdateDatastreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
 

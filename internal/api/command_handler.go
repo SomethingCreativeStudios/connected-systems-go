@@ -48,6 +48,17 @@ func NewCommandHandler(
 }
 
 // ListCommands handles GET /commands
+//
+// @Summary     List commands
+// @Description Returns a paginated collection of command resources
+// @Tags        Commands
+// @Produce     json
+// @Param       limit   query  int  false  "Maximum number of results"
+// @Param       offset  query  int  false  "Result offset"
+// @Success     200  {object}  CommandCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /commands [get]
 func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
 	params , err := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
@@ -81,6 +92,19 @@ func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListControlStreamCommands handles GET /controlstreams/{id}/commands
+//
+// @Summary     List control stream commands
+// @Description Returns commands associated with a given control stream
+// @Tags        Commands
+// @Produce     json
+// @Param       controlStreamId  path   string  true   "Control Stream ID"
+// @Param       limit            query  int     false  "Maximum number of results"
+// @Param       offset           query  int     false  "Result offset"
+// @Success     200  {object}  CommandCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /controlstreams/{controlStreamId}/commands [get]
 func (h *CommandHandler) ListControlStreamCommands(w http.ResponseWriter, r *http.Request) {
 	controlStreamID := chi.URLParam(r, "controlStreamId")
 	if _, err := h.controlStreamRepo.GetByID(controlStreamID); err != nil {
@@ -121,6 +145,16 @@ func (h *CommandHandler) ListControlStreamCommands(w http.ResponseWriter, r *htt
 }
 
 // GetCommand handles GET /commands/{id}
+//
+// @Summary     Get command
+// @Description Returns a single command resource by ID
+// @Tags        Commands
+// @Produce     json
+// @Param       cmdId  path  string  true  "Command ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /commands/{cmdId} [get]
 func (h *CommandHandler) GetCommand(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "cmdId")
 
@@ -146,6 +180,18 @@ func (h *CommandHandler) GetCommand(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateControlStreamCommand handles POST /controlstreams/{id}/commands
+//
+// @Summary     Create command
+// @Description Creates a new command in the given control stream
+// @Tags        Commands
+// @Accept      json
+// @Param       controlStreamId  path  string          true  "Control Stream ID"
+// @Param       command          body  map[string]any  true  "Command resource"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /controlstreams/{controlStreamId}/commands [post]
 func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *http.Request) {
 	controlStreamID := chi.URLParam(r, "controlStreamId")
 	if _, err := h.controlStreamRepo.GetByID(controlStreamID); err != nil {
@@ -175,6 +221,18 @@ func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *ht
 }
 
 // UpdateCommand handles PUT /commands/{id}
+//
+// @Summary     Update command
+// @Description Replaces a command resource by ID
+// @Tags        Commands
+// @Accept      json
+// @Param       cmdId    path  string          true  "Command ID"
+// @Param       command  body  map[string]any  true  "Command resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /commands/{cmdId} [put]
 func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "cmdId")
 
@@ -206,6 +264,15 @@ func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteCommand handles DELETE /commands/{id}
+//
+// @Summary     Delete command
+// @Description Deletes a command resource by ID
+// @Tags        Commands
+// @Param       cmdId  path  string  true  "Command ID"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /commands/{cmdId} [delete]
 func (h *CommandHandler) DeleteCommand(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "cmdId")
 

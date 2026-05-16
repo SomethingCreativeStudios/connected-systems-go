@@ -40,6 +40,17 @@ func NewControlStreamHandler(
 }
 
 // ListControlStreams handles GET /controlstreams
+//
+// @Summary     List control streams
+// @Description Returns a paginated collection of control stream resources
+// @Tags        Control Streams
+// @Produce     json
+// @Param       limit   query  int  false  "Maximum number of results"
+// @Param       offset  query  int  false  "Result offset"
+// @Success     200  {object}  ControlStreamCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /controlstreams [get]
 func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
@@ -73,6 +84,18 @@ func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http
 }
 
 // ListSystemControlStreams handles GET /systems/{id}/controlstreams
+//
+// @Summary     List system control streams
+// @Description Returns control streams associated with a given system
+// @Tags        Control Streams
+// @Produce     json
+// @Param       id      path   string  true   "System ID"
+// @Param       limit   query  int     false  "Maximum number of results"
+// @Param       offset  query  int     false  "Result offset"
+// @Success     200  {object}  ControlStreamCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/controlstreams [get]
 func (h *ControlStreamHandler) ListSystemControlStreams(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -110,6 +133,16 @@ func (h *ControlStreamHandler) ListSystemControlStreams(w http.ResponseWriter, r
 }
 
 // GetControlStream handles GET /controlstreams/{id}
+//
+// @Summary     Get control stream
+// @Description Returns a single control stream resource by ID
+// @Tags        Control Streams
+// @Produce     json
+// @Param       controlStreamId  path  string  true  "Control Stream ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /controlstreams/{controlStreamId} [get]
 func (h *ControlStreamHandler) GetControlStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
 
@@ -135,6 +168,17 @@ func (h *ControlStreamHandler) GetControlStream(w http.ResponseWriter, r *http.R
 }
 
 // CreateControlStream handles POST /systems/{id}/controlstreams
+//
+// @Summary     Create control stream
+// @Description Creates a new control stream under the given system
+// @Tags        Control Streams
+// @Accept      json
+// @Param       id             path  string          true  "System ID"
+// @Param       controlStream  body  map[string]any  true  "Control Stream resource"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/controlstreams [post]
 func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -166,6 +210,18 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 }
 
 // UpdateControlStream handles PUT /controlstreams/{id}
+//
+// @Summary     Update control stream
+// @Description Replaces a control stream resource by ID
+// @Tags        Control Streams
+// @Accept      json
+// @Param       controlStreamId  path  string          true  "Control Stream ID"
+// @Param       controlStream    body  map[string]any  true  "Control Stream resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /controlstreams/{controlStreamId} [put]
 func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
 	existing, err := h.repo.GetByID(id)
@@ -199,6 +255,17 @@ func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *htt
 }
 
 // DeleteControlStream handles DELETE /controlstreams/{id}
+//
+// @Summary     Delete control stream
+// @Description Deletes a control stream resource by ID
+// @Tags        Control Streams
+// @Param       controlStreamId  path   string  true   "Control Stream ID"
+// @Param       cascade          query  bool    false  "Cascade delete to dependent resources"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     409  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /controlstreams/{controlStreamId} [delete]
 func (h *ControlStreamHandler) DeleteControlStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
 	cascade := r.URL.Query().Get("cascade") == "true"
@@ -222,6 +289,15 @@ func (h *ControlStreamHandler) DeleteControlStream(w http.ResponseWriter, r *htt
 }
 
 // GetControlStreamSchema handles GET /controlstreams/{id}/schema
+//
+// @Summary     Get control stream schema
+// @Description Returns the command schema for a given control stream
+// @Tags        Control Streams
+// @Produce     json
+// @Param       controlStreamId  path  string  true  "Control Stream ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Router      /controlstreams/{controlStreamId}/schema [get]
 func (h *ControlStreamHandler) GetControlStreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
 	schema, err := h.repo.GetSchema(id)
@@ -243,6 +319,17 @@ func (h *ControlStreamHandler) GetControlStreamSchema(w http.ResponseWriter, r *
 }
 
 // UpdateControlStreamSchema handles PUT /controlstreams/{id}/schema
+//
+// @Summary     Update control stream schema
+// @Description Replaces the command schema for a given control stream
+// @Tags        Control Streams
+// @Accept      json
+// @Param       controlStreamId  path  string          true  "Control Stream ID"
+// @Param       schema           body  map[string]any  true  "Control Stream schema"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /controlstreams/{controlStreamId}/schema [put]
 func (h *ControlStreamHandler) UpdateControlStreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
 

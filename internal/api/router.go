@@ -1,13 +1,14 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/render"
+	httpSwagger "github.com/swaggo/http-swagger"
+	"github.com/yourusername/connected-systems-go/docs"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	serializers "github.com/yourusername/connected-systems-go/internal/model/formaters"
@@ -257,15 +258,15 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	// OpenAPI spec
 	r.Get("/api", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/vnd.oai.openapi+json;version=3.0")
-		fmt.Fprint(w, getOpenAPISpec(cfg))
+		w.Write(docs.OpenAPI3Spec)
 	})
 
-	return r
-}
+	// Swagger UI
+	r.Get("/api/ui/*", httpSwagger.Handler(
+		httpSwagger.URL("/api"),
+	))
 
-func getOpenAPISpec(cfg *config.Config) string {
-	// TODO: Implement OpenAPI 3.0 spec generation
-	return `{"openapi": "3.0.0", "info": {"title": "` + cfg.API.Title + `", "version": "` + cfg.API.Version + `"}}`
+	return r
 }
 
 // Formatters

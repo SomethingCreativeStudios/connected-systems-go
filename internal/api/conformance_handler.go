@@ -24,6 +24,13 @@ func NewConformanceHandler(cfg *config.Config, logger *zap.Logger) *ConformanceH
 }
 
 // GetConformance returns the conformance declaration
+//
+// @Summary     Get conformance declaration
+// @Description Returns the list of OGC conformance classes this server implements
+// @Tags        Core
+// @Produce     json
+// @Success     200  {object}  map[string]any
+// @Router      /conformance [get]
 func (h *ConformanceHandler) GetConformance(w http.ResponseWriter, r *http.Request) {
 	conformance := model.ConformanceDeclaration{
 		ConformsTo: []string{

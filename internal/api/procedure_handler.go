@@ -29,6 +29,18 @@ func NewProcedureHandler(cfg *config.Config, logger *zap.Logger, repo *repositor
 	return &ProcedureHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
 }
 
+// ListProcedures returns a paginated list of procedures
+//
+// @Summary     List procedures
+// @Description Returns a paginated collection of procedure resources
+// @Tags        Procedures
+// @Produce     json
+// @Param       limit   query  int  false  "Maximum number of results"
+// @Param       offset  query  int  false  "Result offset"
+// @Success     200  {object}  map[string]any
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /procedures [get]
 func (h *ProcedureHandler) ListProcedures(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.ProceduresQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
@@ -53,6 +65,17 @@ func (h *ProcedureHandler) ListProcedures(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(collection)
 }
 
+// GetProcedure returns a single procedure by ID
+//
+// @Summary     Get procedure
+// @Description Returns a single procedure resource by ID
+// @Tags        Procedures
+// @Produce     json
+// @Param       id  path  string  true  "Procedure ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /procedures/{id} [get]
 func (h *ProcedureHandler) GetProcedure(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -78,6 +101,17 @@ func (h *ProcedureHandler) GetProcedure(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(serialized)
 }
 
+// CreateProcedure creates a new procedure
+//
+// @Summary     Create procedure
+// @Description Creates a new procedure resource
+// @Tags        Procedures
+// @Accept      json
+// @Param       procedure  body  map[string]any  true  "Procedure resource"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /procedures [post]
 func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 	procedure, err := h.fc.Deserialize(contentType, r.Body)
@@ -99,6 +133,18 @@ func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusCreated)
 }
 
+// UpdateProcedure replaces a procedure by ID
+//
+// @Summary     Update procedure
+// @Description Replaces a procedure resource by ID
+// @Tags        Procedures
+// @Accept      json
+// @Param       id         path  string          true  "Procedure ID"
+// @Param       procedure  body  map[string]any  true  "Procedure resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /procedures/{id} [put]
 func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -121,6 +167,17 @@ func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DeleteProcedure deletes a procedure by ID
+//
+// @Summary     Delete procedure
+// @Description Deletes a procedure resource by ID
+// @Tags        Procedures
+// @Param       id  path  string  true  "Procedure ID"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     409  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /procedures/{id} [delete]
 func (h *ProcedureHandler) DeleteProcedure(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 

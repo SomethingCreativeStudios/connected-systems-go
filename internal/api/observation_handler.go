@@ -41,6 +41,18 @@ func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *reposit
 	}
 }
 
+// ListObservations returns a paginated list of observations
+//
+// @Summary     List observations
+// @Description Returns a paginated collection of observation resources
+// @Tags        Observations
+// @Produce     json
+// @Param       limit   query  int  false  "Maximum number of results"
+// @Param       offset  query  int  false  "Result offset"
+// @Success     200  {object}  ObservationCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /observations [get]
 func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
@@ -73,6 +85,20 @@ func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Req
 	render.JSON(w, r, ObservationCollectionResponse{Items: items, Links: links})
 }
 
+// ListDatastreamObservations returns observations for a datastream
+//
+// @Summary     List datastream observations
+// @Description Returns observations associated with a given datastream
+// @Tags        Observations
+// @Produce     json
+// @Param       dataStreamId  path   string  true   "Datastream ID"
+// @Param       limit         query  int     false  "Maximum number of results"
+// @Param       offset        query  int     false  "Result offset"
+// @Success     200  {object}  ObservationCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /datastreams/{dataStreamId}/observations [get]
 func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r *http.Request) {
 	datastreamID := chi.URLParam(r, "dataStreamId")
 	if _, err := h.datastreamRepo.GetByID(datastreamID); err != nil {
@@ -112,6 +138,17 @@ func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r
 	render.JSON(w, r, ObservationCollectionResponse{Items: items, Links: links})
 }
 
+// GetObservation returns a single observation by ID
+//
+// @Summary     Get observation
+// @Description Returns a single observation resource by ID
+// @Tags        Observations
+// @Produce     json
+// @Param       obsId  path  string  true  "Observation ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /observations/{obsId} [get]
 func (h *ObservationHandler) GetObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
@@ -136,6 +173,19 @@ func (h *ObservationHandler) GetObservation(w http.ResponseWriter, r *http.Reque
 	render.JSON(w, r, serialized)
 }
 
+// UpdateObservation replaces an observation by ID
+//
+// @Summary     Update observation
+// @Description Replaces an observation resource by ID
+// @Tags        Observations
+// @Accept      json
+// @Param       obsId        path  string          true  "Observation ID"
+// @Param       observation  body  map[string]any  true  "Observation resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /observations/{obsId} [put]
 func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
@@ -178,6 +228,16 @@ func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DeleteObservation deletes an observation by ID
+//
+// @Summary     Delete observation
+// @Description Deletes an observation resource by ID
+// @Tags        Observations
+// @Param       obsId  path  string  true  "Observation ID"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /observations/{obsId} [delete]
 func (h *ObservationHandler) DeleteObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
@@ -197,6 +257,19 @@ func (h *ObservationHandler) DeleteObservation(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// CreateDatastreamObservation creates an observation in a datastream
+//
+// @Summary     Create observation
+// @Description Creates a new observation in the given datastream
+// @Tags        Observations
+// @Accept      json
+// @Param       dataStreamId  path  string          true  "Datastream ID"
+// @Param       observation   body  map[string]any  true  "Observation resource"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /datastreams/{dataStreamId}/observations [post]
 func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, r *http.Request) {
 	datastreamID := chi.URLParam(r, "dataStreamId")
 	datastream, err := h.datastreamRepo.GetByID(datastreamID)

@@ -28,6 +28,18 @@ func NewCollectionHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 	return &CollectionHandler{cfg: cfg, Repo: repo, logger: logger, fc: fc}
 }
 
+// CreateCollection creates a new collection
+//
+// @Summary     Create collection
+// @Description Creates a new feature collection
+// @Tags        Collections
+// @Accept      json
+// @Produce     json
+// @Param       collection  body  map[string]any  true  "Collection resource"
+// @Success     201  {object}  map[string]any
+// @Failure     400
+// @Failure     500
+// @Router      /collections [post]
 func (h *CollectionHandler) CreateCollection(w http.ResponseWriter, r *http.Request) {
 	var collection domains.Collection
 	if err := json.NewDecoder(r.Body).Decode(&collection); err != nil {
@@ -61,6 +73,15 @@ func (h *CollectionHandler) CreateCollection(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(serialized)
 }
 
+// ListCollections returns all collections
+//
+// @Summary     List collections
+// @Description Returns all feature collections including canonical OGC CS resource collections
+// @Tags        Collections
+// @Produce     json
+// @Success     200  {object}  map[string]any
+// @Failure     500
+// @Router      /collections [get]
 func (h *CollectionHandler) ListCollections(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	collections, err := h.Repo.ListCollections(ctx)
@@ -92,6 +113,16 @@ func (h *CollectionHandler) ListCollections(w http.ResponseWriter, r *http.Reque
 	render.JSON(w, r, resp)
 }
 
+// GetCollection returns a single collection by ID
+//
+// @Summary     Get collection
+// @Description Returns a single feature collection by ID
+// @Tags        Collections
+// @Produce     json
+// @Param       collectionId  path  string  true  "Collection ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404
+// @Router      /collections/{collectionId} [get]
 func (h *CollectionHandler) GetCollection(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := chi.URLParam(r, "collectionId")

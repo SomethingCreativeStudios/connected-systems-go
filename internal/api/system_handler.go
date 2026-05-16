@@ -46,6 +46,17 @@ func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.S
 }
 
 // ListSystems retrieves a list of systems
+//
+// @Summary     List systems
+// @Description Returns a paginated collection of system resources
+// @Tags        Systems
+// @Produce     json
+// @Param       limit   query  int     false  "Maximum number of results"
+// @Param       offset  query  int     false  "Result offset"
+// @Success     200  {object}  map[string]any
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems [get]
 func (h *SystemHandler) ListSystems(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.SystemQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
@@ -72,6 +83,16 @@ func (h *SystemHandler) ListSystems(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetSystem retrieves a single system by ID
+//
+// @Summary     Get system
+// @Description Returns a single system resource by ID
+// @Tags        Systems
+// @Produce     json
+// @Param       id   path  string  true  "System ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id} [get]
 func (h *SystemHandler) GetSystem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -99,6 +120,16 @@ func (h *SystemHandler) GetSystem(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateSystem creates a new system
+//
+// @Summary     Create system
+// @Description Creates a new system resource
+// @Tags        Systems
+// @Accept      json
+// @Param       system  body  map[string]any  true  "System resource (GeoJSON or SensorML+JSON)"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems [post]
 func (h *SystemHandler) CreateSystem(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 	system, err := h.fc.Deserialize(contentType, r.Body)
@@ -125,6 +156,17 @@ func (h *SystemHandler) CreateSystem(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateSystem updates a system (PUT)
+//
+// @Summary     Update system
+// @Description Replaces a system resource by ID
+// @Tags        Systems
+// @Accept      json
+// @Param       id      path  string          true  "System ID"
+// @Param       system  body  map[string]any  true  "System resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id} [put]
 func (h *SystemHandler) UpdateSystem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -152,6 +194,17 @@ func (h *SystemHandler) UpdateSystem(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteSystem deletes a system
+//
+// @Summary     Delete system
+// @Description Deletes a system resource by ID
+// @Tags        Systems
+// @Param       id       path   string  true   "System ID"
+// @Param       cascade  query  bool    false  "Cascade delete to dependent resources"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     409  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id} [delete]
 func (h *SystemHandler) DeleteSystem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	cascade := r.URL.Query().Get("cascade") == "true"
@@ -176,6 +229,17 @@ func (h *SystemHandler) DeleteSystem(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetSubsystems retrieves subsystems of a system
+//
+// @Summary     List subsystems
+// @Description Returns subsystems of a given system
+// @Tags        Systems
+// @Produce     json
+// @Param       id         path   string  true   "System ID"
+// @Param       recursive  query  bool    false  "Include nested subsystems recursively"
+// @Success     200  {object}  map[string]any
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/subsystems [get]
 func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 	parentID := chi.URLParam(r, "id")
 	recursive := r.URL.Query().Get("recursive") == "true"
@@ -213,6 +277,16 @@ func (h *SystemHandler) populateSystemAssociationLinks(systems []*domains.System
 }
 
 // GetDeployments retrieves deployments associated with a system
+//
+// @Summary     List system deployments
+// @Description Returns deployments associated with a given system
+// @Tags        Systems
+// @Produce     json
+// @Param       id  path  string  true  "System ID"
+// @Success     200  {object}  map[string]any
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/deployments [get]
 func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -242,6 +316,16 @@ func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetProcedures retrieves procedures associated with a system.
+//
+// @Summary     List system procedures
+// @Description Returns procedures associated with a given system
+// @Tags        Systems
+// @Produce     json
+// @Param       id  path  string  true  "System ID"
+// @Success     200  {object}  map[string]any
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/procedures [get]
 func (h *SystemHandler) GetProcedures(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	params, err := queryparams.ProceduresQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
@@ -266,7 +350,18 @@ func (h *SystemHandler) GetProcedures(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, collection)
 }
 
-// Add subsystem to a system
+// AddSubsystem adds a subsystem to a system
+//
+// @Summary     Add subsystem
+// @Description Creates a new system as a child of the given system
+// @Tags        Systems
+// @Accept      json
+// @Param       id      path  string          true  "Parent system ID"
+// @Param       system  body  map[string]any  true  "System resource"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/subsystems [post]
 func (h *SystemHandler) AddSubsystem(w http.ResponseWriter, r *http.Request) {
 	parentID := chi.URLParam(r, "id")
 

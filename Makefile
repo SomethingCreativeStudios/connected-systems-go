@@ -1,4 +1,4 @@
-.PHONY: help build run test clean migrate viewer-docker-build
+.PHONY: help build run test clean migrate viewer-docker-build swag
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -29,6 +29,10 @@ deps: ## Download dependencies
 
 lint: ## Run linter
 	golangci-lint run
+
+swag: ## Regenerate OpenAPI 3.0 spec from handler annotations
+	swag init -g cmd/server/main.go -o docs/
+	swagger2openapi docs/swagger.json -o docs/openapi.json
 
 migrate: ## Run database migrations
 	@echo "Database migrations not yet implemented"
