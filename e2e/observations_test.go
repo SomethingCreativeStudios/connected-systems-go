@@ -391,3 +391,43 @@ func TestObservation_List_ValidResultTimeRange_Filters(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 1, len(items), "expected only the 2025 observation to be returned")
 }
+
+// =============================================================================
+// Issue #8 — Constraint field on DataComponent must be enforced on observation POST
+// =============================================================================
+func TestObservation_Create_RejectsOutOfConstraintValue(t *testing.T) {
+	cleanupDB(t)
+
+	// Build a datastream with a Quantity component constrained to interval [0, 100]
+	intervals, _ := json.Marshal([][]float64{{0, 100}})
+	ds := generators.FakeDatastreamWithSchema(&domains.DatastreamSchema{
+		ObsFormat: "application/json",
+		ResultSchema: &domains.DatastreamDataComponent{
+			Type:       "Quantity",
+			Name:       "temperature",
+			Label:      "Temperature",
+			Definition: "https://example.org/def/property/temperature",
+			UOM:        &domains.DatastreamUOM{Code: "Cel"},
+			Constraint: &domains.DatastreamConstraint{Intervals: intervals},
+		},
+	})
+	systemID := "unknown"
+	ds.SystemID = &systemID
+	require.NoError(t, testRepos.Datastream.Create(&ds), "failed to seed constrained datastream")
+
+	// Value within interval — should succeed
+	status, _ := postObservation(t, ds.ID, map[string]interface{}{
+		"resultTime": "2026-01-01T00:00:00Z",
+		"result":     float64(50),
+	})
+	assert.Equal(t, http.StatusCreated, status, "value within interval should be accepted")
+
+	// Value outside interval — should be rejected
+	status, body := postObservation(t, ds.ID, map[string]interface{}{
+		"resultTime": "2026-01-01T00:00:00Z",
+		"result":     float64(150),
+	})
+	assert.Equal(t, http.StatusBadRequest, status, "value outside interval should be rejected")
+	errMsg, _ := body["error"].(string)
+	assert.Contains(t, errMsg, "interval", "error message should mention the violated constraint")
+}
