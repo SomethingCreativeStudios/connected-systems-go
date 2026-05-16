@@ -16,7 +16,7 @@ func TestCommandJSONFormatter_Serialize_NormalizesRelativeHref(t *testing.T) {
 	formaters.SetAssociationLinksBaseURL("http://example.test")
 	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter()
+	formatter := NewCommandJSONFormatter(nil)
 
 	cmd := &domains.Command{
 		Base: domains.Base{ID: "cmd-1"},
@@ -42,7 +42,7 @@ func TestCommandJSONFormatter_Serialize_PreservesAbsoluteHref(t *testing.T) {
 	formaters.SetAssociationLinksBaseURL("http://example.test")
 	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter()
+	formatter := NewCommandJSONFormatter(nil)
 
 	cmd := &domains.Command{
 		Base: domains.Base{ID: "cmd-1"},
@@ -68,7 +68,7 @@ func TestCommandJSONFormatter_Serialize_NilLink(t *testing.T) {
 	formaters.SetAssociationLinksBaseURL("http://example.test")
 	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter()
+	formatter := NewCommandJSONFormatter(nil)
 
 	cmd := &domains.Command{
 		Base: domains.Base{ID: "cmd-1"},
@@ -88,7 +88,7 @@ func TestCommandJSONFormatter_Serialize_EmptyHref(t *testing.T) {
 	formaters.SetAssociationLinksBaseURL("http://example.test")
 	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter()
+	formatter := NewCommandJSONFormatter(nil)
 
 	cmd := &domains.Command{
 		Base: domains.Base{ID: "cmd-1"},
@@ -114,7 +114,7 @@ func TestCommandJSONFormatter_SerializeAll_NormalizesLinks(t *testing.T) {
 	formaters.SetAssociationLinksBaseURL("http://example.test")
 	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter()
+	formatter := NewCommandJSONFormatter(nil)
 
 	commands := []*domains.Command{
 		{
@@ -152,7 +152,7 @@ func TestCommandJSONFormatter_SerializeAll_NormalizesLinks(t *testing.T) {
 }
 
 func TestCommandJSONFormatter_Deserialize(t *testing.T) {
-	formatter := NewCommandJSONFormatter()
+	formatter := NewCommandJSONFormatter(nil)
 
 	payload := map[string]interface{}{
 		"id":                "cmd-1",
@@ -184,5 +184,71 @@ func TestCommandJSONFormatter_Deserialize(t *testing.T) {
 	}
 	if result.ProcedureLink.Href != "/procedures/proc-1" {
 		t.Errorf("expected href '/procedures/proc-1', got %q", result.ProcedureLink.Href)
+	}
+}
+
+// Phase 1: inline @link Type enrichment
+func TestCommandJSONFormatter_Serialize_SetsTypeOnProcedureLink(t *testing.T) {
+	formaters.SetAssociationLinksBaseURL("http://example.test")
+	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
+
+	formatter := NewCommandJSONFormatter(nil)
+
+	cmd := &domains.Command{
+		Base: domains.Base{ID: "cmd-1"},
+		ProcedureLink: &common_shared.Link{
+			Href: "/procedures/proc-1",
+		},
+	}
+
+	result, err := formatter.Serialize(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ProcedureLink == nil {
+		t.Fatal("expected ProcedureLink to be non-nil")
+	}
+	if result.ProcedureLink.Type != formaters.SensorMLContentType {
+		t.Errorf("expected ProcedureLink.Type %q, got %q", formaters.SensorMLContentType, result.ProcedureLink.Type)
+	}
+}
+
+// Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
+func TestCommandJSONFormatter_SerializeAll_EnrichesInlineLinks(t *testing.T) {
+	formaters.SetAssociationLinksBaseURL("http://example.test")
+	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
+
+	formatter := NewCommandJSONFormatter(nil)
+
+	commands := []*domains.Command{
+		{
+			Base: domains.Base{ID: "cmd-1"},
+			ProcedureLink: &common_shared.Link{
+				Href: "/procedures/proc-1",
+			},
+		},
+	}
+
+	results, err := formatter.SerializeAll(context.Background(), commands)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	// Type is always set (Phase 1)
+	if results[0].ProcedureLink.Type != formaters.SensorMLContentType {
+		t.Errorf("expected ProcedureLink.Type %q, got %q", formaters.SensorMLContentType, results[0].ProcedureLink.Type)
+	}
+
+	// Title/UID are empty with nil repos (no cache population)
+	if results[0].ProcedureLink.Title != "" {
+		t.Errorf("expected empty Title with nil repos, got %q", results[0].ProcedureLink.Title)
+	}
+	if results[0].ProcedureLink.UID != nil {
+		t.Errorf("expected nil UID with nil repos, got %v", results[0].ProcedureLink.UID)
 	}
 }

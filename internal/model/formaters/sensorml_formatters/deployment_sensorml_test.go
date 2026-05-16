@@ -7,6 +7,7 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 )
 
 func TestDeploymentSensorMLSerialize_AssociationLinks(t *testing.T) {
@@ -67,5 +68,80 @@ func TestDeploymentSensorMLDeserialize_AssociationLinks(t *testing.T) {
 	}
 	if len(deployment.Links) != 1 || deployment.Links[0].Rel != "alternate" {
 		t.Fatalf("expected only non-association links to remain, got %+v", deployment.Links)
+	}
+}
+
+// Phase 1: inline @link Type enrichment
+func TestDeploymentSensorMLSerialize_SetsTypeOnPlatformAndDeployedSystems(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewDeploymentSensorMLFormatter(nil)
+	deployment := &domains.Deployment{
+		Base: domains.Base{ID: "dep-1"},
+		Platform: &domains.DeployedSystemItem{
+			System: common_shared.Link{Href: "/systems/sys-platform"},
+		},
+		DeployedSystems: []domains.DeployedSystemItem{
+			{System: common_shared.Link{Href: "/systems/sys-1"}},
+		},
+	}
+
+	feature, err := formatter.Serialize(context.Background(), deployment)
+	if err != nil {
+		t.Fatalf("serialize failed: %v", err)
+	}
+
+	if feature.Platform == nil {
+		t.Fatal("expected Platform to be non-nil")
+	}
+	if feature.Platform.System.Type != formaters.GeoJSONContentType {
+		t.Errorf("expected Platform.System.Type %q, got %q", formaters.GeoJSONContentType, feature.Platform.System.Type)
+	}
+
+	if len(feature.DeployedSystems) != 1 {
+		t.Fatalf("expected 1 DeployedSystem, got %d", len(feature.DeployedSystems))
+	}
+	if feature.DeployedSystems[0].System.Type != formaters.GeoJSONContentType {
+		t.Errorf("expected DeployedSystems[0].System.Type %q, got %q", formaters.GeoJSONContentType, feature.DeployedSystems[0].System.Type)
+	}
+}
+
+// Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
+func TestDeploymentSensorMLSerializeAll_EnrichesInlineLinks(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewDeploymentSensorMLFormatter(nil)
+	deployments := []*domains.Deployment{
+		{
+			Base: domains.Base{ID: "dep-1"},
+			Platform: &domains.DeployedSystemItem{
+				System: common_shared.Link{Href: "/systems/sys-platform"},
+			},
+			DeployedSystems: []domains.DeployedSystemItem{
+				{System: common_shared.Link{Href: "/systems/sys-1"}},
+			},
+		},
+	}
+
+	features, err := formatter.SerializeAll(context.Background(), deployments)
+	if err != nil {
+		t.Fatalf("serializeAll failed: %v", err)
+	}
+
+	if len(features) != 1 {
+		t.Fatalf("expected 1 feature, got %d", len(features))
+	}
+
+	// Type is always set (Phase 1)
+	if features[0].Platform.System.Type != formaters.GeoJSONContentType {
+		t.Errorf("expected Platform.System.Type %q, got %q", formaters.GeoJSONContentType, features[0].Platform.System.Type)
+	}
+
+	// Title/UID are empty with nil repos (no cache population)
+	if features[0].Platform.System.Title != "" {
+		t.Errorf("expected empty Platform.System.Title with nil repos, got %q", features[0].Platform.System.Title)
+	}
+	if features[0].Platform.System.UID != nil {
+		t.Errorf("expected nil Platform.System.UID with nil repos, got %v", features[0].Platform.System.UID)
 	}
 }

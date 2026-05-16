@@ -385,37 +385,37 @@ func buildCollectionFormatterCollection(repos *repository.Repositories) *seriali
 func buildDatastreamFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Datastream] {
 	collection := serializers.NewMultiFormatFormatterCollection[*domains.Datastream]("application/json")
 
-	jsonFormatter := json_formatters.NewDatastreamJSONFormatter()
+	jsonFormatter := json_formatters.NewDatastreamJSONFormatter(repos)
 	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
 	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
 
 	return collection
 }
 
-func buildControlStreamFormatterCollection(_ *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.ControlStream] {
+func buildControlStreamFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.ControlStream] {
 	collection := serializers.NewMultiFormatFormatterCollection[*domains.ControlStream]("application/json")
 
-	jsonFormatter := json_formatters.NewControlStreamJSONFormatter()
+	jsonFormatter := json_formatters.NewControlStreamJSONFormatter(repos)
 	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
 	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
 
 	return collection
 }
 
-func buildCommandFormatterCollection(_ *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Command] {
+func buildCommandFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Command] {
 	collection := serializers.NewMultiFormatFormatterCollection[*domains.Command]("application/json")
 
-	jsonFormatter := json_formatters.NewCommandJSONFormatter()
+	jsonFormatter := json_formatters.NewCommandJSONFormatter(repos)
 	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
 	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
 
 	return collection
 }
 
-func buildObservationFormatterCollection(_ *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Observation] {
+func buildObservationFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Observation] {
 	collection := serializers.NewMultiFormatFormatterCollection[*domains.Observation]("application/json")
 
-	jsonFormatter := json_formatters.NewObservationJSONFormatter()
+	jsonFormatter := json_formatters.NewObservationJSONFormatter(repos)
 	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
 	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
 

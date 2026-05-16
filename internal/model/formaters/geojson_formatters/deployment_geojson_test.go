@@ -7,6 +7,7 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 )
 
 func TestDeploymentGeoJSONSerialize_AssociationLinks(t *testing.T) {
@@ -69,5 +70,83 @@ func TestDeploymentGeoJSONDeserialize_AssociationLinks(t *testing.T) {
 	}
 	if len(deployment.Links) != 1 || deployment.Links[0].Rel != "alternate" {
 		t.Fatalf("expected only non-association links to remain, got %+v", deployment.Links)
+	}
+}
+
+// Phase 1: inline @link Type enrichment
+func TestDeploymentGeoJSONSerialize_SetsTypeOnPlatformAndDeployedSystems(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewDeploymentGeoJSONFormatter(nil)
+	deployment := &domains.Deployment{
+		Base: domains.Base{ID: "dep-1"},
+		Platform: &domains.DeployedSystemItem{
+			System: common_shared.Link{Href: "/systems/sys-platform"},
+		},
+		DeployedSystems: []domains.DeployedSystemItem{
+			{System: common_shared.Link{Href: "/systems/sys-1"}},
+			{System: common_shared.Link{Href: "/systems/sys-2"}},
+		},
+	}
+
+	feature, err := formatter.Serialize(context.Background(), deployment)
+	if err != nil {
+		t.Fatalf("serialize failed: %v", err)
+	}
+
+	if feature.Properties.Platform == nil {
+		t.Fatal("expected Platform to be non-nil")
+	}
+	if feature.Properties.Platform.Type != formaters.GeoJSONContentType {
+		t.Errorf("expected Platform.Type %q, got %q", formaters.GeoJSONContentType, feature.Properties.Platform.Type)
+	}
+
+	if len(feature.Properties.DeployedSystems) != 2 {
+		t.Fatalf("expected 2 DeployedSystems, got %d", len(feature.Properties.DeployedSystems))
+	}
+	for i, ds := range feature.Properties.DeployedSystems {
+		if ds.Type != formaters.GeoJSONContentType {
+			t.Errorf("DeployedSystems[%d].Type: expected %q, got %q", i, formaters.GeoJSONContentType, ds.Type)
+		}
+	}
+}
+
+// Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
+func TestDeploymentGeoJSONSerializeAll_EnrichesInlineLinks(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewDeploymentGeoJSONFormatter(nil)
+	deployments := []*domains.Deployment{
+		{
+			Base: domains.Base{ID: "dep-1"},
+			Platform: &domains.DeployedSystemItem{
+				System: common_shared.Link{Href: "/systems/sys-platform"},
+			},
+			DeployedSystems: []domains.DeployedSystemItem{
+				{System: common_shared.Link{Href: "/systems/sys-1"}},
+			},
+		},
+	}
+
+	features, err := formatter.SerializeAll(context.Background(), deployments)
+	if err != nil {
+		t.Fatalf("serializeAll failed: %v", err)
+	}
+
+	if len(features) != 1 {
+		t.Fatalf("expected 1 feature, got %d", len(features))
+	}
+
+	// Type is always set (Phase 1)
+	if features[0].Properties.Platform.Type != formaters.GeoJSONContentType {
+		t.Errorf("expected Platform.Type %q, got %q", formaters.GeoJSONContentType, features[0].Properties.Platform.Type)
+	}
+
+	// Title/UID are empty with nil repos (no cache population)
+	if features[0].Properties.Platform.Title != "" {
+		t.Errorf("expected empty Platform.Title with nil repos, got %q", features[0].Properties.Platform.Title)
+	}
+	if features[0].Properties.Platform.UID != nil {
+		t.Errorf("expected nil Platform.UID with nil repos, got %v", features[0].Properties.Platform.UID)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/yourusername/connected-systems-go/internal/repository"
 )
 
 // ObservationJSONFeature is the wire-format representation of an observation.
@@ -19,10 +20,11 @@ type ObservationJSONFeature struct {
 // ObservationJSONFormatter handles observation JSON serialization/deserialization.
 type ObservationJSONFormatter struct {
 	formaters.Formatter[ObservationJSONFeature, *domains.Observation]
+	repos *repository.Repositories
 }
 
-func NewObservationJSONFormatter() *ObservationJSONFormatter {
-	return &ObservationJSONFormatter{}
+func NewObservationJSONFormatter(repos *repository.Repositories) *ObservationJSONFormatter {
+	return &ObservationJSONFormatter{repos: repos}
 }
 
 func (f *ObservationJSONFormatter) ContentType() string {
@@ -36,6 +38,9 @@ func (f *ObservationJSONFormatter) Serialize(ctx context.Context, obs *domains.O
 	out := ObservationJSONFeature{Observation: *obs}
 	if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
 		out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
+		if out.ProcedureLink.Type == "" {
+			out.ProcedureLink.Type = formaters.SensorMLContentType
+		}
 	}
 	if out.ResultLink != nil && out.ResultLink.Href != "" {
 		out.ResultLink.Href = formaters.ToFunctionalAssociationHref(out.ResultLink.Href)
@@ -48,6 +53,26 @@ func (f *ObservationJSONFormatter) SerializeAll(ctx context.Context, observation
 		return []ObservationJSONFeature{}, nil
 	}
 
+	// Collect procedure IDs for batch enrichment
+	procedureIDs := make([]string, 0, len(observations))
+	for _, obs := range observations {
+		if obs == nil {
+			continue
+		}
+		if obs.ProcedureLink != nil && obs.ProcedureLink.Href != "" {
+			id := obs.ProcedureLink.GetId("procedures")
+			if id != nil && *id != "" {
+				procedureIDs = append(procedureIDs, *id)
+			}
+		}
+	}
+
+	// Build resource cache for enriching inline links
+	cache := formaters.NewResourceCache()
+	if f.repos != nil && len(procedureIDs) > 0 {
+		_ = cache.FetchProcedures(ctx, f.repos.Procedure, procedureIDs)
+	}
+
 	items := make([]ObservationJSONFeature, 0, len(observations))
 	for _, obs := range observations {
 		if obs == nil {
@@ -56,6 +81,20 @@ func (f *ObservationJSONFormatter) SerializeAll(ctx context.Context, observation
 		out := ObservationJSONFeature{Observation: *obs}
 		if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
 			out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
+			if out.ProcedureLink.Type == "" {
+				out.ProcedureLink.Type = formaters.SensorMLContentType
+			}
+			// Enrich procedure@link from cache
+			procID := out.ProcedureLink.GetId("procedures")
+			if procID != nil {
+				if proc, ok := cache.Procedures[*procID]; ok {
+					out.ProcedureLink.Title = proc.Name
+					uid := string(proc.UniqueIdentifier)
+					if uid != "" {
+						out.ProcedureLink.UID = &uid
+					}
+				}
+			}
 		}
 		if out.ResultLink != nil && out.ResultLink.Href != "" {
 			out.ResultLink.Href = formaters.ToFunctionalAssociationHref(out.ResultLink.Href)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 )
 
 func TestSystemGeoJSONSerialize_AssociationLinks(t *testing.T) {
@@ -46,4 +47,67 @@ func TestSystemGeoJSONSerialize_AssociationLinks(t *testing.T) {
 	//assertHasHref(t, feature.Links, common_shared.OGCRel("procedures"), "http://example.test/procedures?id=proc-1")
 
 	assertMissingRel(t, feature.Links, common_shared.OGCRel("featuresOfInterest"))
+}
+
+// Phase 1: inline @link Type enrichment
+func TestSystemGeoJSONSerialize_SetsTypeOnSystemKindLink(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewSystemGeoJSONFormatter(nil)
+	kindID := "proc-kind"
+	system := &domains.System{
+		Base:     domains.Base{ID: "sys-1"},
+		TypeOfID: &kindID,
+	}
+
+	feature, err := formatter.Serialize(context.Background(), system)
+	if err != nil {
+		t.Fatalf("serialize failed: %v", err)
+	}
+
+	if feature.Properties.SystemKind == nil {
+		t.Fatal("expected SystemKind to be non-nil")
+	}
+	if feature.Properties.SystemKind.Type != formaters.SensorMLContentType {
+		t.Errorf("expected SystemKind.Type %q, got %q", formaters.SensorMLContentType, feature.Properties.SystemKind.Type)
+	}
+}
+
+// Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
+func TestSystemGeoJSONSerializeAll_EnrichesInlineLinks(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewSystemGeoJSONFormatter(nil)
+	kindID := "proc-kind"
+	systems := []*domains.System{
+		{
+			Base:     domains.Base{ID: "sys-1"},
+			TypeOfID: &kindID,
+		},
+	}
+
+	features, err := formatter.SerializeAll(context.Background(), systems)
+	if err != nil {
+		t.Fatalf("serializeAll failed: %v", err)
+	}
+
+	if len(features) != 1 {
+		t.Fatalf("expected 1 feature, got %d", len(features))
+	}
+
+	// Type is always set (Phase 1)
+	if features[0].Properties.SystemKind == nil {
+		t.Fatal("expected SystemKind to be non-nil")
+	}
+	if features[0].Properties.SystemKind.Type != formaters.SensorMLContentType {
+		t.Errorf("expected SystemKind.Type %q, got %q", formaters.SensorMLContentType, features[0].Properties.SystemKind.Type)
+	}
+
+	// Title/UID are empty with nil repos (no cache population)
+	if features[0].Properties.SystemKind.Title != "" {
+		t.Errorf("expected empty Title with nil repos, got %q", features[0].Properties.SystemKind.Title)
+	}
+	if features[0].Properties.SystemKind.UID != nil {
+		t.Errorf("expected nil UID with nil repos, got %v", features[0].Properties.SystemKind.UID)
+	}
 }
