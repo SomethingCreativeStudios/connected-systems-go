@@ -187,9 +187,9 @@ func TestObservationJSONFormatter_Deserialize(t *testing.T) {
 	formatter := NewObservationJSONFormatter(nil)
 
 	payload := map[string]interface{}{
-		"id":              "obs-1",
-		"datastream@id":   "ds-1",
-		"resultTime":      "2026-01-01T00:00:00Z",
+		"id":            "obs-1",
+		"datastream@id": "ds-1",
+		"resultTime":    "2026-01-01T00:00:00Z",
 		"procedure@link": map[string]interface{}{
 			"href": "/procedures/proc-1",
 		},

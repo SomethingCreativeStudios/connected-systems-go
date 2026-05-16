@@ -155,8 +155,8 @@ func TestCommandJSONFormatter_Deserialize(t *testing.T) {
 	formatter := NewCommandJSONFormatter(nil)
 
 	payload := map[string]interface{}{
-		"id":                "cmd-1",
-		"controlstream@id":  "cs-1",
+		"id":               "cmd-1",
+		"controlstream@id": "cs-1",
 		"procedure@link": map[string]interface{}{
 			"href": "/procedures/proc-1",
 		},
