@@ -351,6 +351,38 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated control stream IDs
+        in: query
+        name: controlStream
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated status values
+        in: query
+        name: currentStatus
+        type: string
+      - description: Issue time filter (RFC 3339 date-time or interval)
+        in: query
+        name: issueTime
+        type: string
+      - description: Execution time filter (RFC 3339 date-time or interval)
+        in: query
+        name: executionTime
+        type: string
       produces:
       - application/json
       responses:
@@ -498,6 +530,34 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Issue time filter (RFC 3339 date-time or interval)
+        in: query
+        name: issueTime
+        type: string
+      - description: Execution time filter (RFC 3339 date-time or interval)
+        in: query
+        name: executionTime
+        type: string
       produces:
       - application/json
       responses:
@@ -646,6 +706,30 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated status values
+        in: query
+        name: currentStatus
+        type: string
+      - description: Issue time filter (RFC 3339 date-time or interval)
+        in: query
+        name: issueTime
+        type: string
+      - description: Execution time filter (RFC 3339 date-time or interval)
+        in: query
+        name: executionTime
+        type: string
       produces:
       - application/json
       responses:
@@ -788,6 +872,34 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Phenomenon time filter (RFC 3339 date-time or interval)
+        in: query
+        name: phenomenonTime
+        type: string
+      - description: Result time filter (RFC 3339 date-time or interval)
+        in: query
+        name: resultTime
+        type: string
       produces:
       - application/json
       responses:
@@ -936,6 +1048,26 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Phenomenon time filter (RFC 3339 date-time or interval)
+        in: query
+        name: phenomenonTime
+        type: string
+      - description: Result time filter (RFC 3339 date-time or interval)
+        in: query
+        name: resultTime
+        type: string
       produces:
       - application/json
       responses:
@@ -1078,6 +1210,42 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+        in: query
+        name: dateTime
+        type: string
+      - description: Comma-separated parent deployment IDs
+        in: query
+        name: parent
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Include sub-deployments recursively
+        in: query
+        name: recursive
+        type: boolean
       produces:
       - application/json
       responses:
@@ -1313,6 +1481,38 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated datastream IDs
+        in: query
+        name: dataStream
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Phenomenon time filter (RFC 3339 date-time or interval)
+        in: query
+        name: phenomenonTime
+        type: string
+      - description: Result time filter (RFC 3339 date-time or interval)
+        in: query
+        name: resultTime
+        type: string
       produces:
       - application/json
       responses:
@@ -1446,6 +1646,26 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+        in: query
+        name: dateTime
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
       produces:
       - application/json
       responses:
@@ -1610,6 +1830,22 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated base property IDs
+        in: query
+        name: baseProperty
+        type: string
+      - description: Comma-separated object type URIs
+        in: query
+        name: objectType
+        type: string
       produces:
       - application/json
       responses:
@@ -1762,6 +1998,38 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+        in: query
+        name: bbox
+        type: string
+      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+        in: query
+        name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
       produces:
       - application/json
       responses:
@@ -1890,6 +2158,30 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated event type values
+        in: query
+        name: eventType
+        type: string
+      - description: Comma-separated keywords to match against event fields
+        in: query
+        name: keyword
+        type: string
+      - description: Date-time or interval (RFC 3339); also accepted as eventTime
+        in: query
+        name: datetime
+        type: string
       produces:
       - application/json
       responses:
@@ -1924,6 +2216,50 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+        in: query
+        name: bbox
+        type: string
+      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+        in: query
+        name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
+        type: string
+      - description: Comma-separated parent system IDs
+        in: query
+        name: parent
+        type: string
+      - description: Comma-separated procedure IDs
+        in: query
+        name: procedure
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Include sub-resources recursively
+        in: query
+        name: recursive
+        type: boolean
       produces:
       - application/json
       responses:
@@ -2097,6 +2433,26 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Issue time filter (RFC 3339 date-time or interval)
+        in: query
+        name: issueTime
+        type: string
+      - description: Execution time filter (RFC 3339 date-time or interval)
+        in: query
+        name: executionTime
+        type: string
       produces:
       - application/json
       responses:
@@ -2171,6 +2527,26 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Phenomenon time filter (RFC 3339 date-time or interval)
+        in: query
+        name: phenomenonTime
+        type: string
+      - description: Result time filter (RFC 3339 date-time or interval)
+        in: query
+        name: resultTime
+        type: string
       produces:
       - application/json
       responses:
@@ -2237,6 +2613,42 @@ paths:
         name: id
         required: true
         type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: dateTime
+        type: string
+      - description: Comma-separated parent deployment IDs
+        in: query
+        name: parent
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Include sub-deployments recursively
+        in: query
+        name: recursive
+        type: boolean
       produces:
       - application/json
       responses:
@@ -2277,6 +2689,22 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated event type values
+        in: query
+        name: eventType
+        type: string
+      - description: Comma-separated keywords to match against event fields
+        in: query
+        name: keyword
+        type: string
+      - description: Date-time or interval (RFC 3339); also accepted as eventTime
+        in: query
+        name: datetime
+        type: string
       produces:
       - application/json
       responses:
@@ -2471,6 +2899,14 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Valid time filter (RFC 3339 date-time or interval)
+        in: query
+        name: validTime
+        type: string
+      - description: Comma-separated keywords to match against history fields
+        in: query
+        name: keyword
+        type: string
       produces:
       - application/json
       responses:
@@ -2624,6 +3060,30 @@ paths:
         name: id
         required: true
         type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: dateTime
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
       produces:
       - application/json
       responses:
@@ -2655,6 +3115,42 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+        in: query
+        name: bbox
+        type: string
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
         type: string
       produces:
       - application/json
@@ -2728,6 +3224,50 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+        in: query
+        name: bbox
+        type: string
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
+        type: string
+      - description: Comma-separated procedure IDs
+        in: query
+        name: procedure
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
         type: string
       - description: Include nested subsystems recursively
         in: query

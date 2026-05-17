@@ -35,8 +35,13 @@ func NewProcedureHandler(cfg *config.Config, logger *zap.Logger, repo *repositor
 // @Description Returns a paginated collection of procedure resources
 // @Tags        Procedures
 // @Produce     json
-// @Param       limit   query  int  false  "Maximum number of results"
-// @Param       offset  query  int  false  "Result offset"
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       offset              query  integer  false  "Result offset"
+// @Param       id                  query  string   false  "Comma-separated resource IDs"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"
+// @Param       observedProperty    query  string   false  "Comma-separated observed property IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
 // @Success     200  {object}  map[string]any
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string

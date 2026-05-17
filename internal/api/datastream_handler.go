@@ -40,8 +40,15 @@ func NewDatastreamHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 // @Description Returns a paginated collection of datastream resources
 // @Tags        Datastreams
 // @Produce     json
-// @Param       limit   query  int  false  "Maximum number of results"
-// @Param       offset  query  int  false  "Result offset"
+// @Param       limit             query  integer  false  "Maximum number of results"
+// @Param       offset            query  integer  false  "Result offset"
+// @Param       id                query  string   false  "Comma-separated resource IDs"
+// @Param       q                 query  string   false  "Comma-separated keywords for full-text search"
+// @Param       system            query  string   false  "Comma-separated system IDs"
+// @Param       foi               query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty  query  string   false  "Comma-separated observed property IDs"
+// @Param       phenomenonTime    query  string   false  "Phenomenon time filter (RFC 3339 date-time or interval)"
+// @Param       resultTime        query  string   false  "Result time filter (RFC 3339 date-time or interval)"
 // @Success     200  {object}  DatastreamCollectionResponse
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
@@ -84,9 +91,14 @@ func (h *DatastreamHandler) ListDatastreams(w http.ResponseWriter, r *http.Reque
 // @Description Returns datastreams associated with a given system
 // @Tags        Datastreams
 // @Produce     json
-// @Param       id      path   string  true   "System ID"
-// @Param       limit   query  int     false  "Maximum number of results"
-// @Param       offset  query  int     false  "Result offset"
+// @Param       id                path   string   true   "System ID"
+// @Param       limit             query  integer  false  "Maximum number of results"
+// @Param       offset            query  integer  false  "Result offset"
+// @Param       q                 query  string   false  "Comma-separated keywords for full-text search"
+// @Param       foi               query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty  query  string   false  "Comma-separated observed property IDs"
+// @Param       phenomenonTime    query  string   false  "Phenomenon time filter (RFC 3339 date-time or interval)"
+// @Param       resultTime        query  string   false  "Result time filter (RFC 3339 date-time or interval)"
 // @Success     200  {object}  DatastreamCollectionResponse
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string

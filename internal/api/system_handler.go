@@ -51,8 +51,19 @@ func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.S
 // @Description Returns a paginated collection of system resources
 // @Tags        Systems
 // @Produce     json
-// @Param       limit   query  int     false  "Maximum number of results"
-// @Param       offset  query  int     false  "Result offset"
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       offset              query  integer  false  "Result offset"
+// @Param       id                  query  string   false  "Comma-separated resource IDs"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       bbox                query  string   false  "Bounding box filter: minx,miny,maxx,maxy"
+// @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"
+// @Param       geom                query  string   false  "WKT geometry for spatial intersection"
+// @Param       parent              query  string   false  "Comma-separated parent system IDs"
+// @Param       procedure           query  string   false  "Comma-separated procedure IDs"
+// @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty    query  string   false  "Comma-separated observed property IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
+// @Param       recursive           query  boolean  false  "Include sub-resources recursively"
 // @Success     200  {object}  map[string]any
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
@@ -234,8 +245,19 @@ func (h *SystemHandler) DeleteSystem(w http.ResponseWriter, r *http.Request) {
 // @Description Returns subsystems of a given system
 // @Tags        Systems
 // @Produce     json
-// @Param       id         path   string  true   "System ID"
-// @Param       recursive  query  bool    false  "Include nested subsystems recursively"
+// @Param       id                  path   string   true   "System ID"
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       offset              query  integer  false  "Result offset"
+// @Param       id                  query  string   false  "Comma-separated resource IDs"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       bbox                query  string   false  "Bounding box filter: minx,miny,maxx,maxy"
+// @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339)"
+// @Param       geom                query  string   false  "WKT geometry for spatial intersection"
+// @Param       procedure           query  string   false  "Comma-separated procedure IDs"
+// @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty    query  string   false  "Comma-separated observed property IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
+// @Param       recursive           query  boolean  false  "Include nested subsystems recursively"
 // @Success     200  {object}  map[string]any
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
@@ -282,7 +304,16 @@ func (h *SystemHandler) populateSystemAssociationLinks(systems []*domains.System
 // @Description Returns deployments associated with a given system
 // @Tags        Systems
 // @Produce     json
-// @Param       id  path  string  true  "System ID"
+// @Param       id                  path   string   true   "System ID"
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       offset              query  integer  false  "Result offset"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339)"
+// @Param       parent              query  string   false  "Comma-separated parent deployment IDs"
+// @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty    query  string   false  "Comma-separated observed property IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
+// @Param       recursive           query  boolean  false  "Include sub-deployments recursively"
 // @Success     200  {object}  map[string]any
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
@@ -321,7 +352,13 @@ func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 // @Description Returns procedures associated with a given system
 // @Tags        Systems
 // @Produce     json
-// @Param       id  path  string  true  "System ID"
+// @Param       id                  path   string   true   "System ID"
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       offset              query  integer  false  "Result offset"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339)"
+// @Param       observedProperty    query  string   false  "Comma-separated observed property IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
 // @Success     200  {object}  map[string]any
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string

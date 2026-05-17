@@ -45,8 +45,15 @@ func NewControlStreamHandler(
 // @Description Returns a paginated collection of control stream resources
 // @Tags        Control Streams
 // @Produce     json
-// @Param       limit   query  int  false  "Maximum number of results"
-// @Param       offset  query  int  false  "Result offset"
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       offset              query  integer  false  "Result offset"
+// @Param       id                  query  string   false  "Comma-separated resource IDs"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       system              query  string   false  "Comma-separated system IDs"
+// @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
+// @Param       issueTime           query  string   false  "Issue time filter (RFC 3339 date-time or interval)"
+// @Param       executionTime       query  string   false  "Execution time filter (RFC 3339 date-time or interval)"
 // @Success     200  {object}  ControlStreamCollectionResponse
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
@@ -89,9 +96,14 @@ func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http
 // @Description Returns control streams associated with a given system
 // @Tags        Control Streams
 // @Produce     json
-// @Param       id      path   string  true   "System ID"
-// @Param       limit   query  int     false  "Maximum number of results"
-// @Param       offset  query  int     false  "Result offset"
+// @Param       id                  path   string   true   "System ID"
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       offset              query  integer  false  "Result offset"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
+// @Param       issueTime           query  string   false  "Issue time filter (RFC 3339 date-time or interval)"
+// @Param       executionTime       query  string   false  "Execution time filter (RFC 3339 date-time or interval)"
 // @Success     200  {object}  ControlStreamCollectionResponse
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string

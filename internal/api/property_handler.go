@@ -34,8 +34,12 @@ func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository
 // @Description Returns a paginated collection of property resources
 // @Tags        Properties
 // @Produce     json
-// @Param       limit   query  int  false  "Maximum number of results"
-// @Param       offset  query  int  false  "Result offset"
+// @Param       limit         query  integer  false  "Maximum number of results"
+// @Param       offset        query  integer  false  "Result offset"
+// @Param       id            query  string   false  "Comma-separated resource IDs"
+// @Param       q             query  string   false  "Comma-separated keywords for full-text search"
+// @Param       baseProperty  query  string   false  "Comma-separated base property IDs"
+// @Param       objectType    query  string   false  "Comma-separated object type URIs"
 // @Success     200  {object}  map[string]any
 // @Failure     500  {object}  map[string]string
 // @Router      /properties [get]

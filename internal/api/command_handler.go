@@ -53,8 +53,16 @@ func NewCommandHandler(
 // @Description Returns a paginated collection of command resources
 // @Tags        Commands
 // @Produce     json
-// @Param       limit   query  int  false  "Maximum number of results"
-// @Param       offset  query  int  false  "Result offset"
+// @Param       limit          query  integer  false  "Maximum number of results"
+// @Param       offset         query  integer  false  "Result offset"
+// @Param       id             query  string   false  "Comma-separated resource IDs"
+// @Param       q              query  string   false  "Comma-separated keywords for full-text search"
+// @Param       controlStream  query  string   false  "Comma-separated control stream IDs"
+// @Param       system         query  string   false  "Comma-separated system IDs"
+// @Param       foi            query  string   false  "Comma-separated feature of interest IDs"
+// @Param       currentStatus  query  string   false  "Comma-separated status values"
+// @Param       issueTime      query  string   false  "Issue time filter (RFC 3339 date-time or interval)"
+// @Param       executionTime  query  string   false  "Execution time filter (RFC 3339 date-time or interval)"
 // @Success     200  {object}  CommandCollectionResponse
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
@@ -97,9 +105,15 @@ func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
 // @Description Returns commands associated with a given control stream
 // @Tags        Commands
 // @Produce     json
-// @Param       controlStreamId  path   string  true   "Control Stream ID"
-// @Param       limit            query  int     false  "Maximum number of results"
-// @Param       offset           query  int     false  "Result offset"
+// @Param       controlStreamId  path   string   true   "Control Stream ID"
+// @Param       limit            query  integer  false  "Maximum number of results"
+// @Param       offset           query  integer  false  "Result offset"
+// @Param       q                query  string   false  "Comma-separated keywords for full-text search"
+// @Param       system           query  string   false  "Comma-separated system IDs"
+// @Param       foi              query  string   false  "Comma-separated feature of interest IDs"
+// @Param       currentStatus    query  string   false  "Comma-separated status values"
+// @Param       issueTime        query  string   false  "Issue time filter (RFC 3339 date-time or interval)"
+// @Param       executionTime    query  string   false  "Execution time filter (RFC 3339 date-time or interval)"
 // @Success     200  {object}  CommandCollectionResponse
 // @Failure     400  {object}  map[string]string
 // @Failure     404  {object}  map[string]string

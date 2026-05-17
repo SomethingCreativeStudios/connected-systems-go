@@ -436,6 +436,54 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated control stream IDs",
+                        "name": "controlStream",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated system IDs",
+                        "name": "system",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated status values",
+                        "name": "currentStatus",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Issue time filter (RFC 3339 date-time or interval)",
+                        "name": "issueTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Execution time filter (RFC 3339 date-time or interval)",
+                        "name": "executionTime",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -656,6 +704,48 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Result offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated system IDs",
+                        "name": "system",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Issue time filter (RFC 3339 date-time or interval)",
+                        "name": "issueTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Execution time filter (RFC 3339 date-time or interval)",
+                        "name": "executionTime",
                         "in": "query"
                     }
                 ],
@@ -879,6 +969,42 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated system IDs",
+                        "name": "system",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated status values",
+                        "name": "currentStatus",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Issue time filter (RFC 3339 date-time or interval)",
+                        "name": "issueTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Execution time filter (RFC 3339 date-time or interval)",
+                        "name": "executionTime",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1091,6 +1217,48 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Result offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated system IDs",
+                        "name": "system",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phenomenon time filter (RFC 3339 date-time or interval)",
+                        "name": "phenomenonTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result time filter (RFC 3339 date-time or interval)",
+                        "name": "resultTime",
                         "in": "query"
                     }
                 ],
@@ -1314,6 +1482,36 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phenomenon time filter (RFC 3339 date-time or interval)",
+                        "name": "phenomenonTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result time filter (RFC 3339 date-time or interval)",
+                        "name": "resultTime",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1526,6 +1724,60 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Result offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z",
+                        "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated parent deployment IDs",
+                        "name": "parent",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated system IDs",
+                        "name": "system",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include sub-deployments recursively",
+                        "name": "recursive",
                         "in": "query"
                     }
                 ],
@@ -1879,6 +2131,54 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated datastream IDs",
+                        "name": "dataStream",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated system IDs",
+                        "name": "system",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phenomenon time filter (RFC 3339 date-time or interval)",
+                        "name": "phenomenonTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result time filter (RFC 3339 date-time or interval)",
+                        "name": "resultTime",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2078,6 +2378,36 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Result offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z",
+                        "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
                         "in": "query"
                     }
                 ],
@@ -2325,6 +2655,30 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated base property IDs",
+                        "name": "baseProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated object type URIs",
+                        "name": "objectType",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2553,6 +2907,54 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "name": "bbox",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z",
+                        "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2745,6 +3147,42 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated system IDs",
+                        "name": "system",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated event type values",
+                        "name": "eventType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords to match against event fields",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339); also accepted as eventTime",
+                        "name": "datetime",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2796,6 +3234,72 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Result offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "name": "bbox",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z",
+                        "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated parent system IDs",
+                        "name": "parent",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated procedure IDs",
+                        "name": "procedure",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include sub-resources recursively",
+                        "name": "recursive",
                         "in": "query"
                     }
                 ],
@@ -3056,6 +3560,36 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Issue time filter (RFC 3339 date-time or interval)",
+                        "name": "issueTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Execution time filter (RFC 3339 date-time or interval)",
+                        "name": "executionTime",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3167,6 +3701,36 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phenomenon time filter (RFC 3339 date-time or interval)",
+                        "name": "phenomenonTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result time filter (RFC 3339 date-time or interval)",
+                        "name": "resultTime",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3266,6 +3830,60 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Result offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339)",
+                        "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated parent deployment IDs",
+                        "name": "parent",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include sub-deployments recursively",
+                        "name": "recursive",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3325,6 +3943,30 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Result offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated event type values",
+                        "name": "eventType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords to match against event fields",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339); also accepted as eventTime",
+                        "name": "datetime",
                         "in": "query"
                     }
                 ],
@@ -3615,6 +4257,18 @@ const docTemplate = `{
                         "description": "Result offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Valid time filter (RFC 3339 date-time or interval)",
+                        "name": "validTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords to match against history fields",
+                        "name": "keyword",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3841,6 +4495,42 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Result offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339)",
+                        "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3889,6 +4579,60 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Result offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "name": "bbox",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339)",
+                        "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3998,6 +4742,72 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Result offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated resource IDs",
+                        "name": "id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "name": "bbox",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339)",
+                        "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated procedure IDs",
+                        "name": "procedure",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
                     },
                     {
                         "type": "boolean",

@@ -17,9 +17,11 @@ import (
 // @Description Returns historical revisions of a system
 // @Tags        System History
 // @Produce     json
-// @Param       id      path   string  true   "System ID"
-// @Param       limit   query  int     false  "Maximum number of results"
-// @Param       offset  query  int     false  "Result offset"
+// @Param       id        path   string   true   "System ID"
+// @Param       limit     query  integer  false  "Maximum number of results"
+// @Param       offset    query  integer  false  "Result offset"
+// @Param       validTime  query  string   false  "Valid time filter (RFC 3339 date-time or interval)"
+// @Param       keyword   query  string   false  "Comma-separated keywords to match against history fields"
 // @Success     200  {object}  map[string]any
 // @Failure     400  {object}  map[string]string
 // @Failure     404  {object}  map[string]string
