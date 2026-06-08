@@ -46,3 +46,8 @@ CLAUDE.md
 Current Issues.md
 connected-systems-go.code-workspace
 connected-systems-go.code-workspace
+cmd/server/server
+
+build
+
+dist
