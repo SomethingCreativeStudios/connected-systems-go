@@ -64,7 +64,7 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 			Description:     deployment.Description,
 			UniqueID:        string(deployment.UniqueIdentifier),
 			Definition:      deployment.DeploymentType,
-			ValidTime:       deployment.ValidTime,
+			ValidTime:       common_shared.NonEmptyTimeRange(deployment.ValidTime),
 			Location:        deployment.Geometry,
 			Platform:        platform,
 			DeployedSystems: deployedSystems,
@@ -135,7 +135,7 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 		deployment.DeploymentType = sensorML.Type
 	}
 
-	deployment.ValidTime = sensorML.ValidTime
+	deployment.ValidTime = common_shared.NonEmptyTimeRange(sensorML.ValidTime)
 	deployment.Lang = sensorML.Lang
 	deployment.Keywords = sensorML.Keywords
 	deployment.Identifiers = sensorML.Identifiers

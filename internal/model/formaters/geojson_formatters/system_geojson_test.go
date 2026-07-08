@@ -2,6 +2,8 @@ package geojson_formatters
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -46,4 +48,28 @@ func TestSystemGeoJSONSerialize_AssociationLinks(t *testing.T) {
 	//assertHasHref(t, feature.Links, common_shared.OGCRel("procedures"), "http://example.test/procedures?id=proc-1")
 
 	assertMissingRel(t, feature.Links, common_shared.OGCRel("featuresOfInterest"))
+}
+
+func TestSystemGeoJSONSerialize_EmptyValidTimeOmitted(t *testing.T) {
+	formatter := NewSystemGeoJSONFormatter(nil)
+	system := &domains.System{
+		Base:      domains.Base{ID: "sys-1"},
+		ValidTime: &common_shared.TimeRange{},
+	}
+
+	feature, err := formatter.Serialize(context.Background(), system)
+	if err != nil {
+		t.Fatalf("serialize failed: %v", err)
+	}
+	if feature.Properties.ValidTime != nil {
+		t.Fatalf("expected empty validTime to be nil, got %#v", feature.Properties.ValidTime)
+	}
+
+	data, err := json.Marshal(feature)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if strings.Contains(string(data), "validTime") {
+		t.Fatalf("expected validTime to be omitted, got %s", data)
+	}
 }

@@ -113,9 +113,7 @@ func (f *FeatureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 	// Parse validTime — accepts both array ["start","end"] and object {"start":...,"end":...} forms.
 	if vt, ok := geoJSON.Properties["validTime"]; ok && vt != nil {
 		tr := common_shared.ParseTimeRange(vt)
-		if tr.Start != nil || tr.End != nil {
-			feature.ValidTime = &tr
-		}
+		feature.ValidTime = common_shared.NonEmptyTimeRange(&tr)
 	}
 
 	return &feature, nil

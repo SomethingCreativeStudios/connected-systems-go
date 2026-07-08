@@ -38,6 +38,28 @@ func (f *SystemSensorMLFormatter) ContentType() string {
 	return SensorMLContentType
 }
 
+func nonNullRawMessage(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 || strings.TrimSpace(string(raw)) == "null" {
+		return nil
+	}
+	return raw
+}
+
+func systemSensorMLPosition(system *domains.System) json.RawMessage {
+	if position := nonNullRawMessage(system.Position); position != nil {
+		return position
+	}
+	if system.Geometry == nil {
+		return nil
+	}
+
+	position, err := json.Marshal(system.Geometry)
+	if err != nil {
+		return nil
+	}
+	return nonNullRawMessage(position)
+}
+
 // --- Serialization ---
 
 func (f *SystemSensorMLFormatter) Serialize(ctx context.Context, system *domains.System) (domains.SystemSensorMLFeature, error) {
@@ -114,7 +136,7 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 			Label:                system.Name,
 			Description:          system.Description,
 			UniqueID:             string(system.UniqueIdentifier),
-			ValidTime:            system.ValidTime,
+			ValidTime:            common_shared.NonEmptyTimeRange(system.ValidTime),
 			Definition:           system.SystemType,
 			Lang:                 system.Lang,
 			Keywords:             system.Keywords,
@@ -132,7 +154,7 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 			Outputs:              system.Outputs,
 			Parameters:           system.Parameters,
 			Modes:                system.Modes,
-			Position:             system.Position,
+			Position:             systemSensorMLPosition(system),
 			AttachedTo:           attachedTo,
 			LocalReferenceFrames: system.LocalReferenceFrames,
 			LocalTimeFrames:      system.LocalTimeFrames,
@@ -192,11 +214,11 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 		system.SMLType = &v
 	}
 
-	system.ValidTime = sml.ValidTime
+	system.ValidTime = common_shared.NonEmptyTimeRange(sml.ValidTime)
 	if system.ValidTime == nil {
 		if vt, ok := raw["validTime"]; ok {
 			tr := common_shared.ParseTimeRange(vt)
-			system.ValidTime = &tr
+			system.ValidTime = common_shared.NonEmptyTimeRange(&tr)
 		}
 	}
 

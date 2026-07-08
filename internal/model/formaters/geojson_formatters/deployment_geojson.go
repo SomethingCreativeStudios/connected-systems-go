@@ -78,7 +78,7 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 				Name:            deployment.Name,
 				Description:     deployment.Description,
 				FeatureType:     deployment.DeploymentType,
-				ValidTime:       deployment.ValidTime,
+				ValidTime:       common_shared.NonEmptyTimeRange(deployment.ValidTime),
 				Definition:      deployment.DeploymentType,
 				Platform:        platformLink,
 				DeployedSystems: systemLinks,
@@ -126,7 +126,7 @@ func (f *DeploymentGeoJSONFormatter) Deserialize(ctx context.Context, reader io.
 	deployment.Description = geoJSON.Properties.Description
 	deployment.DeploymentType = geoJSON.Properties.FeatureType
 
-	deployment.ValidTime = geoJSON.Properties.ValidTime
+	deployment.ValidTime = common_shared.NonEmptyTimeRange(geoJSON.Properties.ValidTime)
 
 	// Platform and DeployedSystems
 	if geoJSON.Properties.Platform != nil {

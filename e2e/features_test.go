@@ -15,6 +15,7 @@ func TestFeaturesAPI_E2E(t *testing.T) {
 
 	// First create a collection to hold features
 	var collectionID string
+	var featureLocation string
 	t.Run("Setup - create collection", func(t *testing.T) {
 		payload := map[string]interface{}{
 			"id":          "test-features-collection",
@@ -48,26 +49,53 @@ func TestFeaturesAPI_E2E(t *testing.T) {
 		}
 
 		body, _ := json.Marshal(payload)
-		resp, err := http.Post(testServer.URL+"/collections/"+collectionID+"/items", "application/json", bytes.NewReader(body))
+		req, err := http.NewRequest(http.MethodPost, testServer.URL+"/collections/"+collectionID+"/items", bytes.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/geo+json")
+		req.Header.Set("Accept", "application/geo+json")
+
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-		assert.NotEmpty(t, result["id"])
+		featureLocation = resp.Header.Get("Location")
+		require.NotEmpty(t, featureLocation)
 	})
 
 	t.Run("GET /collections/{id}/items - list features", func(t *testing.T) {
-		resp, err := http.Get(testServer.URL + "/collections/" + collectionID + "/items")
+		req, err := http.NewRequest(http.MethodGet, testServer.URL+"/collections/"+collectionID+"/items", nil)
+		require.NoError(t, err)
+		req.Header.Set("Accept", "application/geo+json")
+
+		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "application/geo+json", resp.Header.Get("Content-Type"))
 		var result map[string]interface{}
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 		assert.Equal(t, "FeatureCollection", result["type"])
+	})
+
+	t.Run("GET /collections/{id}/items/{featureId} - retrieve feature", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, featureLocation, nil)
+		require.NoError(t, err)
+		req.Header.Set("Accept", "application/geo+json")
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "application/geo+json", resp.Header.Get("Content-Type"))
+
+		var result map[string]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&result)
+		require.NoError(t, err)
+		assert.Equal(t, "Feature", result["type"])
+		assert.NotEmpty(t, result["id"])
 	})
 }

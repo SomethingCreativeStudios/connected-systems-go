@@ -116,7 +116,7 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 				FeatureType:          system.SystemType,
 				AssetType:            system.AssetType,
 				SMLType:              system.SMLType,
-				ValidTime:            system.ValidTime,
+				ValidTime:            common_shared.NonEmptyTimeRange(system.ValidTime),
 				SystemKind:           kindLink,
 				Lang:                 system.Lang,
 				Keywords:             system.Keywords,
@@ -179,7 +179,7 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 	system.SystemType = geoJSON.Properties.FeatureType
 	system.AssetType = geoJSON.Properties.AssetType
 	system.SMLType = geoJSON.Properties.SMLType
-	system.ValidTime = geoJSON.Properties.ValidTime
+	system.ValidTime = common_shared.NonEmptyTimeRange(geoJSON.Properties.ValidTime)
 	if geoJSON.Properties.SystemKind != nil {
 		system.TypeOfID = geoJSON.Properties.SystemKind.GetId("procedures")
 	}

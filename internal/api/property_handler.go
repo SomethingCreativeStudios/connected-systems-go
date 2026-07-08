@@ -45,7 +45,7 @@ func (h *PropertyHandler) ListProperties(w http.ResponseWriter, r *http.Request)
 
 	// Set the response content type based on the serializer used
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	writeNegotiated(w, collection)
 }
 
 func (h *PropertyHandler) GetProperty(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +70,7 @@ func (h *PropertyHandler) GetProperty(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.Status(r, http.StatusOK)
-	render.JSON(w, r, serialized)
+	writeNegotiated(w, serialized)
 }
 
 func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request) {

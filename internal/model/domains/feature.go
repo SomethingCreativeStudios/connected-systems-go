@@ -60,8 +60,8 @@ func (f Feature) ToGeoJSON() FeatureGeoJSONFeature {
 	if f.DateTime != nil {
 		props["dateTime"] = f.DateTime
 	}
-	if f.ValidTime != nil {
-		props["validTime"] = f.ValidTime
+	if validTime := common_shared.NonEmptyTimeRange(f.ValidTime); validTime != nil {
+		props["validTime"] = validTime
 	}
 
 	return FeatureGeoJSONFeature{

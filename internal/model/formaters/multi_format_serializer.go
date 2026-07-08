@@ -144,6 +144,13 @@ type AnyFeatureCollection struct {
 	Links          common_shared.Links `json:"links"`
 }
 
+// AnyItemCollection represents a SensorML (application/sml+json) collection,
+// which uses a plain "items" array rather than a GeoJSON FeatureCollection envelope.
+type AnyItemCollection struct {
+	Items []any               `json:"items"`
+	Links common_shared.Links `json:"links"`
+}
+
 // BuildCollection builds a feature collection using the multi-format serializer
 func (m *MultiFormatSerializerCollection[Input]) BuildCollection(
 	contentType string,

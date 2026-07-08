@@ -188,6 +188,28 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 			r.Get("/", commandHandler.GetCommand)
 			r.Put("/", commandHandler.UpdateCommand)
 			r.Delete("/", commandHandler.DeleteCommand)
+
+			r.Route("/status", func(r chi.Router) {
+				r.Get("/", commandHandler.ListCommandStatusReports)
+				r.Post("/", commandHandler.CreateCommandStatusReport)
+
+				r.Route("/{statusId}", func(r chi.Router) {
+					r.Get("/", commandHandler.GetCommandStatusReport)
+					r.Put("/", commandHandler.UpdateCommandStatusReport)
+					r.Delete("/", commandHandler.DeleteCommandStatusReport)
+				})
+			})
+
+			r.Route("/result", func(r chi.Router) {
+				r.Get("/", commandHandler.ListCommandResults)
+				r.Post("/", commandHandler.CreateCommandResult)
+
+				r.Route("/{resultId}", func(r chi.Router) {
+					r.Get("/", commandHandler.GetCommandResult)
+					r.Put("/", commandHandler.UpdateCommandResult)
+					r.Delete("/", commandHandler.DeleteCommandResult)
+				})
+			})
 		})
 	})
 

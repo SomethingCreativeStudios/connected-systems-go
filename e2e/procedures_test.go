@@ -129,10 +129,10 @@ func TestProcedureConformance(t *testing.T) {
 				err = json.Unmarshal(body, &collection)
 				require.NoError(t, err, "Response must be valid JSON")
 
-				// Must contain features array (OGC FeatureCollection uses "features")
-				features, ok := collection["features"].([]interface{})
-				assert.True(t, ok, "Response must contain 'features' array")
-				assert.GreaterOrEqual(t, len(features), 1, "Collection must contain at least one procedure")
+				// sml+json collections use an "items" array (OGC /req/sensorml/collection-items)
+				items, ok := collection["items"].([]interface{})
+				assert.True(t, ok, "Response must contain 'items' array")
+				assert.GreaterOrEqual(t, len(items), 1, "Collection must contain at least one procedure")
 			},
 		},
 		"/conf/procedure/canonical-endpoint": {
@@ -157,11 +157,7 @@ func TestProcedureConformance(t *testing.T) {
 				// Verify content type header contains expected media type
 				contentType := resp.Header.Get("Content-Type")
 				assert.NotEmpty(t, contentType, "Content-Type header must be set")
-				assert.True(t,
-					contentType == "application/sml+json" ||
-						contentType == "application/json" ||
-						contentType == "application/json; charset=utf-8",
-					"Content-Type must be a valid JSON media type, got: %s", contentType)
+				assert.Equal(t, "application/sml+json", contentType)
 			},
 		},
 		"/conf/procedure/canonical-url": {

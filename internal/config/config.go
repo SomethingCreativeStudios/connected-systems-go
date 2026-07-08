@@ -71,6 +71,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("mqtt.enabled", false)
 	viper.SetDefault("mqtt.broker", "tcp://localhost:1883")
 	viper.SetDefault("mqtt.client_id", "cs-api-server")
+	viper.SetDefault("mqtt.username", "")
+	viper.SetDefault("mqtt.password", "")
 	viper.SetDefault("mqtt.qos", 1)
 	viper.SetDefault("mqtt.retained", false)
 

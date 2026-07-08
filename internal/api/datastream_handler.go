@@ -123,7 +123,7 @@ func (h *DatastreamHandler) GetDatastream(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, serialized)
+	writeNegotiated(w, serialized)
 }
 
 func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Request) {

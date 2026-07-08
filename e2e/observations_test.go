@@ -93,6 +93,9 @@ func TestObservationConformance_ResourcesEndpoint(t *testing.T) {
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok, "response must contain 'items' array")
 	require.GreaterOrEqual(t, len(items), 1, "expected at least one observation")
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
@@ -350,6 +353,9 @@ func TestObservation_List_LatestResultTime_ReturnsMostRecent(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
 	items, ok := result["items"].([]interface{})
 	require.True(t, ok)
+	links, ok := result["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 	require.Equal(t, 1, len(items), "expected exactly one observation for ?resultTime=latest")
 
 	obs, ok := items[0].(map[string]interface{})
@@ -389,5 +395,8 @@ func TestObservation_List_ValidResultTimeRange_Filters(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
 	items, ok := result["items"].([]interface{})
 	require.True(t, ok)
+	links, ok := result["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 	assert.Equal(t, 1, len(items), "expected only the 2025 observation to be returned")
 }

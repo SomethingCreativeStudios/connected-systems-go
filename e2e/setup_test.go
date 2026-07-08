@@ -145,7 +145,7 @@ func TestMain(m *testing.M) {
 // cleanupDB truncates all tables to ensure test isolation
 func cleanupDB(t *testing.T) {
 	t.Helper()
-	testDB.Exec("TRUNCATE TABLE observations, datastreams, commands, control_streams, system_events, system_history_revisions, systems, deployments, procedures, sampling_features, properties, features, collections CASCADE")
+	testDB.Exec("TRUNCATE TABLE observations, datastreams, command_status_reports, command_results, commands, control_streams, system_events, system_history_revisions, systems, deployments, procedures, sampling_features, properties, features, collections CASCADE")
 }
 
 func parseID(locationHeader string, prefix string) string {

@@ -168,7 +168,10 @@ func (m *MultiFormatFormatterCollection[Domain]) Deserialize(contentType string,
 
 // --- Collection building ---
 
-// BuildCollection builds a feature collection using the multi-format formatter
+// BuildCollection builds a collection response using the multi-format formatter.
+// The envelope shape follows the resolved formatter's content type: GeoJSON
+// formats produce a "FeatureCollection" with "features", while SensorML
+// (application/sml+json) produces a plain "items" collection per the OGC spec.
 func (m *MultiFormatFormatterCollection[Domain]) BuildCollection(
 	contentType string,
 	items []Domain,
@@ -176,18 +179,29 @@ func (m *MultiFormatFormatterCollection[Domain]) BuildCollection(
 	total int,
 	requestParams url.Values,
 	queryParams queryparams.QueryParams,
-) AnyFeatureCollection {
-	features, err := m.SerializeAll(contentType, items)
+) any {
+	formatter := m.GetFormatter(contentType)
+
+	elements, err := formatter.SerializeAllAny(context.Background(), items)
 	if err != nil {
-		features = []any{}
+		elements = []any{}
 	}
 
 	totalInt := int(total)
+	links := queryParams.BuildPagintationLinks(basePath, requestParams, &totalInt, len(items))
+
+	if formatter.ContentType() == "application/sml+json" {
+		return AnyItemCollection{
+			Items: elements,
+			Links: links,
+		}
+	}
+
 	return AnyFeatureCollection{
 		Type:           "FeatureCollection",
-		Features:       features,
+		Features:       elements,
 		NumberMatched:  &totalInt,
 		NumberReturned: len(items),
-		Links:          queryParams.BuildPagintationLinks(basePath, requestParams, &totalInt, len(items)),
+		Links:          links,
 	}
 }

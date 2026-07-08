@@ -52,7 +52,7 @@ func (h *SystemHandler) ListSystemHistory(w http.ResponseWriter, r *http.Request
 	collection := h.fc.BuildCollection(acceptHeader, systems, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	writeNegotiated(w, collection)
 }
 
 // GetSystemHistoryRevision handles GET /systems/{id}/history/{revId}.
@@ -88,7 +88,7 @@ func (h *SystemHandler) GetSystemHistoryRevision(w http.ResponseWriter, r *http.
 	}
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, serialized)
+	writeNegotiated(w, serialized)
 }
 
 // UpdateSystemHistoryRevision handles PUT /systems/{id}/history/{revId}.

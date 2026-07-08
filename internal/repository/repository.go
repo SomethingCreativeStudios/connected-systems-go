@@ -62,6 +62,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&domains.DeploymentClosure{},
 		&domains.ControlStream{},
 		&domains.Command{},
+		&domains.CommandStatusReport{},
+		&domains.CommandResult{},
 		&domains.SystemEvent{},
 		&domains.SystemHistoryRevision{},
 	); err != nil {

@@ -36,7 +36,7 @@ func (f *DatastreamJSONFormatter) Serialize(ctx context.Context, datastream *dom
 	if datastream == nil {
 		return DatastreamJSONFeature{}, fmt.Errorf("datastream cannot be nil")
 	}
-	out := DatastreamJSONFeature{Datastream: *datastream}
+	out := DatastreamJSONFeature{Datastream: sanitizeDatastreamTimeRanges(*datastream)}
 	out.Links = appendDatastreamAssociationLinks(datastream)
 	if datastream.SystemID != nil {
 		out.SystemLink = &common_shared.Link{
@@ -56,7 +56,7 @@ func (f *DatastreamJSONFormatter) SerializeAll(ctx context.Context, datastreams 
 		if ds == nil {
 			continue
 		}
-		out := DatastreamJSONFeature{Datastream: *ds}
+		out := DatastreamJSONFeature{Datastream: sanitizeDatastreamTimeRanges(*ds)}
 		out.Links = appendDatastreamAssociationLinks(ds)
 		if ds.SystemID != nil {
 			out.SystemLink = &common_shared.Link{
@@ -81,10 +81,18 @@ func (f *DatastreamJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 		return nil, err
 	}
 	datastream := wire.Datastream
+	datastream = sanitizeDatastreamTimeRanges(datastream)
 	if wire.SystemLink != nil {
 		datastream.SystemID = wire.SystemLink.GetId("systems")
 	}
 	return &datastream, nil
+}
+
+func sanitizeDatastreamTimeRanges(datastream domains.Datastream) domains.Datastream {
+	datastream.ValidTime = common_shared.NonEmptyTimeRange(datastream.ValidTime)
+	datastream.PhenomenonTime = common_shared.NonEmptyTimeRange(datastream.PhenomenonTime)
+	datastream.ResultTime = common_shared.NonEmptyTimeRange(datastream.ResultTime)
+	return datastream
 }
 
 func appendDatastreamAssociationLinks(ds *domains.Datastream) common_shared.Links {

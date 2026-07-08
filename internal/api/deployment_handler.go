@@ -48,7 +48,7 @@ func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Reque
 	collection := h.fc.BuildCollection(acceptHeader, deployments, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	writeNegotiated(w, collection)
 }
 
 func (h *DeploymentHandler) GetDeployment(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func (h *DeploymentHandler) GetDeployment(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.Status(r, http.StatusOK)
-	render.JSON(w, r, serialized)
+	writeNegotiated(w, serialized)
 }
 
 func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Request) {
@@ -164,7 +164,7 @@ func (h *DeploymentHandler) ListSubdeployments(w http.ResponseWriter, r *http.Re
 	collection := h.fc.BuildCollection(acceptHeader, deployments, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	writeNegotiated(w, collection)
 }
 
 // Add subdeployment to a deployment

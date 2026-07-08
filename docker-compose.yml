@@ -24,6 +24,7 @@ services:
       - "9001:9001"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto_passwd:/mosquitto/config/mosquitto_passwd:ro
       - mosquitto_data:/mosquitto/data
     healthcheck:
       test: ["CMD-SHELL", "mosquitto_pub -t 'health/check' -m '1' -q 0 2>/dev/null"]
@@ -55,8 +56,15 @@ services:
       DATABASE_NAME: connected_systems
       DATABASE_USER: postgres
       DATABASE_PASSWORD: postgres
+      MQTT_ENABLED: "true"
+      MQTT_BROKER: "tcp://mqtt:1883"
+      MQTT_CLIENT_ID: "cs-api-server"
+      MQTT_USERNAME: "cs-api-server"
+      MQTT_PASSWORD: "${MQTT_PASSWORD}"
     depends_on:
       db:
+        condition: service_healthy
+      mqtt:
         condition: service_healthy
     restart: unless-stopped
 

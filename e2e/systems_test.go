@@ -99,6 +99,19 @@ func baseSystemPayload(name string) map[string]interface{} {
 	}
 }
 
+func baseSystemPayloadWithoutGeometry(name string) map[string]interface{} {
+	uid := "urn:uuid:" + uuid.NewString()
+	return map[string]interface{}{
+		"type": "Feature",
+		"properties": map[string]interface{}{
+			"uid":         uid,
+			"name":        name,
+			"featureType": "http://www.w3.org/ns/sosa/Sensor",
+			"assetType":   "Equipment",
+		},
+	}
+}
+
 func createSystemViaAPI(t *testing.T, endpoint string, payload map[string]interface{}) string {
 	t.Helper()
 	body, err := json.Marshal(payload)
@@ -108,6 +121,28 @@ func createSystemViaAPI(t *testing.T, endpoint string, payload map[string]interf
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/geo+json")
 	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	location := resp.Header.Get("Location")
+	require.NotEmpty(t, location)
+	id := parseID(location, "/systems/")
+	require.NotEmpty(t, id)
+	return id
+}
+
+func createSystemSMLViaAPI(t *testing.T, endpoint string, payload map[string]interface{}) string {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+endpoint, bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/sml+json")
+	req.Header.Set("Accept", "application/sml+json")
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -244,6 +279,65 @@ func TestSystemConformance_LocationAndLocationTime(t *testing.T) {
 	assert.True(t, hasGeometry, "physical system should expose geometry when provided")
 }
 
+func TestSystemGeoJSON_NoGeometryDoesNotDefaultToZeroZero(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayloadWithoutGeometry("System No Position"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systems/"+systemID, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var feature map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
+	require.Contains(t, feature, "geometry", "GeoJSON Feature must include a geometry member")
+	require.Nil(t, feature["geometry"], "missing position should be represented as null geometry, not Point(0 0)")
+
+	req, err = http.NewRequest(http.MethodGet, testServer.URL+"/systems/"+systemID, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/sml+json")
+
+	resp, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var sml map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&sml))
+	require.NotContains(t, sml, "position", "SensorML should omit position when none was supplied")
+}
+
+func TestSystemGeoJSON_SensorMLWithoutPositionDoesNotDefaultToZeroZero(t *testing.T) {
+	cleanupDB(t)
+
+	payload := map[string]interface{}{
+		"type":       "PhysicalSystem",
+		"label":      "SML System No Position",
+		"uniqueId":   "urn:uuid:" + uuid.NewString(),
+		"definition": "http://www.w3.org/ns/sosa/Sensor",
+	}
+	systemID := createSystemSMLViaAPI(t, "/systems", payload)
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systems/"+systemID, nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var feature map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
+	require.Contains(t, feature, "geometry", "GeoJSON Feature must include a geometry member")
+	require.Nil(t, feature["geometry"], "SensorML without position should serialize to null geometry, not Point(0 0)")
+}
+
 // =============================================================================
 // Conformance Class: /conf/geojson and /conf/sensorml
 // Requirements: /req/geojson/system-schema and /req/sensorml/system-schema
@@ -266,6 +360,37 @@ func TestSystemSchema_GeoJSON(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	requireSchemaOrSkip(t, body, SystemGeoSchema)
+}
+
+func TestSystemList_SensorMLEnvelope(t *testing.T) {
+	cleanupDB(t)
+
+	createSystemViaAPI(t, "/systems", baseSystemPayload("SML Envelope System"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systems", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/sml+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "application/sml+json", resp.Header.Get("Content-Type"),
+		"sml+json request must not be clobbered to application/json")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var collection map[string]interface{}
+	require.NoError(t, json.Unmarshal(body, &collection))
+
+	items, ok := collection["items"].([]interface{})
+	require.True(t, ok, "sml+json collection must use an \"items\" array, got: %s", body)
+	require.Len(t, items, 1)
+
+	// SensorML collections are not GeoJSON FeatureCollections.
+	require.NotContains(t, collection, "type")
+	require.NotContains(t, collection, "features")
 }
 
 func TestSystemSchema_SensorML(t *testing.T) {

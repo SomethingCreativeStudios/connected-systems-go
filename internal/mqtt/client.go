@@ -62,7 +62,10 @@ func (m *Manager) Connect() error {
 
 	m.client = mqtt.NewClient(opts)
 	token := m.client.Connect()
-	if token.WaitTimeout(15 * time.Second); token.Error() != nil {
+	if !token.WaitTimeout(15 * time.Second) {
+		return fmt.Errorf("mqtt connect: timed out waiting for broker %s", m.cfg.Broker)
+	}
+	if token.Error() != nil {
 		return fmt.Errorf("mqtt connect: %w", token.Error())
 	}
 
@@ -108,7 +111,10 @@ func (m *Manager) Subscribe(topic string, handler mqtt.MessageHandler) error {
 	}
 
 	token := m.client.Subscribe(topic, m.cfg.QoS, handler)
-	if token.WaitTimeout(10 * time.Second); token.Error() != nil {
+	if !token.WaitTimeout(10 * time.Second) {
+		return fmt.Errorf("mqtt subscribe %s: timed out waiting for broker", topic)
+	}
+	if token.Error() != nil {
 		return fmt.Errorf("mqtt subscribe %s: %w", topic, token.Error())
 	}
 
@@ -123,7 +129,10 @@ func (m *Manager) Unsubscribe(topic string) error {
 	}
 
 	token := m.client.Unsubscribe(topic)
-	if token.WaitTimeout(5 * time.Second); token.Error() != nil {
+	if !token.WaitTimeout(5 * time.Second) {
+		return fmt.Errorf("mqtt unsubscribe %s: timed out waiting for broker", topic)
+	}
+	if token.Error() != nil {
 		return fmt.Errorf("mqtt unsubscribe %s: %w", topic, token.Error())
 	}
 

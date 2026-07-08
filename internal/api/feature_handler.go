@@ -77,7 +77,8 @@ func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 	acceptHeader := r.Header.Get("Accept")
 	collection := h.fc.BuildCollection(acceptHeader, features, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
-	render.JSON(w, r, collection)
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	writeNegotiated(w, collection)
 }
 
 // GetFeature retrieves a single feature by ID (OGC path: /collections/{collectionId}/items/{featureId})
@@ -113,7 +114,8 @@ func (h *FeatureHandler) GetFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.JSON(w, r, json)
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	writeNegotiated(w, json)
 }
 
 // CreateFeature creates a new feature in a collection
@@ -124,9 +126,9 @@ func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	acceptHeader := r.Header.Get("content-type")
+	contentType := r.Header.Get("Content-Type")
 
-	feature, err := h.fc.Deserialize(acceptHeader, r.Body)
+	feature, err := h.fc.Deserialize(contentType, r.Body)
 
 	if err != nil {
 		h.logger.Error("Failed to decode feature", zap.Error(err))
@@ -144,9 +146,8 @@ func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	json, _ := h.fc.Serialize(r.Header.Get("Accept"), feature)
-	render.JSON(w, r, json)
+	w.Header().Set("Location", h.cfg.API.BaseURL+r.URL.Path+"/"+feature.ID)
+	w.WriteHeader(http.StatusCreated)
 }
 
 // UpdateFeature updates an existing feature
@@ -186,8 +187,10 @@ func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json, _ := h.fc.Serialize(r.Header.Get("Accept"), updated)
-	render.JSON(w, r, json)
+	acceptHeader := r.Header.Get("Accept")
+	json, _ := h.fc.Serialize(acceptHeader, updated)
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	writeNegotiated(w, json)
 }
 
 // DeleteFeature deletes a feature

@@ -80,6 +80,7 @@ type SamplingFeatureSensorMLFeature struct {
 	UniqueID           string                   `json:"uniqueId"`
 	Definition         string                   `json:"definition,omitempty"`
 	ValidTime          *common_shared.TimeRange `json:"validTime,omitempty"`
+	Position           *common_shared.GoGeom    `json:"position,omitempty"`
 	SampledFeatureLink *common_shared.Link      `json:"sampledFeature,omitempty"`
 	SampleOf           *common_shared.Links     `json:"sampleOf,omitempty"`
 	Links              common_shared.Links      `json:"links,omitempty"`

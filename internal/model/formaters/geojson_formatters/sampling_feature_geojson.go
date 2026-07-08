@@ -51,7 +51,7 @@ func (f *SamplingFeatureGeoJSONFormatter) SerializeAll(ctx context.Context, samp
 				Name:               sf.Name,
 				Description:        sf.Description,
 				FeatureType:        sf.FeatureType,
-				ValidTime:          sf.ValidTime,
+				ValidTime:          common_shared.NonEmptyTimeRange(sf.ValidTime),
 				SampledFeatureLink: absolutizeLink(sf.SampledFeatureLink),
 			},
 			Links: formaters.AppendSamplingFeatureGeoJSONAssociationLinks(sf),
@@ -96,7 +96,7 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 	sf.Name = geoJSON.Properties.Name
 	sf.Description = geoJSON.Properties.Description
 	sf.FeatureType = geoJSON.Properties.FeatureType
-	sf.ValidTime = geoJSON.Properties.ValidTime
+	sf.ValidTime = common_shared.NonEmptyTimeRange(geoJSON.Properties.ValidTime)
 
 	// Handle sampled feature link - store both the link and extract ID
 	if geoJSON.Properties.SampledFeatureLink != nil && geoJSON.Properties.SampledFeatureLink.Href != "" {
