@@ -196,6 +196,12 @@ make test
 make test-coverage
 ```
 
+Pull the published Docker image:
+
+```bash
+docker pull ericlo417/connected-systems:v1.0.1
+```
+
 ## Project Layout
 
 ```text

@@ -41,6 +41,32 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 		return []domains.DeploymentSensorMLFeature{}, nil
 	}
 
+	// Collect system IDs for batch enrichment (platform + deployedSystems)
+	systemIDs := make([]string, 0, len(deployments)*2)
+	for _, deployment := range deployments {
+		if deployment == nil {
+			continue
+		}
+		if deployment.Platform != nil {
+			id := deployment.Platform.System.GetId("systems")
+			if id != nil && *id != "" {
+				systemIDs = append(systemIDs, *id)
+			}
+		}
+		for _, ds := range deployment.DeployedSystems {
+			id := ds.System.GetId("systems")
+			if id != nil && *id != "" {
+				systemIDs = append(systemIDs, *id)
+			}
+		}
+	}
+
+	// Build resource cache for enriching inline links
+	cache := formaters.NewResourceCache()
+	if f.repos != nil && len(systemIDs) > 0 {
+		_ = cache.FetchParentSystems(ctx, f.repos.System, systemIDs)
+	}
+
 	var features []domains.DeploymentSensorMLFeature
 	for _, deployment := range deployments {
 		// Absolutize inline link hrefs
@@ -48,12 +74,40 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 		if deployment.Platform != nil {
 			cp := *deployment.Platform
 			cp.System.Href = formaters.ToFunctionalAssociationHref(cp.System.Href)
+			if cp.System.Type == "" {
+				cp.System.Type = formaters.GeoJSONContentType
+			}
+			// Enrich platform system link from cache
+			sysID := cp.System.GetId("systems")
+			if sysID != nil {
+				if sys, ok := cache.Systems[*sysID]; ok {
+					cp.System.Title = sys.Name
+					uid := string(sys.UniqueIdentifier)
+					if uid != "" {
+						cp.System.UID = &uid
+					}
+				}
+			}
 			platform = &cp
 		}
 		var deployedSystems []domains.DeployedSystemItem
 		for _, ds := range deployment.DeployedSystems {
 			cp := ds
 			cp.System.Href = formaters.ToFunctionalAssociationHref(cp.System.Href)
+			if cp.System.Type == "" {
+				cp.System.Type = formaters.GeoJSONContentType
+			}
+			// Enrich deployedSystems system link from cache
+			sysID := cp.System.GetId("systems")
+			if sysID != nil {
+				if sys, ok := cache.Systems[*sysID]; ok {
+					cp.System.Title = sys.Name
+					uid := string(sys.UniqueIdentifier)
+					if uid != "" {
+						cp.System.UID = &uid
+					}
+				}
+			}
 			deployedSystems = append(deployedSystems, cp)
 		}
 

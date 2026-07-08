@@ -25,6 +25,13 @@ func NewCollectionsHandler(cfg *config.Config, logger *zap.Logger) *CollectionsH
 }
 
 // GetCollections returns all collections
+//
+// @Summary     Get collections metadata
+// @Description Returns metadata for all OGC API resource collections
+// @Tags        Collections
+// @Produce     json
+// @Success     200  {object}  map[string]any
+// @Router      /collections [get]
 func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Request) {
 	baseURL := h.cfg.API.BaseURL
 
@@ -97,6 +104,12 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 }
 
 // GetCollection returns a single collection metadata
+//
+// @Summary     Get collection metadata (not implemented)
+// @Tags        Collections
+// @Produce     json
+// @Success     501  {object}  map[string]string
+// @Router      /collections/{collectionId} [get]
 func (h *CollectionsHandler) GetCollection(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement single collection retrieval
 	render.Status(r, http.StatusNotImplemented)
@@ -104,6 +117,12 @@ func (h *CollectionsHandler) GetCollection(w http.ResponseWriter, r *http.Reques
 }
 
 // GetCollectionItems returns items from a collection
+//
+// @Summary     Get collection items (not implemented)
+// @Tags        Collections
+// @Produce     json
+// @Success     501  {object}  map[string]string
+// @Router      /collections/{collectionId}/items [get]
 func (h *CollectionsHandler) GetCollectionItems(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement collection items retrieval
 	render.Status(r, http.StatusNotImplemented)

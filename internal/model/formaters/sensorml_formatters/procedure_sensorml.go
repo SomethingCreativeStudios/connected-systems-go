@@ -41,6 +41,38 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 		return []domains.ProcedureSensorMLFeature{}, nil
 	}
 
+	// Collect linked resource IDs for batch enrichment
+	typeOfIDs := make([]string, 0, len(procedures))
+	attachedToIDs := make([]string, 0, len(procedures))
+	for _, p := range procedures {
+		if p == nil {
+			continue
+		}
+		if p.TypeOf != nil && p.TypeOf.Href != "" {
+			id := p.TypeOf.GetId("procedures")
+			if id != nil && *id != "" {
+				typeOfIDs = append(typeOfIDs, *id)
+			}
+		}
+		if p.AttachedTo != nil && p.AttachedTo.Href != "" {
+			id := p.AttachedTo.GetId("systems")
+			if id != nil && *id != "" {
+				attachedToIDs = append(attachedToIDs, *id)
+			}
+		}
+	}
+
+	// Build resource cache for enriching inline links
+	cache := formaters.NewResourceCache()
+	if f.repos != nil {
+		if len(typeOfIDs) > 0 {
+			_ = cache.FetchProcedures(ctx, f.repos.Procedure, typeOfIDs)
+		}
+		if len(attachedToIDs) > 0 {
+			_ = cache.FetchParentSystems(ctx, f.repos.System, attachedToIDs)
+		}
+	}
+
 	var features []domains.ProcedureSensorMLFeature
 
 	// typed process representations
@@ -158,6 +190,39 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 			LocalTimeFrames:      procedure.LocalTimeFrames,
 			ValidTime:            common_shared.NonEmptyTimeRange(procedure.ValidTime),
 			Links:                formaters.AppendProcedureAssociationLinks(procedure),
+		}
+
+		// Override typeOf Type: absolutizeLink defaults to GeoJSON, but typeOf is a procedure → SensorML
+		if base.TypeOf != nil && base.TypeOf.Type == formaters.GeoJSONContentType {
+			base.TypeOf.Type = formaters.SensorMLContentType
+		}
+
+		// Enrich typeOf from cache
+		if base.TypeOf != nil {
+			typeOfID := base.TypeOf.GetId("procedures")
+			if typeOfID != nil {
+				if proc, ok := cache.Procedures[*typeOfID]; ok {
+					base.TypeOf.Title = proc.Name
+					uid := string(proc.UniqueIdentifier)
+					if uid != "" {
+						base.TypeOf.UID = &uid
+					}
+				}
+			}
+		}
+
+		// Enrich attachedTo from cache
+		if base.AttachedTo != nil {
+			attachedID := base.AttachedTo.GetId("systems")
+			if attachedID != nil {
+				if sys, ok := cache.Systems[*attachedID]; ok {
+					base.AttachedTo.Title = sys.Name
+					uid := string(sys.UniqueIdentifier)
+					if uid != "" {
+						base.AttachedTo.UID = &uid
+					}
+				}
+			}
 		}
 
 		switch procedure.ProcessType {

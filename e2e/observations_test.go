@@ -400,3 +400,79 @@ func TestObservation_List_ValidResultTimeRange_Filters(t *testing.T) {
 	require.GreaterOrEqual(t, len(links), 1)
 	assert.Equal(t, 1, len(items), "expected only the 2025 observation to be returned")
 }
+
+// =============================================================================
+// Issue #8 — Constraint field on DataComponent must be enforced on observation POST
+// =============================================================================
+func TestObservation_Create_RejectsOutOfConstraintValue(t *testing.T) {
+	cleanupDB(t)
+
+	// Build a datastream with a Quantity component constrained to interval [0, 100]
+	intervals, _ := json.Marshal([][]float64{{0, 100}})
+	ds := generators.FakeDatastreamWithSchema(&domains.DatastreamSchema{
+		ObsFormat: "application/json",
+		ResultSchema: &domains.DatastreamDataComponent{
+			Type:       "Quantity",
+			Name:       "temperature",
+			Label:      "Temperature",
+			Definition: "https://example.org/def/property/temperature",
+			UOM:        &domains.DatastreamUOM{Code: "Cel"},
+			Constraint: &domains.DatastreamConstraint{Intervals: intervals},
+		},
+	})
+	systemID := "unknown"
+	ds.SystemID = &systemID
+	require.NoError(t, testRepos.Datastream.Create(&ds), "failed to seed constrained datastream")
+
+	// Value within interval — should succeed
+	status, _ := postObservation(t, ds.ID, map[string]interface{}{
+		"resultTime": "2026-01-01T00:00:00Z",
+		"result":     float64(50),
+	})
+	assert.Equal(t, http.StatusCreated, status, "value within interval should be accepted")
+
+	// Value outside interval — should be rejected
+	status, body := postObservation(t, ds.ID, map[string]interface{}{
+		"resultTime": "2026-01-01T00:00:00Z",
+		"result":     float64(150),
+	})
+	assert.Equal(t, http.StatusBadRequest, status, "value outside interval should be rejected")
+	errMsg, _ := body["error"].(string)
+	assert.Contains(t, errMsg, "interval", "error message should mention the violated constraint")
+}
+
+// =============================================================================
+// Issue #7 — empty-string resultTime must return 400 with "non-empty" message
+// =============================================================================
+func TestObservation_Create_EmptyResultTime_Returns400WithNonEmptyError(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	status, body := postObservation(t, ds.ID, map[string]interface{}{
+		"resultTime": "",
+		"result":     map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+	})
+	assert.Equal(t, http.StatusBadRequest, status)
+	errMsg, _ := body["error"].(string)
+	assert.Contains(t, errMsg, "resultTime")
+	assert.Contains(t, errMsg, "non-empty", "error message should say 'non-empty' when field is present but empty")
+	assert.NotContains(t, errMsg, "required", "error message should not say 'required' when field is present but empty")
+}
+
+// =============================================================================
+// Issue #7 — empty-string phenomenonTime must return 400 with "non-empty" message
+// =============================================================================
+func TestObservation_Create_EmptyPhenomenonTime_Returns400WithNonEmptyError(t *testing.T) {
+	cleanupDB(t)
+	ds := seedDatastreamForObservationTests(t)
+
+	status, body := postObservation(t, ds.ID, map[string]interface{}{
+		"phenomenonTime": "",
+		"resultTime":     "2026-01-01T00:00:00Z",
+		"result":         map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+	})
+	assert.Equal(t, http.StatusBadRequest, status)
+	errMsg, _ := body["error"].(string)
+	assert.Contains(t, errMsg, "phenomenonTime")
+	assert.Contains(t, errMsg, "non-empty", "error message should say 'non-empty' when field is present but empty")
+}

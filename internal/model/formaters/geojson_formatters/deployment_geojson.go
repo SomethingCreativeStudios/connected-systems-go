@@ -49,6 +49,32 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 		return []domains.DeploymentGeoJSONFeature{}, nil
 	}
 
+	// Collect system IDs for batch enrichment (platform + deployedSystems)
+	systemIDs := make([]string, 0, len(deployments)*2)
+	for _, deployment := range deployments {
+		if deployment == nil {
+			continue
+		}
+		if deployment.Platform != nil {
+			id := deployment.Platform.System.GetId("systems")
+			if id != nil && *id != "" {
+				systemIDs = append(systemIDs, *id)
+			}
+		}
+		for _, ds := range deployment.DeployedSystems {
+			id := ds.System.GetId("systems")
+			if id != nil && *id != "" {
+				systemIDs = append(systemIDs, *id)
+			}
+		}
+	}
+
+	// Build resource cache for enriching inline links
+	cache := formaters.NewResourceCache()
+	if f.repos != nil && len(systemIDs) > 0 {
+		_ = cache.FetchParentSystems(ctx, f.repos.System, systemIDs)
+	}
+
 	var features []domains.DeploymentGeoJSONFeature
 	for _, deployment := range deployments {
 		if deployment == nil {
@@ -59,6 +85,20 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 		for _, ds := range deployment.DeployedSystems {
 			link := ds.System
 			link.Href = formaters.ToFunctionalAssociationHref(link.Href)
+			if link.Type == "" {
+				link.Type = formaters.GeoJSONContentType
+			}
+			// Enrich deployedSystems@link from cache
+			sysID := link.GetId("systems")
+			if sysID != nil {
+				if sys, ok := cache.Systems[*sysID]; ok {
+					link.Title = sys.Name
+					uid := string(sys.UniqueIdentifier)
+					if uid != "" {
+						link.UID = &uid
+					}
+				}
+			}
 			systemLinks = append(systemLinks, link)
 		}
 
@@ -66,6 +106,20 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 		if deployment.Platform != nil {
 			platform := deployment.Platform.System
 			platform.Href = formaters.ToFunctionalAssociationHref(platform.Href)
+			if platform.Type == "" {
+				platform.Type = formaters.GeoJSONContentType
+			}
+			// Enrich platform@link from cache
+			platID := platform.GetId("systems")
+			if platID != nil {
+				if sys, ok := cache.Systems[*platID]; ok {
+					platform.Title = sys.Name
+					uid := string(sys.UniqueIdentifier)
+					if uid != "" {
+						platform.UID = &uid
+					}
+				}
+			}
 			platformLink = &platform
 		}
 

@@ -61,13 +61,16 @@ func (f *SamplingFeatureSensorMLFormatter) SerializeAll(ctx context.Context, sam
 	return features, nil
 }
 
-// absolutizeLink returns a copy of the link with an absolute href.
+// absolutizeLink returns a copy of the link with an absolute href and GeoJSON type.
 func absolutizeLink(link *common_shared.Link) *common_shared.Link {
 	if link == nil {
 		return nil
 	}
 	cp := *link
 	cp.Href = formaters.ToFunctionalAssociationHref(cp.Href)
+	if cp.Type == "" {
+		cp.Type = formaters.GeoJSONContentType
+	}
 	return &cp
 }
 

@@ -49,7 +49,7 @@ type ControlStream struct {
 	FeatureOfInterestID *string `gorm:"type:varchar(255);index" json:"-"`
 	SamplingFeatureID   *string `gorm:"type:varchar(255);index" json:"-"`
 
-	Systems []System `gorm:"many2many:system_controlstreams;"`
+	Systems []System `gorm:"many2many:system_controlstreams;" json:"-"`
 }
 
 // TableName specifies the table name.

@@ -1,17 +1,16 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
@@ -29,17 +28,39 @@ type ObservationHandler struct {
 	logger         *zap.Logger
 	repo           *repository.ObservationRepository
 	datastreamRepo *repository.DatastreamRepository
+	fc             *formaters.MultiFormatFormatterCollection[*domains.Observation]
 }
 
-func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ObservationRepository, datastreamRepo *repository.DatastreamRepository) *ObservationHandler {
+func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ObservationRepository, datastreamRepo *repository.DatastreamRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Observation]) *ObservationHandler {
 	return &ObservationHandler{
 		cfg:            cfg,
 		logger:         logger,
 		repo:           repo,
 		datastreamRepo: datastreamRepo,
+		fc:             fc,
 	}
 }
 
+// ListObservations returns a paginated list of observations
+//
+// @Summary     List observations
+// @Description Returns a paginated collection of observation resources
+// @Tags        Observations
+// @Produce     json
+// @Param       limit             query  integer  false  "Maximum number of results"
+// @Param       offset            query  integer  false  "Result offset"
+// @Param       id                query  string   false  "Comma-separated resource IDs"
+// @Param       q                 query  string   false  "Comma-separated keywords for full-text search"
+// @Param       dataStream        query  string   false  "Comma-separated datastream IDs"
+// @Param       system            query  string   false  "Comma-separated system IDs"
+// @Param       foi               query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty  query  string   false  "Comma-separated observed property IDs"
+// @Param       phenomenonTime    query  string   false  "Phenomenon time filter (RFC 3339 date-time or interval)"
+// @Param       resultTime        query  string   false  "Result time filter (RFC 3339 date-time or interval)"
+// @Success     200  {object}  ObservationCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /observations [get]
 func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
@@ -56,18 +77,41 @@ func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	items := make([]any, 0, len(observations))
-	for _, obs := range observations {
-		items = append(items, obs)
+	acceptHeader := r.Header.Get("Accept")
+	items, err := h.fc.SerializeAll(acceptHeader, observations)
+	if err != nil {
+		h.logger.Error("Failed to serialize observations", zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize observations"})
+		return
 	}
 
 	totalInt := int(total)
 	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(observations))
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, ObservationCollectionResponse{Items: items, Links: links})
 }
 
+// ListDatastreamObservations returns observations for a datastream
+//
+// @Summary     List datastream observations
+// @Description Returns observations associated with a given datastream
+// @Tags        Observations
+// @Produce     json
+// @Param       dataStreamId      path   string   true   "Datastream ID"
+// @Param       limit             query  integer  false  "Maximum number of results"
+// @Param       offset            query  integer  false  "Result offset"
+// @Param       q                 query  string   false  "Comma-separated keywords for full-text search"
+// @Param       foi               query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty  query  string   false  "Comma-separated observed property IDs"
+// @Param       phenomenonTime    query  string   false  "Phenomenon time filter (RFC 3339 date-time or interval)"
+// @Param       resultTime        query  string   false  "Result time filter (RFC 3339 date-time or interval)"
+// @Success     200  {object}  ObservationCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /datastreams/{dataStreamId}/observations [get]
 func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r *http.Request) {
 	datastreamID := chi.URLParam(r, "dataStreamId")
 	if _, err := h.datastreamRepo.GetByID(datastreamID); err != nil {
@@ -91,18 +135,33 @@ func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r
 		return
 	}
 
-	items := make([]any, 0, len(observations))
-	for _, obs := range observations {
-		items = append(items, obs)
+	acceptHeader := r.Header.Get("Accept")
+	items, err := h.fc.SerializeAll(acceptHeader, observations)
+	if err != nil {
+		h.logger.Error("Failed to serialize observations", zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize observations"})
+		return
 	}
 
 	totalInt := int(total)
 	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(observations))
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, ObservationCollectionResponse{Items: items, Links: links})
 }
 
+// GetObservation returns a single observation by ID
+//
+// @Summary     Get observation
+// @Description Returns a single observation resource by ID
+// @Tags        Observations
+// @Produce     json
+// @Param       obsId  path  string  true  "Observation ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /observations/{obsId} [get]
 func (h *ObservationHandler) GetObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
@@ -114,10 +173,32 @@ func (h *ObservationHandler) GetObservation(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	render.JSON(w, r, obs)
+	acceptHeader := r.Header.Get("Accept")
+	serialized, err := h.fc.Serialize(acceptHeader, obs)
+	if err != nil {
+		h.logger.Error("Failed to serialize observation", zap.String("id", id), zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, map[string]string{"error": "Failed to serialize observation"})
+		return
+	}
+
+	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
+	render.JSON(w, r, serialized)
 }
 
+// UpdateObservation replaces an observation by ID
+//
+// @Summary     Update observation
+// @Description Replaces an observation resource by ID
+// @Tags        Observations
+// @Accept      json
+// @Param       obsId        path  string          true  "Observation ID"
+// @Param       observation  body  map[string]any  true  "Observation resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /observations/{obsId} [put]
 func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
@@ -129,10 +210,10 @@ func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	obs, err := decodeObservationPayload(r)
+	obs, err := h.fc.Deserialize(r.Header.Get("Content-Type"), r.Body)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		h.logger.Error("Failed to deserialize observation", zap.Error(err))
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -160,6 +241,16 @@ func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DeleteObservation deletes an observation by ID
+//
+// @Summary     Delete observation
+// @Description Deletes an observation resource by ID
+// @Tags        Observations
+// @Param       obsId  path  string  true  "Observation ID"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /observations/{obsId} [delete]
 func (h *ObservationHandler) DeleteObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
@@ -179,6 +270,19 @@ func (h *ObservationHandler) DeleteObservation(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// CreateDatastreamObservation creates an observation in a datastream
+//
+// @Summary     Create observation
+// @Description Creates a new observation in the given datastream
+// @Tags        Observations
+// @Accept      json
+// @Param       dataStreamId  path  string          true  "Datastream ID"
+// @Param       observation   body  map[string]any  true  "Observation resource"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /datastreams/{dataStreamId}/observations [post]
 func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, r *http.Request) {
 	datastreamID := chi.URLParam(r, "dataStreamId")
 	datastream, err := h.datastreamRepo.GetByID(datastreamID)
@@ -188,10 +292,10 @@ func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, 
 		return
 	}
 
-	obs, err := decodeObservationPayload(r)
+	obs, err := h.fc.Deserialize(r.Header.Get("Content-Type"), r.Body)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		h.logger.Error("Failed to deserialize observation", zap.Error(err))
+		writeDeserializeError(w, r, err)
 		return
 	}
 
@@ -212,96 +316,4 @@ func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, 
 	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/observations/" + obs.ID
 	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusCreated)
-}
-
-func decodeObservationPayload(r *http.Request) (*domains.Observation, error) {
-	var raw map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		return nil, err
-	}
-
-	obs := &domains.Observation{}
-
-	if sfID, ok := raw["samplingFeature@id"].(string); ok && sfID != "" {
-		obs.SamplingFeatureID = &sfID
-	}
-
-	if procRaw, ok := raw["procedure@link"]; ok {
-		procBytes, _ := json.Marshal(procRaw)
-		var procLink common_shared.Link
-		if err := json.Unmarshal(procBytes, &procLink); err != nil || procLink.Href == "" {
-			return nil, &decodeError{msg: "Invalid procedure@link payload"}
-		}
-		obs.ProcedureLink = &procLink
-	}
-
-	if rtRaw, exists := raw["resultTime"]; exists {
-		rtStr, ok := rtRaw.(string)
-		if !ok {
-			return nil, &decodeError{msg: `resultTime must be an ISO 8601 string (e.g. "2026-01-01T00:00:00Z")`}
-		}
-		if rtStr != "" {
-			t, err := time.Parse(time.RFC3339, rtStr)
-			if err != nil {
-				return nil, &decodeError{msg: `resultTime must be an ISO 8601 string (e.g. "2026-01-01T00:00:00Z")`}
-			}
-			obs.ResultTime = t
-		}
-	}
-
-	if ptRaw, exists := raw["phenomenonTime"]; exists {
-		ptStr, ok := ptRaw.(string)
-		if !ok {
-			return nil, &decodeError{msg: `phenomenonTime must be an ISO 8601 string (e.g. "2026-01-01T00:00:00Z")`}
-		}
-		if ptStr != "" {
-			t, err := time.Parse(time.RFC3339, ptStr)
-			if err != nil {
-				return nil, &decodeError{msg: `phenomenonTime must be an ISO 8601 string (e.g. "2026-01-01T00:00:00Z")`}
-			}
-			obs.PhenomenonTime = &t
-		}
-	}
-
-	if parametersRaw, exists := raw["parameters"]; exists {
-		if paramsObj, ok := parametersRaw.(map[string]any); ok {
-			obs.Parameters = common_shared.Properties(paramsObj)
-		} else {
-			return nil, &decodeError{msg: "Invalid parameters payload"}
-		}
-	}
-
-	if resultRaw, exists := raw["result"]; exists {
-		b, err := json.Marshal(resultRaw)
-		if err != nil {
-			return nil, &decodeError{msg: "Invalid result payload"}
-		}
-		obs.Result = b
-	}
-
-	if resultLinkRaw, exists := raw["result@link"]; exists {
-		b, _ := json.Marshal(resultLinkRaw)
-		var resultLink common_shared.Link
-		if err := json.Unmarshal(b, &resultLink); err != nil || resultLink.Href == "" {
-			return nil, &decodeError{msg: "Invalid result@link payload"}
-		}
-		obs.ResultLink = &resultLink
-	}
-
-	if len(obs.Result) == 0 && obs.ResultLink == nil {
-		return nil, &decodeError{msg: "Either result or result@link is required"}
-	}
-	if obs.ResultTime.IsZero() {
-		return nil, &decodeError{msg: "resultTime is required"}
-	}
-
-	return obs, nil
-}
-
-type decodeError struct {
-	msg string
-}
-
-func (e *decodeError) Error() string {
-	return e.msg
 }

@@ -56,6 +56,18 @@ func NewFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.
 }
 
 // ListFeatures retrieves features from a collection (OGC path: /collections/{collectionId}/items)
+//
+// @Summary     List features
+// @Description Returns features from a collection; canonical collection IDs redirect to their resource endpoint
+// @Tags        Features
+// @Produce     json
+// @Param       collectionId  path   string  true   "Collection ID"
+// @Param       limit         query  int     false  "Maximum number of results"
+// @Param       offset        query  int     false  "Result offset"
+// @Success     200  {object}  map[string]any
+// @Success     307  {object}  nil  "Redirect to canonical resource endpoint"
+// @Failure     500  {object}  map[string]string
+// @Router      /collections/{collectionId}/items [get]
 func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionId")
 	if basePath, ok := canonicalCollectionPaths[collectionID]; ok {
@@ -82,6 +94,18 @@ func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetFeature retrieves a single feature by ID (OGC path: /collections/{collectionId}/items/{featureId})
+//
+// @Summary     Get feature
+// @Description Returns a single feature from a collection by ID
+// @Tags        Features
+// @Produce     json
+// @Param       collectionId  path  string  true  "Collection ID"
+// @Param       featureId     path  string  true  "Feature ID"
+// @Success     200  {object}  map[string]any
+// @Success     307  {object}  nil  "Redirect to canonical resource endpoint"
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /collections/{collectionId}/items/{featureId} [get]
 func (h *FeatureHandler) GetFeature(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionId")
 	featureID := chi.URLParam(r, "featureId")
@@ -119,6 +143,18 @@ func (h *FeatureHandler) GetFeature(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateFeature creates a new feature in a collection
+//
+// @Summary     Create feature
+// @Description Creates a new feature in a collection
+// @Tags        Features
+// @Accept      json
+// @Param       collectionId  path  string          true  "Collection ID"
+// @Param       feature       body  map[string]any  true  "Feature resource"
+// @Success     201  {object}  map[string]any
+// @Success     307  {object}  nil  "Redirect to canonical resource endpoint"
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /collections/{collectionId}/items [post]
 func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionId")
 	if basePath, ok := canonicalCollectionPaths[collectionID]; ok {
@@ -151,6 +187,20 @@ func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateFeature updates an existing feature
+//
+// @Summary     Update feature
+// @Description Replaces an existing feature in a collection
+// @Tags        Features
+// @Accept      json
+// @Param       collectionId  path  string          true  "Collection ID"
+// @Param       featureId     path  string          true  "Feature ID"
+// @Param       feature       body  map[string]any  true  "Feature resource"
+// @Success     200  {object}  map[string]any
+// @Success     307  {object}  nil  "Redirect to canonical resource endpoint"
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /collections/{collectionId}/items/{featureId} [put]
 func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionId")
 	featureID := chi.URLParam(r, "featureId")
@@ -194,6 +244,17 @@ func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteFeature deletes a feature
+//
+// @Summary     Delete feature
+// @Description Deletes a feature from a collection
+// @Tags        Features
+// @Param       collectionId  path  string  true  "Collection ID"
+// @Param       featureId     path  string  true  "Feature ID"
+// @Success     204
+// @Success     307  {object}  nil  "Redirect to canonical resource endpoint"
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /collections/{collectionId}/items/{featureId} [delete]
 func (h *FeatureHandler) DeleteFeature(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionId")
 	featureID := chi.URLParam(r, "featureId")

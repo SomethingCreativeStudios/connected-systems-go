@@ -94,6 +94,7 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 				kindLink = &common_shared.Link{
 					Href: formaters.ToFunctionalAssociationHref("/procedures/" + id),
 					Rel:  common_shared.OGCRel("systemKind"),
+					Type: formaters.SensorMLContentType,
 				}
 			}
 		} else if system.TypeOf != nil && system.TypeOf.Href != "" {
@@ -101,6 +102,7 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 			kindLink = &common_shared.Link{
 				Href:  formaters.ToFunctionalAssociationHref(system.TypeOf.Href),
 				Rel:   common_shared.OGCRel("systemKind"),
+				Type:  formaters.SensorMLContentType,
 				Title: system.TypeOf.Title,
 			}
 		}

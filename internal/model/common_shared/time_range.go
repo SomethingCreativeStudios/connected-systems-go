@@ -158,13 +158,15 @@ func ToTimeRange(timeValue string) TimeRange {
 		var startTime, endTime *time.Time
 
 		if parts[0] != "" && parts[0] != ".." {
-			t, _ := time.Parse(time.RFC3339, parts[0])
-			startTime = &t
+			if t, err := time.Parse(time.RFC3339, parts[0]); err == nil {
+				startTime = &t
+			}
 		}
 
 		if parts[1] != "" && parts[1] != ".." {
-			t, _ := time.Parse(time.RFC3339, parts[1])
-			endTime = &t
+			if t, err := time.Parse(time.RFC3339, parts[1]); err == nil {
+				endTime = &t
+			}
 		}
 
 		return TimeRange{Start: startTime, End: endTime}
@@ -172,8 +174,9 @@ func ToTimeRange(timeValue string) TimeRange {
 
 	// Single value (no slash): treat as start time only
 	if len(parts) == 1 && parts[0] != "" && parts[0] != ".." {
-		t, _ := time.Parse(time.RFC3339, parts[0])
-		return TimeRange{Start: &t, End: nil}
+		if t, err := time.Parse(time.RFC3339, parts[0]); err == nil {
+			return TimeRange{Start: &t, End: nil}
+		}
 	}
 
 	return TimeRange{Start: nil, End: nil}

@@ -102,9 +102,19 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 		// attachedTo is server-generated from ParentSystemID
 		var attachedTo *common_shared.Link
 		if system.ParentSystemID != nil && strings.TrimSpace(*system.ParentSystemID) != "" {
+			parentID := strings.TrimSpace(*system.ParentSystemID)
 			attachedTo = &common_shared.Link{
-				Href: formaters.ToFunctionalAssociationHref("/systems/" + strings.TrimSpace(*system.ParentSystemID)),
+				Href: formaters.ToFunctionalAssociationHref("/systems/" + parentID),
 				Rel:  common_shared.OGCRel("attachedTo"),
+				Type: formaters.GeoJSONContentType,
+			}
+			// Enrich attachedTo from cache
+			if parent, ok := cache.Systems[parentID]; ok {
+				attachedTo.Title = parent.Name
+				uid := string(parent.UniqueIdentifier)
+				if uid != "" {
+					attachedTo.UID = &uid
+				}
 			}
 		}
 
@@ -112,9 +122,19 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 		// Build from SystemKindID if TypeOf is not explicitly set
 		typeOf := system.TypeOf
 		if typeOf == nil && system.TypeOfID != nil && strings.TrimSpace(*system.TypeOfID) != "" {
+			kindID := strings.TrimSpace(*system.TypeOfID)
 			typeOf = &common_shared.Link{
-				Href: formaters.ToFunctionalAssociationHref("/procedures/" + strings.TrimSpace(*system.TypeOfID)),
+				Href: formaters.ToFunctionalAssociationHref("/procedures/" + kindID),
 				Rel:  common_shared.OGCRel("systemKind"),
+				Type: formaters.SensorMLContentType,
+			}
+			// Enrich typeOf from cache
+			if proc, ok := cache.Procedures[kindID]; ok {
+				typeOf.Title = proc.Name
+				uid := string(proc.UniqueIdentifier)
+				if uid != "" {
+					typeOf.UID = &uid
+				}
 			}
 		}
 

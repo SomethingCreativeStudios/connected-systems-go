@@ -35,6 +35,24 @@ func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *reposit
 	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, mqttManager: mqttManager}
 }
 
+// ListSystemEvents returns a paginated list of system events
+//
+// @Summary     List system events
+// @Description Returns a paginated collection of system event resources
+// @Tags        System Events
+// @Produce     json
+// @Param       limit      query  integer  false  "Maximum number of results"
+// @Param       offset     query  integer  false  "Result offset"
+// @Param       id         query  string   false  "Comma-separated resource IDs"
+// @Param       q          query  string   false  "Comma-separated keywords for full-text search"
+// @Param       system     query  string   false  "Comma-separated system IDs"
+// @Param       eventType  query  string   false  "Comma-separated event type values"
+// @Param       keyword    query  string   false  "Comma-separated keywords to match against event fields"
+// @Param       datetime   query  string   false  "Date-time or interval (RFC 3339); also accepted as eventTime"
+// @Success     200  {object}  SystemEventCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systemEvents [get]
 func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
@@ -63,6 +81,24 @@ func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Req
 	render.JSON(w, r, SystemEventCollectionResponse{Items: items, Links: links})
 }
 
+// ListEventsBySystem returns events for a system
+//
+// @Summary     List system events by system
+// @Description Returns events associated with a given system
+// @Tags        System Events
+// @Produce     json
+// @Param       id         path   string   true   "System ID"
+// @Param       limit      query  integer  false  "Maximum number of results"
+// @Param       offset     query  integer  false  "Result offset"
+// @Param       q          query  string   false  "Comma-separated keywords for full-text search"
+// @Param       eventType  query  string   false  "Comma-separated event type values"
+// @Param       keyword    query  string   false  "Comma-separated keywords to match against event fields"
+// @Param       datetime   query  string   false  "Date-time or interval (RFC 3339); also accepted as eventTime"
+// @Success     200  {object}  SystemEventCollectionResponse
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/events [get]
 func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -101,6 +137,19 @@ func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.R
 	render.JSON(w, r, SystemEventCollectionResponse{Items: items, Links: links})
 }
 
+// CreateEventBySystem creates a system event
+//
+// @Summary     Create system event
+// @Description Creates one or more system events for a given system
+// @Tags        System Events
+// @Accept      json
+// @Param       id     path  string  true  "System ID"
+// @Param       event  body  map[string]any  true  "System event or array of events"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/events [post]
 func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -193,6 +242,17 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 	}
 }
 
+// GetEventByID returns a single system event by ID
+//
+// @Summary     Get system event
+// @Description Returns a single system event resource by ID
+// @Tags        System Events
+// @Produce     json
+// @Param       id       path  string  true  "System ID"
+// @Param       eventId  path  string  true  "Event ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Router      /systems/{id}/events/{eventId} [get]
 func (h *SystemEventHandler) GetEventByID(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -212,6 +272,20 @@ func (h *SystemEventHandler) GetEventByID(w http.ResponseWriter, r *http.Request
 	render.JSON(w, r, event)
 }
 
+// UpdateEventByID replaces a system event by ID
+//
+// @Summary     Update system event
+// @Description Replaces a system event resource by ID
+// @Tags        System Events
+// @Accept      json
+// @Param       id       path  string          true  "System ID"
+// @Param       eventId  path  string          true  "Event ID"
+// @Param       event    body  map[string]any  true  "System event resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/events/{eventId} [put]
 func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -247,6 +321,17 @@ func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Requ
 	h.publishSystemEventToMQTT(systemID, &event)
 }
 
+// DeleteEventByID deletes a system event by ID
+//
+// @Summary     Delete system event
+// @Description Deletes a system event resource by ID
+// @Tags        System Events
+// @Param       id       path  string  true  "System ID"
+// @Param       eventId  path  string  true  "Event ID"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/events/{eventId} [delete]
 func (h *SystemEventHandler) DeleteEventByID(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {

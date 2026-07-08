@@ -8,6 +8,7 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 )
 
 func TestSystemSensorMLSerialize_AssociationLinks(t *testing.T) {
@@ -94,5 +95,85 @@ func TestSystemSensorMLDeserialize_AssociationHandling(t *testing.T) {
 	}
 	if len(system.Links) != 1 || system.Links[0].Rel != "alternate" {
 		t.Fatalf("expected only non-association links to remain, got %+v", system.Links)
+	}
+}
+
+// Phase 1: inline @link Type enrichment
+func TestSystemSensorMLSerialize_SetsTypeOnAttachedToAndTypeOf(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewSystemSensorMLFormatter(nil)
+	parentID := "sys-parent"
+	kindID := "proc-kind"
+	system := &domains.System{
+		Base:           domains.Base{ID: "sys-1"},
+		ParentSystemID: &parentID,
+		TypeOfID:       &kindID,
+	}
+
+	feature, err := formatter.Serialize(context.Background(), system)
+	if err != nil {
+		t.Fatalf("serialize failed: %v", err)
+	}
+
+	if feature.AttachedTo == nil {
+		t.Fatal("expected AttachedTo to be non-nil")
+	}
+	if feature.AttachedTo.Type != formaters.GeoJSONContentType {
+		t.Errorf("expected AttachedTo.Type %q, got %q", formaters.GeoJSONContentType, feature.AttachedTo.Type)
+	}
+
+	if feature.TypeOf == nil {
+		t.Fatal("expected TypeOf to be non-nil")
+	}
+	if feature.TypeOf.Type != formaters.SensorMLContentType {
+		t.Errorf("expected TypeOf.Type %q, got %q", formaters.SensorMLContentType, feature.TypeOf.Type)
+	}
+}
+
+// Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
+func TestSystemSensorMLSerializeAll_EnrichesInlineLinks(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewSystemSensorMLFormatter(nil)
+	parentID := "sys-parent"
+	kindID := "proc-kind"
+	systems := []*domains.System{
+		{
+			Base:           domains.Base{ID: "sys-1"},
+			ParentSystemID: &parentID,
+			TypeOfID:       &kindID,
+		},
+	}
+
+	features, err := formatter.SerializeAll(context.Background(), systems)
+	if err != nil {
+		t.Fatalf("serializeAll failed: %v", err)
+	}
+
+	if len(features) != 1 {
+		t.Fatalf("expected 1 feature, got %d", len(features))
+	}
+
+	// Type is always set (Phase 1)
+	if features[0].AttachedTo.Type != formaters.GeoJSONContentType {
+		t.Errorf("expected AttachedTo.Type %q, got %q", formaters.GeoJSONContentType, features[0].AttachedTo.Type)
+	}
+	if features[0].TypeOf.Type != formaters.SensorMLContentType {
+		t.Errorf("expected TypeOf.Type %q, got %q", formaters.SensorMLContentType, features[0].TypeOf.Type)
+	}
+
+	// Title/UID are empty with nil repos (no cache population)
+	if features[0].AttachedTo.Title != "" {
+		t.Errorf("expected empty AttachedTo.Title with nil repos, got %q", features[0].AttachedTo.Title)
+	}
+	if features[0].AttachedTo.UID != nil {
+		t.Errorf("expected nil AttachedTo.UID with nil repos, got %v", features[0].AttachedTo.UID)
+	}
+	if features[0].TypeOf.Title != "" {
+		t.Errorf("expected empty TypeOf.Title with nil repos, got %q", features[0].TypeOf.Title)
+	}
+	if features[0].TypeOf.UID != nil {
+		t.Errorf("expected nil TypeOf.UID with nil repos, got %v", features[0].TypeOf.UID)
 	}
 }

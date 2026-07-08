@@ -30,6 +30,26 @@ func NewSamplingFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *rep
 	return &SamplingFeatureHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, fc: fc}
 }
 
+// ListSamplingFeatures returns a paginated list of sampling features
+//
+// @Summary     List sampling features
+// @Description Returns a paginated collection of sampling feature resources
+// @Tags        Sampling Features
+// @Produce     json
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       offset              query  integer  false  "Result offset"
+// @Param       id                  query  string   false  "Comma-separated resource IDs"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       bbox                query  string   false  "Bounding box filter: minx,miny,maxx,maxy"
+// @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"
+// @Param       geom                query  string   false  "WKT geometry for spatial intersection"
+// @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty    query  string   false  "Comma-separated observed property IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
+// @Success     200  {object}  map[string]any
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /samplingFeatures [get]
 func (h *SamplingFeatureHandler) ListSamplingFeatures(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.SamplingFeatureQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 
@@ -55,6 +75,17 @@ func (h *SamplingFeatureHandler) ListSamplingFeatures(w http.ResponseWriter, r *
 	writeNegotiated(w, collection)
 }
 
+// GetSamplingFeature returns a single sampling feature by ID
+//
+// @Summary     Get sampling feature
+// @Description Returns a single sampling feature resource by ID
+// @Tags        Sampling Features
+// @Produce     json
+// @Param       id  path  string  true  "Sampling Feature ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /samplingFeatures/{id} [get]
 func (h *SamplingFeatureHandler) GetSamplingFeature(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -93,6 +124,19 @@ func validateSamplingFeature(sf *domains.SamplingFeature) error {
 	return nil
 }
 
+// CreateSamplingFeature creates a new sampling feature
+//
+// @Summary     Create sampling feature
+// @Description Creates a new sampling feature resource (also available under /systems/{id}/samplingFeatures)
+// @Tags        Sampling Features
+// @Accept      json
+// @Param       id               path  string          true   "Parent system ID"
+// @Param       samplingFeature  body  map[string]any  true   "Sampling Feature resource"
+// @Success     201
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/samplingFeatures [post]
 func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 	sampledFeature, err := h.fc.Deserialize(contentType, r.Body)
@@ -135,6 +179,18 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 	w.WriteHeader(http.StatusCreated)
 }
 
+// UpdateSamplingFeature replaces a sampling feature by ID
+//
+// @Summary     Update sampling feature
+// @Description Replaces a sampling feature resource by ID
+// @Tags        Sampling Features
+// @Accept      json
+// @Param       id               path  string          true  "Sampling Feature ID"
+// @Param       samplingFeature  body  map[string]any  true  "Sampling Feature resource"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /samplingFeatures/{id} [put]
 func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -162,6 +218,16 @@ func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DeleteSamplingFeature deletes a sampling feature by ID
+//
+// @Summary     Delete sampling feature
+// @Description Deletes a sampling feature resource by ID
+// @Tags        Sampling Features
+// @Param       id  path  string  true  "Sampling Feature ID"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /samplingFeatures/{id} [delete]
 func (h *SamplingFeatureHandler) DeleteSamplingFeature(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -181,6 +247,26 @@ func (h *SamplingFeatureHandler) DeleteSamplingFeature(w http.ResponseWriter, r 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetSystemSamplingFeatures returns sampling features belonging to a system
+//
+// @Summary     List system sampling features
+// @Description Returns sampling features associated with a given system
+// @Tags        Sampling Features
+// @Produce     json
+// @Param       id                  path   string   true   "System ID"
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       offset              query  integer  false  "Result offset"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       bbox                query  string   false  "Bounding box filter: minx,miny,maxx,maxy"
+// @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339)"
+// @Param       geom                query  string   false  "WKT geometry for spatial intersection"
+// @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty    query  string   false  "Comma-separated observed property IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
+// @Success     200  {object}  map[string]any
+// @Failure     400  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/samplingFeatures [get]
 func (h *SamplingFeatureHandler) GetSystemSamplingFeatures(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "id")
 

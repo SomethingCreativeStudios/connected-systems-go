@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
@@ -31,6 +32,27 @@ func (r *SamplingFeatureRepository) GetByID(id string) (*domains.SamplingFeature
 		return nil, err
 	}
 	return &sf, nil
+}
+
+// GetByIDs returns sampling features keyed by ID (batch lookup)
+func (r *SamplingFeatureRepository) GetByIDs(ctx context.Context, ids []string) (map[string]*domains.SamplingFeature, error) {
+	result := make(map[string]*domains.SamplingFeature)
+	if len(ids) == 0 {
+		return result, nil
+	}
+
+	var sfs []*domains.SamplingFeature
+	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&sfs).Error; err != nil {
+		return nil, err
+	}
+
+	for _, sf := range sfs {
+		if sf != nil {
+			result[sf.ID] = sf
+		}
+	}
+
+	return result, nil
 }
 
 // List retrieves sampling features with filtering

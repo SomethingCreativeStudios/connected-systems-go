@@ -507,7 +507,8 @@ func TestProcedureCRUD_Replace(t *testing.T) {
 			// Verify update (GET using Accept = content type being tested for consistency)
 			req, _ = http.NewRequest("GET", location, nil)
 			req.Header.Set("Accept", f.contentType)
-			resp, _ = http.DefaultClient.Do(req)
+			resp, err = http.DefaultClient.Do(req)
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
 			var result map[string]interface{}
@@ -565,7 +566,8 @@ func TestProcedureCRUD_Delete(t *testing.T) {
 
 	// Verify gone
 	req, _ = http.NewRequest("GET", location, nil)
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

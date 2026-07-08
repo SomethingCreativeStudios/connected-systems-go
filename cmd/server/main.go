@@ -1,3 +1,9 @@
+// @title           OGC API - Connected Systems
+// @version         1.0.0
+// @description     OGC API Connected Systems implementation (Part 1 + Part 2)
+// @host            localhost:8080
+// @BasePath        /
+
 package main
 
 import (

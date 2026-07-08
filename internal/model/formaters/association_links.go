@@ -26,15 +26,19 @@ func SetAssociationLinksBaseURL(baseURL string) {
 
 // ResourceCache holds pre-fetched resources for enriching association links.
 type ResourceCache struct {
-	Systems    map[string]*domains.System
-	Procedures map[string]*domains.Procedure
+	Systems          map[string]*domains.System
+	Procedures       map[string]*domains.Procedure
+	Deployments      map[string]*domains.Deployment
+	SamplingFeatures map[string]*domains.SamplingFeature
 }
 
 // NewResourceCache creates an empty ResourceCache.
 func NewResourceCache() *ResourceCache {
 	return &ResourceCache{
-		Systems:    make(map[string]*domains.System),
-		Procedures: make(map[string]*domains.Procedure),
+		Systems:          make(map[string]*domains.System),
+		Procedures:       make(map[string]*domains.Procedure),
+		Deployments:      make(map[string]*domains.Deployment),
+		SamplingFeatures: make(map[string]*domains.SamplingFeature),
 	}
 }
 
@@ -68,6 +72,40 @@ func (c *ResourceCache) FetchProcedures(ctx context.Context, repo interface {
 	}
 	for k, v := range procedures {
 		c.Procedures[k] = v
+	}
+	return nil
+}
+
+// FetchDeployments loads deployments for the given IDs into the cache.
+func (c *ResourceCache) FetchDeployments(ctx context.Context, repo interface {
+	GetByIDs(ctx context.Context, ids []string) (map[string]*domains.Deployment, error)
+}, deploymentIDs []string) error {
+	if len(deploymentIDs) == 0 {
+		return nil
+	}
+	deployments, err := repo.GetByIDs(ctx, deploymentIDs)
+	if err != nil {
+		return err
+	}
+	for k, v := range deployments {
+		c.Deployments[k] = v
+	}
+	return nil
+}
+
+// FetchSamplingFeatures loads sampling features for the given IDs into the cache.
+func (c *ResourceCache) FetchSamplingFeatures(ctx context.Context, repo interface {
+	GetByIDs(ctx context.Context, ids []string) (map[string]*domains.SamplingFeature, error)
+}, sfIDs []string) error {
+	if len(sfIDs) == 0 {
+		return nil
+	}
+	sfs, err := repo.GetByIDs(ctx, sfIDs)
+	if err != nil {
+		return err
+	}
+	for k, v := range sfs {
+		c.SamplingFeatures[k] = v
 	}
 	return nil
 }

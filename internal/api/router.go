@@ -1,13 +1,14 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/render"
+	httpSwagger "github.com/swaggo/http-swagger"
+	"github.com/yourusername/connected-systems-go/docs"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	serializers "github.com/yourusername/connected-systems-go/internal/model/formaters"
@@ -59,6 +60,8 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	datastreamFormatterCollection := buildDatastreamFormatterCollection(repos)
 	collectionFormatterCollection := buildCollectionFormatterCollection(repos)
 	controlStreamFormatterCollection := buildControlStreamFormatterCollection(repos)
+	commandFormatterCollection := buildCommandFormatterCollection(repos)
+	observationFormatterCollection := buildObservationFormatterCollection(repos)
 
 	collectionHandler := NewCollectionHandler(cfg, logger, repos.Collection, collectionFormatterCollection)
 	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentFormatterCollection)
@@ -68,9 +71,9 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertyFormatterCollection)
 	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureFormatterCollection)
 	datastreamHandler := NewDatastreamHandler(cfg, logger, repos.Datastream, datastreamFormatterCollection)
-	observationHandler := NewObservationHandler(cfg, logger, repos.Observation, repos.Datastream)
+	observationHandler := NewObservationHandler(cfg, logger, repos.Observation, repos.Datastream, observationFormatterCollection)
 	controlStreamHandler := NewControlStreamHandler(cfg, logger, repos.ControlStream, controlStreamFormatterCollection)
-	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream, mqttManager)
+	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream, mqttManager, commandFormatterCollection)
 	systemEventHandler := NewSystemEventHandler(cfg, logger, repos.SystemEvent, repos.System, mqttManager)
 
 	// Routes
@@ -278,15 +281,15 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	// OpenAPI spec
 	r.Get("/api", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/vnd.oai.openapi+json;version=3.0")
-		fmt.Fprint(w, getOpenAPISpec(cfg))
+		w.Write(docs.OpenAPI3Spec)
 	})
 
-	return r
-}
+	// Swagger UI
+	r.Get("/api/ui/*", httpSwagger.Handler(
+		httpSwagger.URL("/api"),
+	))
 
-func getOpenAPISpec(cfg *config.Config) string {
-	// TODO: Implement OpenAPI 3.0 spec generation
-	return `{"openapi": "3.0.0", "info": {"title": "` + cfg.API.Title + `", "version": "` + cfg.API.Version + `"}}`
+	return r
 }
 
 // Formatters
@@ -406,17 +409,37 @@ func buildCollectionFormatterCollection(repos *repository.Repositories) *seriali
 func buildDatastreamFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Datastream] {
 	collection := serializers.NewMultiFormatFormatterCollection[*domains.Datastream]("application/json")
 
-	jsonFormatter := json_formatters.NewDatastreamJSONFormatter()
+	jsonFormatter := json_formatters.NewDatastreamJSONFormatter(repos)
 	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
 	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
 
 	return collection
 }
 
-func buildControlStreamFormatterCollection(_ *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.ControlStream] {
+func buildControlStreamFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.ControlStream] {
 	collection := serializers.NewMultiFormatFormatterCollection[*domains.ControlStream]("application/json")
 
-	jsonFormatter := json_formatters.NewControlStreamJSONFormatter()
+	jsonFormatter := json_formatters.NewControlStreamJSONFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
+	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
+
+	return collection
+}
+
+func buildCommandFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Command] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Command]("application/json")
+
+	jsonFormatter := json_formatters.NewCommandJSONFormatter(repos)
+	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
+	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
+
+	return collection
+}
+
+func buildObservationFormatterCollection(repos *repository.Repositories) *serializers.MultiFormatFormatterCollection[*domains.Observation] {
+	collection := serializers.NewMultiFormatFormatterCollection[*domains.Observation]("application/json")
+
+	jsonFormatter := json_formatters.NewObservationJSONFormatter(repos)
 	serializers.RegisterFormatterTyped(collection, "application/json", jsonFormatter)
 	serializers.RegisterFormatterTypedDefault(collection, jsonFormatter, "application/json")
 

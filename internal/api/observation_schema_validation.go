@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/emicklei/proto"
@@ -176,11 +178,17 @@ func validateDataComponentValue(component *domains.DatastreamDataComponent, valu
 		if _, ok := value.(bool); !ok {
 			return fmt.Errorf("%s must be a boolean", path)
 		}
+		if err := validateAgainstConstraint(component, value, path); err != nil {
+			return err
+		}
 		return nil
 
 	case "count":
 		if !isIntegerNumber(value) {
 			return fmt.Errorf("%s must be an integer", path)
+		}
+		if err := validateAgainstConstraint(component, value, path); err != nil {
+			return err
 		}
 		return nil
 
@@ -188,11 +196,17 @@ func validateDataComponentValue(component *domains.DatastreamDataComponent, valu
 		if !isNumber(value) {
 			return fmt.Errorf("%s must be a number", path)
 		}
+		if err := validateAgainstConstraint(component, value, path); err != nil {
+			return err
+		}
 		return nil
 
 	case "time", "category", "text":
 		if _, ok := value.(string); !ok {
 			return fmt.Errorf("%s must be a string", path)
+		}
+		if err := validateAgainstConstraint(component, value, path); err != nil {
+			return err
 		}
 		return nil
 
@@ -380,4 +394,173 @@ func matchesNilValue(component *domains.DatastreamDataComponent, value any) bool
 		}
 	}
 	return false
+}
+
+// validateAgainstConstraint checks whether value satisfies the declared constraint
+// on the component. Returns nil if the value is within constraints, or an error
+// describing the violated constraint.
+func validateAgainstConstraint(component *domains.DatastreamDataComponent, value any, path string) error {
+	if component == nil || component.Constraint == nil {
+		return nil
+	}
+	c := component.Constraint
+	componentType := strings.ToLower(component.Type)
+
+	switch componentType {
+	case "quantity", "count":
+		return validateNumericConstraint(c, value, path)
+	case "time":
+		return validateTimeConstraint(c, value, path)
+	case "category", "text":
+		return validateTextConstraint(c, value, path)
+	case "boolean":
+		return nil // no SWE Common constraint semantics for boolean
+	}
+	return nil
+}
+
+// validateNumericConstraint enforces intervals, allowed values, and significant
+// figures constraints on numeric (quantity/count) values.
+func validateNumericConstraint(c *domains.DatastreamConstraint, value any, path string) error {
+	num, ok := toFloat64(value)
+	if !ok {
+		return nil // type already checked by caller
+	}
+
+	// Check intervals: [[min, max], ...]
+	if len(c.Intervals) > 0 {
+		var intervals [][]float64
+		if err := json.Unmarshal(c.Intervals, &intervals); err == nil {
+			for _, iv := range intervals {
+				if len(iv) >= 2 && num >= iv[0] && num <= iv[1] {
+					return nil // within an interval
+				}
+			}
+			return fmt.Errorf("%s value %v is outside all declared intervals", path, num)
+		}
+	}
+
+	// Check discrete allowed values: [v1, v2, ...]
+	if len(c.Values) > 0 {
+		var values []float64
+		if err := json.Unmarshal(c.Values, &values); err == nil {
+			for _, v := range values {
+				if num == v {
+					return nil
+				}
+			}
+			return fmt.Errorf("%s value %v is not in declared allowed values", path, num)
+		}
+	}
+
+	// Check significant figures
+	if c.SignificantFigures != nil {
+		sigFigs := countSignificantFigures(num)
+		if sigFigs > *c.SignificantFigures {
+			return fmt.Errorf("%s value %v has %d significant figures, exceeds limit of %d", path, num, sigFigs, *c.SignificantFigures)
+		}
+	}
+
+	return nil
+}
+
+// validateTimeConstraint enforces intervals and allowed values on time values.
+func validateTimeConstraint(c *domains.DatastreamConstraint, value any, path string) error {
+	s, ok := value.(string)
+	if !ok {
+		return nil
+	}
+
+	// Check intervals: [[start, end], ...]
+	if len(c.Intervals) > 0 {
+		var intervals [][]string
+		if err := json.Unmarshal(c.Intervals, &intervals); err == nil {
+			for _, iv := range intervals {
+				if len(iv) >= 2 && s >= iv[0] && s <= iv[1] {
+					return nil
+				}
+			}
+			return fmt.Errorf("%s value %q is outside all declared time intervals", path, s)
+		}
+	}
+
+	// Check discrete allowed values: [t1, t2, ...]
+	if len(c.Values) > 0 {
+		var values []string
+		if err := json.Unmarshal(c.Values, &values); err == nil {
+			for _, v := range values {
+				if s == v {
+					return nil
+				}
+			}
+			return fmt.Errorf("%s value %q is not in declared allowed time values", path, s)
+		}
+	}
+
+	return nil
+}
+
+// validateTextConstraint enforces allowed tokens and regex pattern on text/category values.
+func validateTextConstraint(c *domains.DatastreamConstraint, value any, path string) error {
+	s, ok := value.(string)
+	if !ok {
+		return nil
+	}
+
+	// Check discrete allowed tokens: [token1, token2, ...]
+	if len(c.Values) > 0 {
+		var values []string
+		if err := json.Unmarshal(c.Values, &values); err == nil {
+			for _, v := range values {
+				if s == v {
+					return nil
+				}
+			}
+			return fmt.Errorf("%s value %q is not in declared allowed tokens", path, s)
+		}
+	}
+
+	// Check regex pattern
+	if c.Pattern != "" {
+		matched, err := regexp.MatchString(c.Pattern, s)
+		if err != nil {
+			return fmt.Errorf("%s invalid constraint pattern %q: %w", path, c.Pattern, err)
+		}
+		if !matched {
+			return fmt.Errorf("%s value %q does not match constraint pattern %q", path, s, c.Pattern)
+		}
+	}
+
+	return nil
+}
+
+// toFloat64 converts a value to float64 if possible.
+func toFloat64(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case json.Number:
+		f, err := n.Float64()
+		if err != nil {
+			return 0, false
+		}
+		return f, true
+	}
+	return 0, false
+}
+
+// countSignificantFigures returns the number of significant figures in a float64.
+func countSignificantFigures(f float64) int {
+	s := strconv.FormatFloat(f, 'G', -1, 64)
+	s = strings.ReplaceAll(s, ".", "")
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.TrimLeft(s, "0")
+	if s == "" {
+		return 0
+	}
+	return len(s)
 }

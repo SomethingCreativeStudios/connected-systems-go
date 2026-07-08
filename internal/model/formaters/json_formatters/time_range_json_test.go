@@ -12,7 +12,7 @@ import (
 
 func TestDatastreamJSONSerialize_EmptyTimeRangesOmitted(t *testing.T) {
 	systemID := "sys-1"
-	formatter := NewDatastreamJSONFormatter()
+	formatter := NewDatastreamJSONFormatter(nil)
 	datastream := &domains.Datastream{
 		Base:           domains.Base{ID: "ds-1"},
 		SystemID:       &systemID,
@@ -39,7 +39,7 @@ func TestDatastreamJSONSerialize_EmptyTimeRangesOmitted(t *testing.T) {
 }
 
 func TestControlStreamJSONSerialize_EmptyTimeRangesOmitted(t *testing.T) {
-	formatter := NewControlStreamJSONFormatter()
+	formatter := NewControlStreamJSONFormatter(nil)
 	controlStream := &domains.ControlStream{
 		Base:          domains.Base{ID: "cs-1"},
 		ValidTime:     &common_shared.TimeRange{},

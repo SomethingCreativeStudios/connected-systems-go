@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
@@ -42,6 +43,27 @@ func (r *DeploymentRepository) GetByID(id string) (*domains.Deployment, error) {
 	deploymentPtr = r.findAssociations(deploymentPtr)
 
 	return deploymentPtr, nil
+}
+
+// GetByIDs returns deployments keyed by ID (batch lookup)
+func (r *DeploymentRepository) GetByIDs(ctx context.Context, ids []string) (map[string]*domains.Deployment, error) {
+	result := make(map[string]*domains.Deployment)
+	if len(ids) == 0 {
+		return result, nil
+	}
+
+	var deployments []*domains.Deployment
+	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&deployments).Error; err != nil {
+		return nil, err
+	}
+
+	for _, d := range deployments {
+		if d != nil {
+			result[d.ID] = d
+		}
+	}
+
+	return result, nil
 }
 
 // List retrieves deployments with filtering

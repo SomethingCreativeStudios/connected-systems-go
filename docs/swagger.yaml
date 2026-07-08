@@ -1,0 +1,3334 @@
+basePath: /
+definitions:
+  api.CommandCollectionResponse:
+    properties:
+      items:
+        items: {}
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/common_shared.Link'
+        type: array
+    type: object
+  api.ControlStreamCollectionResponse:
+    properties:
+      items:
+        items: {}
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/common_shared.Link'
+        type: array
+    type: object
+  api.DatastreamCollectionResponse:
+    properties:
+      items:
+        items: {}
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/common_shared.Link'
+        type: array
+    type: object
+  api.ObservationCollectionResponse:
+    properties:
+      items:
+        items: {}
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/common_shared.Link'
+        type: array
+    type: object
+  api.SystemEventCollectionResponse:
+    properties:
+      items:
+        items: {}
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/common_shared.Link'
+        type: array
+    type: object
+  common_shared.Link:
+    properties:
+      href:
+        type: string
+      rel:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+      uid:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: OGC API Connected Systems implementation (Part 1 + Part 2)
+  title: OGC API - Connected Systems
+  version: 1.0.0
+paths:
+  /:
+    get:
+      description: Returns the API landing page with links to available resources
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get landing page
+      tags:
+      - Core
+  /collections:
+    get:
+      description: Returns metadata for all OGC API resource collections
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get collections metadata
+      tags:
+      - Collections
+    post:
+      consumes:
+      - application/json
+      description: Creates a new feature collection
+      parameters:
+      - description: Collection resource
+        in: body
+        name: collection
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      summary: Create collection
+      tags:
+      - Collections
+  /collections/{collectionId}:
+    get:
+      produces:
+      - application/json
+      responses:
+        "501":
+          description: Not Implemented
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get collection metadata (not implemented)
+      tags:
+      - Collections
+  /collections/{collectionId}/items:
+    get:
+      description: Returns features from a collection; canonical collection IDs redirect
+        to their resource endpoint
+      parameters:
+      - description: Collection ID
+        in: path
+        name: collectionId
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "307":
+          description: Redirect to canonical resource endpoint
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List features
+      tags:
+      - Features
+    post:
+      consumes:
+      - application/json
+      description: Creates a new feature in a collection
+      parameters:
+      - description: Collection ID
+        in: path
+        name: collectionId
+        required: true
+        type: string
+      - description: Feature resource
+        in: body
+        name: feature
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "307":
+          description: Redirect to canonical resource endpoint
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create feature
+      tags:
+      - Features
+  /collections/{collectionId}/items/{featureId}:
+    delete:
+      description: Deletes a feature from a collection
+      parameters:
+      - description: Collection ID
+        in: path
+        name: collectionId
+        required: true
+        type: string
+      - description: Feature ID
+        in: path
+        name: featureId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "307":
+          description: Redirect to canonical resource endpoint
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete feature
+      tags:
+      - Features
+    get:
+      description: Returns a single feature from a collection by ID
+      parameters:
+      - description: Collection ID
+        in: path
+        name: collectionId
+        required: true
+        type: string
+      - description: Feature ID
+        in: path
+        name: featureId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "307":
+          description: Redirect to canonical resource endpoint
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get feature
+      tags:
+      - Features
+    put:
+      consumes:
+      - application/json
+      description: Replaces an existing feature in a collection
+      parameters:
+      - description: Collection ID
+        in: path
+        name: collectionId
+        required: true
+        type: string
+      - description: Feature ID
+        in: path
+        name: featureId
+        required: true
+        type: string
+      - description: Feature resource
+        in: body
+        name: feature
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "307":
+          description: Redirect to canonical resource endpoint
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update feature
+      tags:
+      - Features
+  /commands:
+    get:
+      description: Returns a paginated collection of command resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated control stream IDs
+        in: query
+        name: controlStream
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated status values
+        in: query
+        name: currentStatus
+        type: string
+      - description: Issue time filter (RFC 3339 date-time or interval)
+        in: query
+        name: issueTime
+        type: string
+      - description: Execution time filter (RFC 3339 date-time or interval)
+        in: query
+        name: executionTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CommandCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List commands
+      tags:
+      - Commands
+  /commands/{cmdId}:
+    delete:
+      description: Deletes a command resource by ID
+      parameters:
+      - description: Command ID
+        in: path
+        name: cmdId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete command
+      tags:
+      - Commands
+    get:
+      description: Returns a single command resource by ID
+      parameters:
+      - description: Command ID
+        in: path
+        name: cmdId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get command
+      tags:
+      - Commands
+    put:
+      consumes:
+      - application/json
+      description: Replaces a command resource by ID
+      parameters:
+      - description: Command ID
+        in: path
+        name: cmdId
+        required: true
+        type: string
+      - description: Command resource
+        in: body
+        name: command
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update command
+      tags:
+      - Commands
+  /conformance:
+    get:
+      description: Returns the list of OGC conformance classes this server implements
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get conformance declaration
+      tags:
+      - Core
+  /controlstreams:
+    get:
+      description: Returns a paginated collection of control stream resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Issue time filter (RFC 3339 date-time or interval)
+        in: query
+        name: issueTime
+        type: string
+      - description: Execution time filter (RFC 3339 date-time or interval)
+        in: query
+        name: executionTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ControlStreamCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List control streams
+      tags:
+      - Control Streams
+  /controlstreams/{controlStreamId}:
+    delete:
+      description: Deletes a control stream resource by ID
+      parameters:
+      - description: Control Stream ID
+        in: path
+        name: controlStreamId
+        required: true
+        type: string
+      - description: Cascade delete to dependent resources
+        in: query
+        name: cascade
+        type: boolean
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete control stream
+      tags:
+      - Control Streams
+    get:
+      description: Returns a single control stream resource by ID
+      parameters:
+      - description: Control Stream ID
+        in: path
+        name: controlStreamId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get control stream
+      tags:
+      - Control Streams
+    put:
+      consumes:
+      - application/json
+      description: Replaces a control stream resource by ID
+      parameters:
+      - description: Control Stream ID
+        in: path
+        name: controlStreamId
+        required: true
+        type: string
+      - description: Control Stream resource
+        in: body
+        name: controlStream
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update control stream
+      tags:
+      - Control Streams
+  /controlstreams/{controlStreamId}/commands:
+    get:
+      description: Returns commands associated with a given control stream
+      parameters:
+      - description: Control Stream ID
+        in: path
+        name: controlStreamId
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated status values
+        in: query
+        name: currentStatus
+        type: string
+      - description: Issue time filter (RFC 3339 date-time or interval)
+        in: query
+        name: issueTime
+        type: string
+      - description: Execution time filter (RFC 3339 date-time or interval)
+        in: query
+        name: executionTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CommandCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List control stream commands
+      tags:
+      - Commands
+    post:
+      consumes:
+      - application/json
+      description: Creates a new command in the given control stream
+      parameters:
+      - description: Control Stream ID
+        in: path
+        name: controlStreamId
+        required: true
+        type: string
+      - description: Command resource
+        in: body
+        name: command
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create command
+      tags:
+      - Commands
+  /controlstreams/{controlStreamId}/schema:
+    get:
+      description: Returns the command schema for a given control stream
+      parameters:
+      - description: Control Stream ID
+        in: path
+        name: controlStreamId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get control stream schema
+      tags:
+      - Control Streams
+    put:
+      consumes:
+      - application/json
+      description: Replaces the command schema for a given control stream
+      parameters:
+      - description: Control Stream ID
+        in: path
+        name: controlStreamId
+        required: true
+        type: string
+      - description: Control Stream schema
+        in: body
+        name: schema
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update control stream schema
+      tags:
+      - Control Streams
+  /datastreams:
+    get:
+      description: Returns a paginated collection of datastream resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Phenomenon time filter (RFC 3339 date-time or interval)
+        in: query
+        name: phenomenonTime
+        type: string
+      - description: Result time filter (RFC 3339 date-time or interval)
+        in: query
+        name: resultTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.DatastreamCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List datastreams
+      tags:
+      - Datastreams
+  /datastreams/{dataStreamId}:
+    delete:
+      description: Deletes a datastream resource by ID
+      parameters:
+      - description: Datastream ID
+        in: path
+        name: dataStreamId
+        required: true
+        type: string
+      - description: Cascade delete to dependent resources
+        in: query
+        name: cascade
+        type: boolean
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete datastream
+      tags:
+      - Datastreams
+    get:
+      description: Returns a single datastream resource by ID
+      parameters:
+      - description: Datastream ID
+        in: path
+        name: dataStreamId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get datastream
+      tags:
+      - Datastreams
+    put:
+      consumes:
+      - application/json
+      description: Replaces a datastream resource by ID
+      parameters:
+      - description: Datastream ID
+        in: path
+        name: dataStreamId
+        required: true
+        type: string
+      - description: Datastream resource
+        in: body
+        name: datastream
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update datastream
+      tags:
+      - Datastreams
+  /datastreams/{dataStreamId}/observations:
+    get:
+      description: Returns observations associated with a given datastream
+      parameters:
+      - description: Datastream ID
+        in: path
+        name: dataStreamId
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Phenomenon time filter (RFC 3339 date-time or interval)
+        in: query
+        name: phenomenonTime
+        type: string
+      - description: Result time filter (RFC 3339 date-time or interval)
+        in: query
+        name: resultTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ObservationCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List datastream observations
+      tags:
+      - Observations
+    post:
+      consumes:
+      - application/json
+      description: Creates a new observation in the given datastream
+      parameters:
+      - description: Datastream ID
+        in: path
+        name: dataStreamId
+        required: true
+        type: string
+      - description: Observation resource
+        in: body
+        name: observation
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create observation
+      tags:
+      - Observations
+  /datastreams/{dataStreamId}/schema:
+    get:
+      description: Returns the observation schema for a given datastream
+      parameters:
+      - description: Datastream ID
+        in: path
+        name: dataStreamId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get datastream schema
+      tags:
+      - Datastreams
+    put:
+      consumes:
+      - application/json
+      description: Replaces the observation schema for a given datastream
+      parameters:
+      - description: Datastream ID
+        in: path
+        name: dataStreamId
+        required: true
+        type: string
+      - description: Datastream schema
+        in: body
+        name: schema
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update datastream schema
+      tags:
+      - Datastreams
+  /deployments:
+    get:
+      description: Returns a paginated collection of deployment resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+        in: query
+        name: dateTime
+        type: string
+      - description: Comma-separated parent deployment IDs
+        in: query
+        name: parent
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Include sub-deployments recursively
+        in: query
+        name: recursive
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List deployments
+      tags:
+      - Deployments
+    post:
+      consumes:
+      - application/json
+      description: Creates a new deployment resource
+      parameters:
+      - description: Deployment resource
+        in: body
+        name: deployment
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create deployment
+      tags:
+      - Deployments
+  /deployments/{id}:
+    delete:
+      description: Deletes a deployment resource by ID
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Cascade delete to dependent resources
+        in: query
+        name: cascade
+        type: boolean
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete deployment
+      tags:
+      - Deployments
+    get:
+      description: Returns a single deployment resource by ID
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get deployment
+      tags:
+      - Deployments
+    put:
+      consumes:
+      - application/json
+      description: Replaces a deployment resource by ID
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Deployment resource
+        in: body
+        name: deployment
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update deployment
+      tags:
+      - Deployments
+  /deployments/{id}/subdeployments:
+    get:
+      description: Returns child deployments of the given deployment
+      parameters:
+      - description: Parent deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List subdeployments
+      tags:
+      - Deployments
+    post:
+      consumes:
+      - application/json
+      description: Creates a new deployment as a child of the given deployment
+      parameters:
+      - description: Parent deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Deployment resource
+        in: body
+        name: deployment
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Add subdeployment
+      tags:
+      - Deployments
+  /observations:
+    get:
+      description: Returns a paginated collection of observation resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated datastream IDs
+        in: query
+        name: dataStream
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Phenomenon time filter (RFC 3339 date-time or interval)
+        in: query
+        name: phenomenonTime
+        type: string
+      - description: Result time filter (RFC 3339 date-time or interval)
+        in: query
+        name: resultTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ObservationCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List observations
+      tags:
+      - Observations
+  /observations/{obsId}:
+    delete:
+      description: Deletes an observation resource by ID
+      parameters:
+      - description: Observation ID
+        in: path
+        name: obsId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete observation
+      tags:
+      - Observations
+    get:
+      description: Returns a single observation resource by ID
+      parameters:
+      - description: Observation ID
+        in: path
+        name: obsId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get observation
+      tags:
+      - Observations
+    put:
+      consumes:
+      - application/json
+      description: Replaces an observation resource by ID
+      parameters:
+      - description: Observation ID
+        in: path
+        name: obsId
+        required: true
+        type: string
+      - description: Observation resource
+        in: body
+        name: observation
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update observation
+      tags:
+      - Observations
+  /procedures:
+    get:
+      description: Returns a paginated collection of procedure resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+        in: query
+        name: dateTime
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List procedures
+      tags:
+      - Procedures
+    post:
+      consumes:
+      - application/json
+      description: Creates a new procedure resource
+      parameters:
+      - description: Procedure resource
+        in: body
+        name: procedure
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create procedure
+      tags:
+      - Procedures
+  /procedures/{id}:
+    delete:
+      description: Deletes a procedure resource by ID
+      parameters:
+      - description: Procedure ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete procedure
+      tags:
+      - Procedures
+    get:
+      description: Returns a single procedure resource by ID
+      parameters:
+      - description: Procedure ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get procedure
+      tags:
+      - Procedures
+    put:
+      consumes:
+      - application/json
+      description: Replaces a procedure resource by ID
+      parameters:
+      - description: Procedure ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Procedure resource
+        in: body
+        name: procedure
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update procedure
+      tags:
+      - Procedures
+  /properties:
+    get:
+      description: Returns a paginated collection of property resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated base property IDs
+        in: query
+        name: baseProperty
+        type: string
+      - description: Comma-separated object type URIs
+        in: query
+        name: objectType
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List properties
+      tags:
+      - Properties
+    post:
+      consumes:
+      - application/json
+      description: Creates a new property resource
+      parameters:
+      - description: Property resource
+        in: body
+        name: property
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create property
+      tags:
+      - Properties
+  /properties/{id}:
+    delete:
+      description: Deletes a property resource by ID
+      parameters:
+      - description: Property ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete property
+      tags:
+      - Properties
+    get:
+      description: Returns a single property resource by ID
+      parameters:
+      - description: Property ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get property
+      tags:
+      - Properties
+    put:
+      consumes:
+      - application/json
+      description: Replaces a property resource by ID
+      parameters:
+      - description: Property ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Property resource
+        in: body
+        name: property
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update property
+      tags:
+      - Properties
+  /samplingFeatures:
+    get:
+      description: Returns a paginated collection of sampling feature resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+        in: query
+        name: bbox
+        type: string
+      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+        in: query
+        name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List sampling features
+      tags:
+      - Sampling Features
+  /samplingFeatures/{id}:
+    delete:
+      description: Deletes a sampling feature resource by ID
+      parameters:
+      - description: Sampling Feature ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete sampling feature
+      tags:
+      - Sampling Features
+    get:
+      description: Returns a single sampling feature resource by ID
+      parameters:
+      - description: Sampling Feature ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get sampling feature
+      tags:
+      - Sampling Features
+    put:
+      consumes:
+      - application/json
+      description: Replaces a sampling feature resource by ID
+      parameters:
+      - description: Sampling Feature ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Sampling Feature resource
+        in: body
+        name: samplingFeature
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update sampling feature
+      tags:
+      - Sampling Features
+  /systemEvents:
+    get:
+      description: Returns a paginated collection of system event resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated event type values
+        in: query
+        name: eventType
+        type: string
+      - description: Comma-separated keywords to match against event fields
+        in: query
+        name: keyword
+        type: string
+      - description: Date-time or interval (RFC 3339); also accepted as eventTime
+        in: query
+        name: datetime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SystemEventCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List system events
+      tags:
+      - System Events
+  /systems:
+    get:
+      description: Returns a paginated collection of system resources
+      parameters:
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+        in: query
+        name: bbox
+        type: string
+      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+        in: query
+        name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
+        type: string
+      - description: Comma-separated parent system IDs
+        in: query
+        name: parent
+        type: string
+      - description: Comma-separated procedure IDs
+        in: query
+        name: procedure
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Include sub-resources recursively
+        in: query
+        name: recursive
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List systems
+      tags:
+      - Systems
+    post:
+      consumes:
+      - application/json
+      description: Creates a new system resource
+      parameters:
+      - description: System resource (GeoJSON or SensorML+JSON)
+        in: body
+        name: system
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create system
+      tags:
+      - Systems
+  /systems/{id}:
+    delete:
+      description: Deletes a system resource by ID
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Cascade delete to dependent resources
+        in: query
+        name: cascade
+        type: boolean
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete system
+      tags:
+      - Systems
+    get:
+      description: Returns a single system resource by ID
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get system
+      tags:
+      - Systems
+    put:
+      consumes:
+      - application/json
+      description: Replaces a system resource by ID
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: System resource
+        in: body
+        name: system
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update system
+      tags:
+      - Systems
+  /systems/{id}/controlstreams:
+    get:
+      description: Returns control streams associated with a given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Issue time filter (RFC 3339 date-time or interval)
+        in: query
+        name: issueTime
+        type: string
+      - description: Execution time filter (RFC 3339 date-time or interval)
+        in: query
+        name: executionTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ControlStreamCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List system control streams
+      tags:
+      - Control Streams
+    post:
+      consumes:
+      - application/json
+      description: Creates a new control stream under the given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Control Stream resource
+        in: body
+        name: controlStream
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create control stream
+      tags:
+      - Control Streams
+  /systems/{id}/datastreams:
+    get:
+      description: Returns datastreams associated with a given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Phenomenon time filter (RFC 3339 date-time or interval)
+        in: query
+        name: phenomenonTime
+        type: string
+      - description: Result time filter (RFC 3339 date-time or interval)
+        in: query
+        name: resultTime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.DatastreamCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List system datastreams
+      tags:
+      - Datastreams
+    post:
+      consumes:
+      - application/json
+      description: Creates a new datastream resource under the given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Datastream resource
+        in: body
+        name: datastream
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create datastream
+      tags:
+      - Datastreams
+  /systems/{id}/deployments:
+    get:
+      description: Returns deployments associated with a given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: dateTime
+        type: string
+      - description: Comma-separated parent deployment IDs
+        in: query
+        name: parent
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Include sub-deployments recursively
+        in: query
+        name: recursive
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List system deployments
+      tags:
+      - Systems
+  /systems/{id}/events:
+    get:
+      description: Returns events associated with a given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Comma-separated event type values
+        in: query
+        name: eventType
+        type: string
+      - description: Comma-separated keywords to match against event fields
+        in: query
+        name: keyword
+        type: string
+      - description: Date-time or interval (RFC 3339); also accepted as eventTime
+        in: query
+        name: datetime
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SystemEventCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List system events by system
+      tags:
+      - System Events
+    post:
+      consumes:
+      - application/json
+      description: Creates one or more system events for a given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: System event or array of events
+        in: body
+        name: event
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create system event
+      tags:
+      - System Events
+  /systems/{id}/events/{eventId}:
+    delete:
+      description: Deletes a system event resource by ID
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event ID
+        in: path
+        name: eventId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete system event
+      tags:
+      - System Events
+    get:
+      description: Returns a single system event resource by ID
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event ID
+        in: path
+        name: eventId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get system event
+      tags:
+      - System Events
+    put:
+      consumes:
+      - application/json
+      description: Replaces a system event resource by ID
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Event ID
+        in: path
+        name: eventId
+        required: true
+        type: string
+      - description: System event resource
+        in: body
+        name: event
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update system event
+      tags:
+      - System Events
+  /systems/{id}/history:
+    get:
+      description: Returns historical revisions of a system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Valid time filter (RFC 3339 date-time or interval)
+        in: query
+        name: validTime
+        type: string
+      - description: Comma-separated keywords to match against history fields
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List system history
+      tags:
+      - System History
+  /systems/{id}/history/{revId}:
+    delete:
+      description: Deletes a specific system history revision
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Revision ID
+        in: path
+        name: revId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete system history revision
+      tags:
+      - System History
+    get:
+      description: Returns a specific historical revision of a system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Revision ID
+        in: path
+        name: revId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get system history revision
+      tags:
+      - System History
+    put:
+      consumes:
+      - application/json
+      description: Replaces the snapshot for a specific system history revision (validTime
+        cannot change)
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Revision ID
+        in: path
+        name: revId
+        required: true
+        type: string
+      - description: System snapshot
+        in: body
+        name: system
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update system history revision
+      tags:
+      - System History
+  /systems/{id}/procedures:
+    get:
+      description: Returns procedures associated with a given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: dateTime
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List system procedures
+      tags:
+      - Systems
+  /systems/{id}/samplingFeatures:
+    get:
+      description: Returns sampling features associated with a given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+        in: query
+        name: bbox
+        type: string
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List system sampling features
+      tags:
+      - Sampling Features
+    post:
+      consumes:
+      - application/json
+      description: Creates a new sampling feature resource (also available under /systems/{id}/samplingFeatures)
+      parameters:
+      - description: Parent system ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Sampling Feature resource
+        in: body
+        name: samplingFeature
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create sampling feature
+      tags:
+      - Sampling Features
+  /systems/{id}/subsystems:
+    get:
+      description: Returns subsystems of a given system
+      parameters:
+      - description: System ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Result offset
+        in: query
+        name: offset
+        type: integer
+      - description: Comma-separated resource IDs
+        in: query
+        name: id
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+        in: query
+        name: bbox
+        type: string
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
+        type: string
+      - description: Comma-separated procedure IDs
+        in: query
+        name: procedure
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Include nested subsystems recursively
+        in: query
+        name: recursive
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List subsystems
+      tags:
+      - Systems
+    post:
+      consumes:
+      - application/json
+      description: Creates a new system as a child of the given system
+      parameters:
+      - description: Parent system ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: System resource
+        in: body
+        name: system
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Add subsystem
+      tags:
+      - Systems
+swagger: "2.0"

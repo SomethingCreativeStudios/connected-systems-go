@@ -7,6 +7,7 @@ import (
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 )
 
 func TestSamplingFeatureDeserialize_StripsOnlyAssociationLinks(t *testing.T) {
@@ -104,5 +105,79 @@ func TestSamplingFeatureSerialize_ShowsAssociationLinksToEndUser(t *testing.T) {
 	}
 	if !foundCustom {
 		t.Fatalf("expected custom non-association link in serialized output")
+	}
+}
+
+// Phase 1: inline @link Type enrichment
+func TestSamplingFeatureGeoJSONSerialize_SetsTypeOnSampledFeatureLink(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewSamplingFeatureGeoJSONFormatter(nil)
+
+	sf := &domains.SamplingFeature{
+		Base: domains.Base{ID: "sf-1"},
+		CommonSSN: domains.CommonSSN{
+			UniqueIdentifier: "urn:test:sf:1",
+			Name:             "Sample 1",
+		},
+		FeatureType: domains.SamplingFeatureTypeSample,
+		SampledFeatureLink: &common_shared.Link{
+			Href: "/features/feat-1",
+		},
+	}
+
+	out, err := formatter.Serialize(context.Background(), sf)
+	if err != nil {
+		t.Fatalf("serialize failed: %v", err)
+	}
+
+	if out.Properties.SampledFeatureLink == nil {
+		t.Fatal("expected SampledFeatureLink to be non-nil")
+	}
+	if out.Properties.SampledFeatureLink.Type != formaters.GeoJSONContentType {
+		t.Errorf("expected SampledFeatureLink.Type %q, got %q", formaters.GeoJSONContentType, out.Properties.SampledFeatureLink.Type)
+	}
+}
+
+// Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
+func TestSamplingFeatureGeoJSONSerializeAll_EnrichesInlineLinks(t *testing.T) {
+	useTestAssociationBaseURL(t)
+
+	formatter := NewSamplingFeatureGeoJSONFormatter(nil)
+
+	sfs := []*domains.SamplingFeature{
+		{
+			Base: domains.Base{ID: "sf-1"},
+			CommonSSN: domains.CommonSSN{
+				UniqueIdentifier: "urn:test:sf:1",
+				Name:             "Sample 1",
+			},
+			FeatureType: domains.SamplingFeatureTypeSample,
+			SampledFeatureLink: &common_shared.Link{
+				Href: "/features/feat-1",
+			},
+		},
+	}
+
+	features, err := formatter.SerializeAll(context.Background(), sfs)
+	if err != nil {
+		t.Fatalf("serializeAll failed: %v", err)
+	}
+
+	if len(features) != 1 {
+		t.Fatalf("expected 1 feature, got %d", len(features))
+	}
+
+	// Type is always set (Phase 1)
+	if features[0].Properties.SampledFeatureLink.Type != formaters.GeoJSONContentType {
+		t.Errorf("expected SampledFeatureLink.Type %q, got %q", formaters.GeoJSONContentType, features[0].Properties.SampledFeatureLink.Type)
+	}
+
+	// Title/UID are empty with nil repos (no cache population)
+	if features[0].Properties.SampledFeatureLink.Title != "" {
+		t.Errorf("expected empty Title with nil repos, got %q", features[0].Properties.SampledFeatureLink.Title)
+	}
+	if features[0].Properties.SampledFeatureLink.UID != nil {
+		t.Errorf("expected nil UID with nil repos, got %v", features[0].Properties.SampledFeatureLink.UID)
 	}
 }

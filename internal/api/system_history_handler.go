@@ -12,6 +12,21 @@ import (
 )
 
 // ListSystemHistory handles GET /systems/{id}/history.
+//
+// @Summary     List system history
+// @Description Returns historical revisions of a system
+// @Tags        System History
+// @Produce     json
+// @Param       id        path   string   true   "System ID"
+// @Param       limit     query  integer  false  "Maximum number of results"
+// @Param       offset    query  integer  false  "Result offset"
+// @Param       validTime  query  string   false  "Valid time filter (RFC 3339 date-time or interval)"
+// @Param       keyword   query  string   false  "Comma-separated keywords to match against history fields"
+// @Success     200  {object}  map[string]any
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/history [get]
 func (h *SystemHandler) ListSystemHistory(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -56,6 +71,17 @@ func (h *SystemHandler) ListSystemHistory(w http.ResponseWriter, r *http.Request
 }
 
 // GetSystemHistoryRevision handles GET /systems/{id}/history/{revId}.
+//
+// @Summary     Get system history revision
+// @Description Returns a specific historical revision of a system
+// @Tags        System History
+// @Produce     json
+// @Param       id     path  string  true  "System ID"
+// @Param       revId  path  string  true  "Revision ID"
+// @Success     200  {object}  map[string]any
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/history/{revId} [get]
 func (h *SystemHandler) GetSystemHistoryRevision(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -92,6 +118,19 @@ func (h *SystemHandler) GetSystemHistoryRevision(w http.ResponseWriter, r *http.
 }
 
 // UpdateSystemHistoryRevision handles PUT /systems/{id}/history/{revId}.
+//
+// @Summary     Update system history revision
+// @Description Replaces the snapshot for a specific system history revision (validTime cannot change)
+// @Tags        System History
+// @Accept      json
+// @Param       id      path  string          true  "System ID"
+// @Param       revId   path  string          true  "Revision ID"
+// @Param       system  body  map[string]any  true  "System snapshot"
+// @Success     204
+// @Failure     400  {object}  map[string]string
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/history/{revId} [put]
 func (h *SystemHandler) UpdateSystemHistoryRevision(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
@@ -139,6 +178,16 @@ func (h *SystemHandler) UpdateSystemHistoryRevision(w http.ResponseWriter, r *ht
 }
 
 // DeleteSystemHistoryRevision handles DELETE /systems/{id}/history/{revId}.
+//
+// @Summary     Delete system history revision
+// @Description Deletes a specific system history revision
+// @Tags        System History
+// @Param       id     path  string  true  "System ID"
+// @Param       revId  path  string  true  "Revision ID"
+// @Success     204
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/history/{revId} [delete]
 func (h *SystemHandler) DeleteSystemHistoryRevision(w http.ResponseWriter, r *http.Request) {
 	systemID := chi.URLParam(r, "systemId")
 	if systemID == "" {
