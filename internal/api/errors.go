@@ -11,6 +11,17 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
+// writeNegotiated encodes a content-negotiated body without clobbering the
+// Content-Type header. render.JSON always forces "application/json", which
+// overwrites the negotiated Content-Type (e.g. application/geo+json,
+// application/sml+json) set by the caller. Callers must set the Content-Type
+// header before calling this helper.
+func writeNegotiated(w http.ResponseWriter, body any) {
+	w.WriteHeader(http.StatusOK)
+	//nolint:errcheck
+	json.NewEncoder(w).Encode(body)
+}
+
 // writeDeserializeError writes a 400 Bad Request response with a cleaned-up
 // deserialization error message. The caller should log the raw error before
 // calling this helper.

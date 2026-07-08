@@ -11,6 +11,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/yourusername/connected-systems-go/internal/mqtt"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -23,14 +24,15 @@ type SystemEventCollectionResponse struct {
 
 // SystemEventHandler handles /systemEvents and /systems/{id}/events resources.
 type SystemEventHandler struct {
-	cfg        *config.Config
-	logger     *zap.Logger
-	repo       *repository.SystemEventRepository
-	systemRepo *repository.SystemRepository
+	cfg         *config.Config
+	logger      *zap.Logger
+	repo        *repository.SystemEventRepository
+	systemRepo  *repository.SystemRepository
+	mqttManager *mqtt.Manager
 }
 
-func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository) *SystemEventHandler {
-	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo}
+func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository, mqttManager *mqtt.Manager) *SystemEventHandler {
+	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, mqttManager: mqttManager}
 }
 
 // ListSystemEvents returns a paginated list of system events
@@ -168,6 +170,7 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 	}
 
 	createdIDs := make([]string, 0, 1)
+	var lastCreatedEvent *domains.SystemEvent
 	createOne := func(e *domains.SystemEvent) error {
 		e.SystemID = systemID
 		if e.Label == "" {
@@ -177,6 +180,7 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 			return err
 		}
 		createdIDs = append(createdIDs, e.ID)
+		lastCreatedEvent = e
 		return nil
 	}
 
@@ -231,6 +235,11 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/systems/" + systemID + "/events/" + createdIDs[0]
 	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusCreated)
+
+	// Publish to MQTT (fire-and-forget)
+	if lastCreatedEvent != nil {
+		h.publishSystemEventToMQTT(systemID, lastCreatedEvent)
+	}
 }
 
 // GetEventByID returns a single system event by ID
@@ -307,6 +316,9 @@ func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+
+	// Publish to MQTT (fire-and-forget)
+	h.publishSystemEventToMQTT(systemID, &event)
 }
 
 // DeleteEventByID deletes a system event by ID
@@ -341,4 +353,22 @@ func (h *SystemEventHandler) DeleteEventByID(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// publishSystemEventToMQTT publishes a system event to MQTT topics.
+// Non-blocking — errors are logged.
+func (h *SystemEventHandler) publishSystemEventToMQTT(systemID string, event *domains.SystemEvent) {
+	if h.mqttManager == nil || !h.mqttManager.IsConnected() {
+		return
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		h.logger.Error("Failed to marshal system event for MQTT", zap.Error(err))
+		return
+	}
+
+	// Publish to both the specific system topic and the wildcard topic
+	h.mqttManager.Publish(mqtt.SystemEventTopic(systemID), payload)
+	h.mqttManager.Publish(mqtt.SystemEventsTopic(), payload)
 }

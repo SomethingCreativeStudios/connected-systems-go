@@ -102,6 +102,9 @@ func TestSystemEvent_ResourcesEndpoint(t *testing.T) {
 
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
@@ -175,6 +178,9 @@ func TestSystemEvent_SystemSubCollection(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
@@ -251,6 +257,9 @@ func TestSystemEvent_Filtering(t *testing.T) {
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok)
 	assert.GreaterOrEqual(t, len(items), 1)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 
 	for _, item := range items {
 		obj, _ := item.(map[string]interface{})
@@ -273,6 +282,9 @@ func TestSystemEvent_FilteringNoMatches(t *testing.T) {
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok)
 	assert.Len(t, items, 0)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 }
 
 func TestSystemEvent_CreateArrayPayload(t *testing.T) {
@@ -306,6 +318,9 @@ func TestSystemEvent_CreateArrayPayload(t *testing.T) {
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok)
 	require.GreaterOrEqual(t, len(items), 2)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 
 	labels := map[string]bool{}
 	for _, item := range items {

@@ -17,6 +17,9 @@ func getJSONItems(t *testing.T, body []byte) []interface{} {
 	require.NoError(t, json.Unmarshal(body, &collection))
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok, "response must contain 'items' array; got: %s", string(body))
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array; got: %s", string(body))
+	require.GreaterOrEqual(t, len(links), 1, "response links must include at least self")
 	return items
 }
 

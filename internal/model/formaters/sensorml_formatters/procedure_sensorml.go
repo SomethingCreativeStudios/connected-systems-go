@@ -153,7 +153,7 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 			AttachedTo:           c.AttachedTo,
 			LocalReferenceFrames: c.LocalReferenceFrames,
 			LocalTimeFrames:      c.LocalTimeFrames,
-			ValidTime:            c.ValidTime,
+			ValidTime:            common_shared.NonEmptyTimeRange(c.ValidTime),
 			Links:                c.Links,
 		}
 	}
@@ -188,7 +188,7 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 			AttachedTo:           absolutizeLink(procedure.AttachedTo),
 			LocalReferenceFrames: procedure.LocalReferenceFrames,
 			LocalTimeFrames:      procedure.LocalTimeFrames,
-			ValidTime:            procedure.ValidTime,
+			ValidTime:            common_shared.NonEmptyTimeRange(procedure.ValidTime),
 			Links:                formaters.AppendProcedureAssociationLinks(procedure),
 		}
 
@@ -319,13 +319,13 @@ func (f *ProcedureSensorMLFormatter) Deserialize(ctx context.Context, reader io.
 	procedure.AttachedTo = sensorML.AttachedTo
 	procedure.LocalReferenceFrames = sensorML.LocalReferenceFrames
 	procedure.LocalTimeFrames = sensorML.LocalTimeFrames
-	procedure.ValidTime = sensorML.ValidTime
+	procedure.ValidTime = common_shared.NonEmptyTimeRange(sensorML.ValidTime)
 
 	// Handle validTime from raw if not in structured form
 	if procedure.ValidTime == nil {
 		if vt, ok := raw["validTime"]; ok {
 			tr := common_shared.ParseTimeRange(vt)
-			procedure.ValidTime = &tr
+			procedure.ValidTime = common_shared.NonEmptyTimeRange(&tr)
 		}
 	}
 

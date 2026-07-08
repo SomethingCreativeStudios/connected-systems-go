@@ -101,6 +101,9 @@ func TestDatastreamConformance_ResourcesEndpoint(t *testing.T) {
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok, "response must contain 'items' array")
 	require.GreaterOrEqual(t, len(items), 1, "expected at least one datastream")
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {

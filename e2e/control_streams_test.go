@@ -53,6 +53,27 @@ func baseCommandPayload() map[string]interface{} {
 	}
 }
 
+func createCommandViaAPI(t *testing.T, controlStreamID string, payload map[string]interface{}) string {
+	t.Helper()
+
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/controlstreams/"+controlStreamID+"/commands", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	id := parseID(resp.Header.Get("Location"), "/commands/")
+	require.NotEmpty(t, id)
+	return id
+}
+
 // createControlStreamViaAPI creates a control stream under a given system and returns the new ID.
 func createControlStreamViaAPI(t *testing.T, systemID string, payload map[string]interface{}) string {
 	t.Helper()
@@ -142,6 +163,9 @@ func TestControlStream_ResourcesEndpoint(t *testing.T) {
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok, "response must contain 'items' array")
 	require.GreaterOrEqual(t, len(items), 1)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
@@ -257,6 +281,9 @@ func TestControlStream_SystemSubCollection(t *testing.T) {
 
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
@@ -490,6 +517,9 @@ func TestCommand_ResourcesEndpoint(t *testing.T) {
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok, "response must contain 'items' array")
 	require.GreaterOrEqual(t, len(items), 1)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
@@ -571,6 +601,9 @@ func TestCommand_ControlStreamSubCollection(t *testing.T) {
 
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 	assert.GreaterOrEqual(t, len(items), 2, "expected at least 2 commands for this control stream")
 }
 
@@ -741,6 +774,201 @@ func TestCommandCRUD(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, getResp3.StatusCode)
 }
 
+func TestCommandStatusReports_CRUDAndEnvelope(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemForControlStreamTest(t)
+	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
+	cmdID := createCommandViaAPI(t, csID, baseCommandPayload())
+
+	payload := map[string]interface{}{
+		"reportTime":        "2026-04-01T12:00:00Z",
+		"statusCode":        "EXECUTING",
+		"percentCompletion": 50.0,
+		"message":           "Command is running",
+	}
+	body, _ := json.Marshal(payload)
+	postReq, _ := http.NewRequest(http.MethodPost, testServer.URL+"/commands/"+cmdID+"/status", bytes.NewReader(body))
+	postReq.Header.Set("Content-Type", "application/json")
+	postReq.Header.Set("Accept", "application/json")
+	postResp, err := http.DefaultClient.Do(postReq)
+	require.NoError(t, err)
+	defer postResp.Body.Close()
+	require.Equal(t, http.StatusCreated, postResp.StatusCode)
+
+	statusID := parseID(postResp.Header.Get("Location"), "/status/")
+	require.NotEmpty(t, statusID)
+
+	getReq, _ := http.NewRequest(http.MethodGet, testServer.URL+"/commands/"+cmdID+"/status/"+statusID, nil)
+	getReq.Header.Set("Accept", "application/json")
+	getResp, err := http.DefaultClient.Do(getReq)
+	require.NoError(t, err)
+	defer getResp.Body.Close()
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+
+	var status map[string]interface{}
+	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&status))
+	assert.Equal(t, statusID, status["id"])
+	assert.Equal(t, cmdID, status["command@id"])
+	assert.Equal(t, "EXECUTING", status["statusCode"])
+	assert.Equal(t, 50.0, status["percentCompletion"])
+
+	cmdResp := doGet(t, "/commands/"+cmdID)
+	defer cmdResp.Body.Close()
+	var cmd map[string]interface{}
+	require.NoError(t, json.NewDecoder(cmdResp.Body).Decode(&cmd))
+	assert.Equal(t, "EXECUTING", cmd["currentStatus"], "status report must update command currentStatus")
+
+	listReq, _ := http.NewRequest(http.MethodGet, testServer.URL+"/commands/"+cmdID+"/status?statusCode=EXECUTING&reportTime=2026-04-01T00:00:00Z/2026-04-02T00:00:00Z", nil)
+	listReq.Header.Set("Accept", "application/json")
+	listResp, err := http.DefaultClient.Do(listReq)
+	require.NoError(t, err)
+	defer listResp.Body.Close()
+	require.Equal(t, http.StatusOK, listResp.StatusCode)
+	listBody, err := io.ReadAll(listResp.Body)
+	require.NoError(t, err)
+	items := getJSONItems(t, listBody)
+	require.Len(t, items, 1)
+
+	update := map[string]interface{}{
+		"statusCode":        "COMPLETED",
+		"percentCompletion": 100.0,
+		"message":           "Command finished",
+	}
+	updateBody, _ := json.Marshal(update)
+	putReq, _ := http.NewRequest(http.MethodPut, testServer.URL+"/commands/"+cmdID+"/status/"+statusID, bytes.NewReader(updateBody))
+	putReq.Header.Set("Content-Type", "application/json")
+	putResp, err := http.DefaultClient.Do(putReq)
+	require.NoError(t, err)
+	defer putResp.Body.Close()
+	require.Equal(t, http.StatusNoContent, putResp.StatusCode)
+
+	refetch := doGet(t, "/commands/"+cmdID+"/status/"+statusID)
+	defer refetch.Body.Close()
+	var updatedStatus map[string]interface{}
+	require.NoError(t, json.NewDecoder(refetch.Body).Decode(&updatedStatus))
+	assert.Equal(t, "COMPLETED", updatedStatus["statusCode"])
+
+	cmdResp2 := doGet(t, "/commands/"+cmdID)
+	defer cmdResp2.Body.Close()
+	var updatedCmd map[string]interface{}
+	require.NoError(t, json.NewDecoder(cmdResp2.Body).Decode(&updatedCmd))
+	assert.Equal(t, "COMPLETED", updatedCmd["currentStatus"])
+
+	delReq, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/commands/"+cmdID+"/status/"+statusID, nil)
+	delResp, err := http.DefaultClient.Do(delReq)
+	require.NoError(t, err)
+	defer delResp.Body.Close()
+	require.Equal(t, http.StatusNoContent, delResp.StatusCode)
+
+	missing := doGet(t, "/commands/"+cmdID+"/status/"+statusID)
+	defer missing.Body.Close()
+	assert.Equal(t, http.StatusNotFound, missing.StatusCode)
+}
+
+func TestCommandResults_CRUDAndEnvelope(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemForControlStreamTest(t)
+	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
+	cmdID := createCommandViaAPI(t, csID, baseCommandPayload())
+
+	payload := map[string]interface{}{
+		"data": map[string]interface{}{
+			"accepted": true,
+			"value":    22.5,
+		},
+	}
+	body, _ := json.Marshal(payload)
+	postReq, _ := http.NewRequest(http.MethodPost, testServer.URL+"/commands/"+cmdID+"/result", bytes.NewReader(body))
+	postReq.Header.Set("Content-Type", "application/json")
+	postReq.Header.Set("Accept", "application/json")
+	postResp, err := http.DefaultClient.Do(postReq)
+	require.NoError(t, err)
+	defer postResp.Body.Close()
+	require.Equal(t, http.StatusCreated, postResp.StatusCode)
+
+	resultID := parseID(postResp.Header.Get("Location"), "/result/")
+	require.NotEmpty(t, resultID)
+
+	getResp := doGet(t, "/commands/"+cmdID+"/result/"+resultID)
+	defer getResp.Body.Close()
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+
+	var result map[string]interface{}
+	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&result))
+	assert.Equal(t, resultID, result["id"])
+	assert.Equal(t, cmdID, result["command@id"])
+	data, ok := result["data"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, true, data["accepted"])
+
+	listResp := doGet(t, "/commands/"+cmdID+"/result")
+	defer listResp.Body.Close()
+	require.Equal(t, http.StatusOK, listResp.StatusCode)
+	listBody, err := io.ReadAll(listResp.Body)
+	require.NoError(t, err)
+	items := getJSONItems(t, listBody)
+	require.Len(t, items, 1)
+
+	update := map[string]interface{}{
+		"external@link": map[string]interface{}{
+			"href":  "https://example.org/results/command-output.json",
+			"type":  "application/json",
+			"title": "External result",
+		},
+	}
+	updateBody, _ := json.Marshal(update)
+	putReq, _ := http.NewRequest(http.MethodPut, testServer.URL+"/commands/"+cmdID+"/result/"+resultID, bytes.NewReader(updateBody))
+	putReq.Header.Set("Content-Type", "application/json")
+	putResp, err := http.DefaultClient.Do(putReq)
+	require.NoError(t, err)
+	defer putResp.Body.Close()
+	require.Equal(t, http.StatusNoContent, putResp.StatusCode)
+
+	refetch := doGet(t, "/commands/"+cmdID+"/result/"+resultID)
+	defer refetch.Body.Close()
+	var updatedResult map[string]interface{}
+	require.NoError(t, json.NewDecoder(refetch.Body).Decode(&updatedResult))
+	require.NotContains(t, updatedResult, "data")
+	externalLink, ok := updatedResult["external@link"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "https://example.org/results/command-output.json", externalLink["href"])
+
+	delReq, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/commands/"+cmdID+"/result/"+resultID, nil)
+	delResp, err := http.DefaultClient.Do(delReq)
+	require.NoError(t, err)
+	defer delResp.Body.Close()
+	require.Equal(t, http.StatusNoContent, delResp.StatusCode)
+
+	missing := doGet(t, "/commands/"+cmdID+"/result/"+resultID)
+	defer missing.Body.Close()
+	assert.Equal(t, http.StatusNotFound, missing.StatusCode)
+}
+
+func TestCommandResult_RejectsMultipleVariants(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemForControlStreamTest(t)
+	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
+	cmdID := createCommandViaAPI(t, csID, baseCommandPayload())
+
+	payload := map[string]interface{}{
+		"data": map[string]interface{}{"value": 1},
+		"external@link": map[string]interface{}{
+			"href": "https://example.org/results/result.json",
+		},
+	}
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequest(http.MethodPost, testServer.URL+"/commands/"+cmdID+"/result", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
 // =============================================================================
 // Conformance Class: /conf/command
 // Requirement: /req/command/controlstream-parent-404
@@ -799,6 +1027,9 @@ func TestCommand_FilterByControlStream(t *testing.T) {
 	require.NoError(t, json.NewDecoder(listResp.Body).Decode(&collection))
 	items, ok := collection["items"].([]interface{})
 	require.True(t, ok)
+	links, ok := collection["links"].([]interface{})
+	require.True(t, ok, "response must contain 'links' array")
+	require.GreaterOrEqual(t, len(links), 1)
 	assert.Equal(t, 2, len(items), "filter by controlStream should return exactly 2 commands")
 
 	for _, item := range items {

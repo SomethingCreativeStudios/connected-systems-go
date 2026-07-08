@@ -232,12 +232,7 @@ func TestSamplingFeatureConformance(t *testing.T) {
 				// Verify content type header contains expected media type
 				contentType := resp.Header.Get("Content-Type")
 				assert.NotEmpty(t, contentType, "Content-Type header must be set")
-				// Check that it's either the requested format or at least a valid JSON type
-				assert.True(t,
-					contentType == "application/geo+json" ||
-						contentType == "application/json" ||
-						contentType == "application/json; charset=utf-8",
-					"Content-Type must be a valid GeoJSON media type, got: %s", contentType)
+				assert.Equal(t, "application/geo+json", contentType)
 			},
 		},
 		"/conf/sf/canonical-url": {

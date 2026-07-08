@@ -126,6 +126,8 @@ func DefaultSystemModels() []interface{} {
 		&domains.DeploymentClosure{},
 		&domains.ControlStream{},
 		&domains.Command{},
+		&domains.CommandStatusReport{},
+		&domains.CommandResult{},
 		&domains.SystemEvent{},
 		&domains.SystemHistoryRevision{},
 	}
@@ -146,6 +148,8 @@ func AllModels() []interface{} {
 		&domains.DeploymentClosure{},
 		&domains.ControlStream{},
 		&domains.Command{},
+		&domains.CommandStatusReport{},
+		&domains.CommandResult{},
 		&domains.SystemEvent{},
 		&domains.SystemHistoryRevision{},
 	}

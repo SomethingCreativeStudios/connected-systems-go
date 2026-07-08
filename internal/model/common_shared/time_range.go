@@ -22,6 +22,20 @@ type TimeRange struct {
 	Latest bool       `json:"-"`
 }
 
+// HasBounds reports whether the range has at least one concrete bound.
+func (tr *TimeRange) HasBounds() bool {
+	return tr != nil && (tr.Start != nil || tr.End != nil)
+}
+
+// NonEmptyTimeRange returns nil for unbounded ranges so json:",omitempty" can
+// omit empty time fields instead of emitting values such as [null].
+func NonEmptyTimeRange(tr *TimeRange) *TimeRange {
+	if tr == nil || !tr.HasBounds() {
+		return nil
+	}
+	return tr
+}
+
 // MarshalJSON serializes TimeRange as a JSON array [start, end].
 // Each element is an RFC3339 string or null when missing.
 func (tr TimeRange) MarshalJSON() ([]byte, error) {

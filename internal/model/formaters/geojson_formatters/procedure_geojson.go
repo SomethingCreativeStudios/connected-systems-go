@@ -51,7 +51,7 @@ func (f *ProcedureGeoJSONFormatter) SerializeAll(ctx context.Context, procedures
 				Name:        procedure.Name,
 				Description: procedure.Description,
 				FeatureType: procedure.ProcedureType,
-				ValidTime:   procedure.ValidTime,
+				ValidTime:   common_shared.NonEmptyTimeRange(procedure.ValidTime),
 			},
 			Links: formaters.AppendProcedureAssociationLinks(procedure),
 		}
@@ -88,7 +88,7 @@ func (f *ProcedureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.R
 	procedure.Name = geoJSON.Properties.Name
 	procedure.Description = geoJSON.Properties.Description
 	procedure.ProcedureType = geoJSON.Properties.FeatureType
-	procedure.ValidTime = geoJSON.Properties.ValidTime
+	procedure.ValidTime = common_shared.NonEmptyTimeRange(geoJSON.Properties.ValidTime)
 
 	return procedure, nil
 }

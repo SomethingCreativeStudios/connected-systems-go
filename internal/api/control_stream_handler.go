@@ -176,7 +176,7 @@ func (h *ControlStreamHandler) GetControlStream(w http.ResponseWriter, r *http.R
 	}
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, serialized)
+	writeNegotiated(w, serialized)
 }
 
 // CreateControlStream handles POST /systems/{id}/controlstreams

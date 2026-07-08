@@ -146,7 +146,7 @@ func (h *CollectionHandler) GetCollection(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	render.JSON(w, r, collection)
+	writeNegotiated(w, collection)
 }
 
 func ensureCanonicalCollections(existing []*domains.Collection, baseURL string) []*domains.Collection {

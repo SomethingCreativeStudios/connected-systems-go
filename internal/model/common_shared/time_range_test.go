@@ -3,6 +3,7 @@ package common_shared
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 // ── UnmarshalJSON ────────────────────────────────────────────────────────────
@@ -58,6 +59,20 @@ func TestTimeRange_UnmarshalJSON_Null_OK(t *testing.T) {
 	var tr TimeRange
 	if err := json.Unmarshal([]byte(`null`), &tr); err != nil {
 		t.Fatalf("unexpected error for null: %v", err)
+	}
+}
+
+func TestNonEmptyTimeRange_EmptyReturnsNil(t *testing.T) {
+	if got := NonEmptyTimeRange(&TimeRange{}); got != nil {
+		t.Fatalf("expected empty range to be nil, got %#v", got)
+	}
+}
+
+func TestNonEmptyTimeRange_OpenEndedReturnsRange(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	tr := &TimeRange{Start: &start}
+	if got := NonEmptyTimeRange(tr); got != tr {
+		t.Fatalf("expected bounded range to be preserved, got %#v", got)
 	}
 }
 

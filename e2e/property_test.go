@@ -149,10 +149,10 @@ func TestPropertyConformance(t *testing.T) {
 				err = json.Unmarshal(body, &collection)
 				require.NoError(t, err, "Response must be valid JSON")
 
-				// Must contain features array (OGC FeatureCollection uses "features")
-				features, ok := collection["features"].([]interface{})
-				assert.True(t, ok, "Response must contain 'features' array")
-				assert.GreaterOrEqual(t, len(features), 1, "Collection must contain at least one property")
+				// sml+json collections use an "items" array (OGC /req/sensorml/collection-items)
+				items, ok := collection["items"].([]interface{})
+				assert.True(t, ok, "Response must contain 'items' array")
+				assert.GreaterOrEqual(t, len(items), 1, "Collection must contain at least one property")
 			},
 		},
 		"/conf/property/canonical-endpoint": {
@@ -175,16 +175,9 @@ func TestPropertyConformance(t *testing.T) {
 				assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 				// Verify content type header contains expected media type
-				// Note: render.JSON may override Content-Type, but the key conformance
-				// requirement is that the endpoint exists and returns valid data
 				contentType := resp.Header.Get("Content-Type")
 				assert.NotEmpty(t, contentType, "Content-Type header must be set")
-				// Check that it's either the requested format or at least a valid JSON type
-				assert.True(t,
-					contentType == "application/sml+json" ||
-						contentType == "application/json" ||
-						contentType == "application/json; charset=utf-8",
-					"Content-Type must be a valid JSON media type, got: %s", contentType)
+				assert.Equal(t, "application/sml+json", contentType)
 			},
 		},
 		"/conf/property/canonical-url": {
@@ -297,10 +290,10 @@ func TestPropertySchema_SensorML(t *testing.T) {
 				err = json.Unmarshal(body, &collection)
 				require.NoError(t, err)
 
-				features, ok := collection["features"].([]interface{})
-				require.True(t, ok, "Collection must have features array")
+				items, ok := collection["items"].([]interface{})
+				require.True(t, ok, "Collection must have items array")
 
-				for i, item := range features {
+				for i, item := range items {
 					t.Run(fmt.Sprintf("item-%d", i), func(t *testing.T) {
 						itemBytes, err := json.Marshal(item)
 						require.NoError(t, err)
@@ -699,7 +692,7 @@ func TestPropertyAdvancedFiltering_BaseProp(t *testing.T) {
 			err = json.NewDecoder(resp.Body).Decode(&collection)
 			require.NoError(t, err)
 
-			features, ok := collection["features"].([]interface{})
+			features, ok := collection["items"].([]interface{})
 			require.True(t, ok)
 
 			if tc.expectedMinLen == 0 {
@@ -771,7 +764,7 @@ func TestPropertyAdvancedFiltering_ObjectType(t *testing.T) {
 			err = json.NewDecoder(resp.Body).Decode(&collection)
 			require.NoError(t, err)
 
-			features, ok := collection["features"].([]interface{})
+			features, ok := collection["items"].([]interface{})
 			require.True(t, ok)
 
 			if tc.expectedMinLen == 0 {
@@ -846,7 +839,7 @@ func TestPropertyAdvancedFiltering_CombinedFilters(t *testing.T) {
 			err = json.NewDecoder(resp.Body).Decode(&collection)
 			require.NoError(t, err)
 
-			features, ok := collection["features"].([]interface{})
+			features, ok := collection["items"].([]interface{})
 			require.True(t, ok)
 
 			if tc.expectedMinLen == 0 {

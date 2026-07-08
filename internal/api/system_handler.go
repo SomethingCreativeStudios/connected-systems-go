@@ -90,7 +90,7 @@ func (h *SystemHandler) ListSystems(w http.ResponseWriter, r *http.Request) {
 	collection := h.fc.BuildCollection(acceptHeader, systems, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	writeNegotiated(w, collection)
 }
 
 // GetSystem retrieves a single system by ID
@@ -127,7 +127,7 @@ func (h *SystemHandler) GetSystem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, serialized)
+	writeNegotiated(w, serialized)
 }
 
 // CreateSystem creates a new system
@@ -286,7 +286,7 @@ func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 	collection := h.fc.BuildCollection(acceptHeader, systems, h.cfg.API.BaseURL+r.URL.Path, len(systems), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	writeNegotiated(w, collection)
 }
 
 func (h *SystemHandler) populateSystemAssociationLinks(systems []*domains.System) {
@@ -343,7 +343,7 @@ func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 	collection := h.deploymentFC.BuildCollection(acceptHeader, deployments, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.deploymentFC.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	writeNegotiated(w, collection)
 }
 
 // GetProcedures retrieves procedures associated with a system.
@@ -384,7 +384,7 @@ func (h *SystemHandler) GetProcedures(w http.ResponseWriter, r *http.Request) {
 	collection := h.procedureFC.BuildCollection(acceptHeader, procedures, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.procedureFC.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, collection)
+	writeNegotiated(w, collection)
 }
 
 // AddSubsystem adds a subsystem to a system

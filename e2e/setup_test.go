@@ -117,14 +117,14 @@ func TestMain(m *testing.M) {
 
 	// Create router with a placeholder handler so we can reserve a URL,
 	// then update config and rebuild the router with the correct BaseURL.
-	placeholderRouter := api.NewRouter(cfg, logger, testRepos)
+	placeholderRouter := api.NewRouter(cfg, logger, testRepos, nil)
 	testServer = httptest.NewServer(placeholderRouter)
 	cfg.API.BaseURL = testServer.URL
 	formaters.SetAssociationLinksBaseURL(testServer.URL)
 
 	// Rebuild the router with the correct BaseURL so association links
 	// and Location headers use the real test server address.
-	router := api.NewRouter(cfg, logger, testRepos)
+	router := api.NewRouter(cfg, logger, testRepos, nil)
 	testServer.Config.Handler = router
 
 	// Run tests
@@ -145,7 +145,7 @@ func TestMain(m *testing.M) {
 // cleanupDB truncates all tables to ensure test isolation
 func cleanupDB(t *testing.T) {
 	t.Helper()
-	testDB.Exec("TRUNCATE TABLE observations, datastreams, commands, control_streams, system_events, system_history_revisions, systems, deployments, procedures, sampling_features, properties, features, collections CASCADE")
+	testDB.Exec("TRUNCATE TABLE observations, datastreams, command_status_reports, command_results, commands, control_streams, system_events, system_history_revisions, systems, deployments, procedures, sampling_features, properties, features, collections CASCADE")
 }
 
 func parseID(locationHeader string, prefix string) string {

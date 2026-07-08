@@ -36,7 +36,7 @@ func (f *ControlStreamJSONFormatter) Serialize(ctx context.Context, cs *domains.
 	if cs == nil {
 		return ControlStreamJSONFeature{}, fmt.Errorf("control stream cannot be nil")
 	}
-	out := ControlStreamJSONFeature{ControlStream: *cs}
+	out := ControlStreamJSONFeature{ControlStream: sanitizeControlStreamTimeRanges(*cs)}
 	out.Links = appendControlStreamAssociationLinks(cs)
 	if cs.SystemID != nil {
 		out.SystemLink = &common_shared.Link{
@@ -121,7 +121,7 @@ func (f *ControlStreamJSONFormatter) SerializeAll(ctx context.Context, controlSt
 		if cs == nil {
 			continue
 		}
-		out := ControlStreamJSONFeature{ControlStream: *cs}
+		out := ControlStreamJSONFeature{ControlStream: sanitizeControlStreamTimeRanges(*cs)}
 		out.Links = appendControlStreamAssociationLinks(cs)
 		if cs.SystemID != nil {
 			out.SystemLink = &common_shared.Link{
@@ -209,10 +209,18 @@ func (f *ControlStreamJSONFormatter) Deserialize(ctx context.Context, reader io.
 		return nil, err
 	}
 	cs := wire.ControlStream
+	cs = sanitizeControlStreamTimeRanges(cs)
 	if wire.SystemLink != nil {
 		cs.SystemID = wire.SystemLink.GetId("systems")
 	}
 	return &cs, nil
+}
+
+func sanitizeControlStreamTimeRanges(cs domains.ControlStream) domains.ControlStream {
+	cs.ValidTime = common_shared.NonEmptyTimeRange(cs.ValidTime)
+	cs.IssueTime = common_shared.NonEmptyTimeRange(cs.IssueTime)
+	cs.ExecutionTime = common_shared.NonEmptyTimeRange(cs.ExecutionTime)
+	return cs
 }
 
 func appendControlStreamAssociationLinks(cs *domains.ControlStream) common_shared.Links {

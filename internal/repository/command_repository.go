@@ -84,7 +84,157 @@ func (r *CommandRepository) Update(cmd *domains.Command) error {
 
 // Delete deletes a command.
 func (r *CommandRepository) Delete(id string) error {
-	result := r.db.Delete(&domains.Command{}, "id = ?", id)
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&domains.CommandStatusReport{}, "command_id = ?", id).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&domains.CommandResult{}, "command_id = ?", id).Error; err != nil {
+			return err
+		}
+
+		result := tx.Delete(&domains.Command{}, "id = ?", id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
+// CreateStatus persists a command status report and updates the parent command current status.
+func (r *CommandRepository) CreateStatus(status *domains.CommandStatusReport) error {
+	if status.ReportTime.IsZero() {
+		status.ReportTime = time.Now().UTC()
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(status).Error; err != nil {
+			return err
+		}
+		return tx.Model(&domains.Command{}).
+			Where("id = ?", status.CommandID).
+			Update("current_status", status.StatusCode).
+			Error
+	})
+}
+
+// GetStatusByID retrieves a command status report by command ID and status ID.
+func (r *CommandRepository) GetStatusByID(commandID, statusID string) (*domains.CommandStatusReport, error) {
+	var status domains.CommandStatusReport
+	err := r.db.Where("command_id = ? AND id = ?", commandID, statusID).First(&status).Error
+	if err != nil {
+		return nil, err
+	}
+	return &status, nil
+}
+
+// ListStatuses retrieves command status reports with filtering.
+func (r *CommandRepository) ListStatuses(commandID string, params *queryparams.CommandStatusQueryParams) ([]*domains.CommandStatusReport, int64, error) {
+	var statuses []*domains.CommandStatusReport
+	var total int64
+
+	query := r.db.Model(&domains.CommandStatusReport{}).Where("command_id = ?", commandID)
+	query = r.applyStatusFilters(query, params)
+
+	if params.ReportTime != nil && params.ReportTime.Latest {
+		err := query.Order("report_time desc").Limit(1).Find(&statuses).Error
+		return statuses, int64(len(statuses)), err
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if params.Limit > 0 {
+		query = query.Limit(params.Limit)
+	}
+	if params.Offset > 0 {
+		query = query.Offset(params.Offset)
+	}
+
+	err := query.Order("report_time desc").Find(&statuses).Error
+	return statuses, total, err
+}
+
+// UpdateStatus updates a command status report and the parent command current status.
+func (r *CommandRepository) UpdateStatus(status *domains.CommandStatusReport) error {
+	if status.ReportTime.IsZero() {
+		status.ReportTime = time.Now().UTC()
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(status).Error; err != nil {
+			return err
+		}
+		return tx.Model(&domains.Command{}).
+			Where("id = ?", status.CommandID).
+			Update("current_status", status.StatusCode).
+			Error
+	})
+}
+
+// DeleteStatus deletes a command status report.
+func (r *CommandRepository) DeleteStatus(commandID, statusID string) error {
+	result := r.db.Delete(&domains.CommandStatusReport{}, "command_id = ? AND id = ?", commandID, statusID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CreateResult persists a command result.
+func (r *CommandRepository) CreateResult(result *domains.CommandResult) error {
+	return r.db.Create(result).Error
+}
+
+// GetResultByID retrieves a command result by command ID and result ID.
+func (r *CommandRepository) GetResultByID(commandID, resultID string) (*domains.CommandResult, error) {
+	var result domains.CommandResult
+	err := r.db.Where("command_id = ? AND id = ?", commandID, resultID).First(&result).Error
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ListResults retrieves command results with filtering.
+func (r *CommandRepository) ListResults(commandID string, params *queryparams.CommandResultQueryParams) ([]*domains.CommandResult, int64, error) {
+	var results []*domains.CommandResult
+	var total int64
+
+	query := r.db.Model(&domains.CommandResult{}).Where("command_id = ?", commandID)
+	if len(params.IDs) > 0 {
+		query = query.Where("id IN ?", params.IDs)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if params.Limit > 0 {
+		query = query.Limit(params.Limit)
+	}
+	if params.Offset > 0 {
+		query = query.Offset(params.Offset)
+	}
+
+	err := query.Order("created_at desc").Find(&results).Error
+	return results, total, err
+}
+
+// UpdateResult updates a command result.
+func (r *CommandRepository) UpdateResult(result *domains.CommandResult) error {
+	return r.db.Save(result).Error
+}
+
+// DeleteResult deletes a command result.
+func (r *CommandRepository) DeleteResult(commandID, resultID string) error {
+	result := r.db.Delete(&domains.CommandResult{}, "command_id = ? AND id = ?", commandID, resultID)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -156,6 +306,28 @@ func (r *CommandRepository) applyFilters(query *gorm.DB, params *queryparams.Com
 			args = append(args, like)
 		}
 		query = query.Where(strings.Join(clauses, " OR "), args...)
+	}
+
+	return query
+}
+
+func (r *CommandRepository) applyStatusFilters(query *gorm.DB, params *queryparams.CommandStatusQueryParams) *gorm.DB {
+	if len(params.IDs) > 0 {
+		query = query.Where("id IN ?", params.IDs)
+	}
+
+	if len(params.StatusCode) > 0 {
+		query = query.Where("status_code IN ?", params.StatusCode)
+	}
+
+	if params.ReportTime != nil && !params.ReportTime.Latest {
+		if params.ReportTime.Start != nil && params.ReportTime.End != nil {
+			query = query.Where("report_time <= ? AND report_time >= ?", params.ReportTime.End, params.ReportTime.Start)
+		} else if params.ReportTime.Start != nil {
+			query = query.Where("report_time >= ?", params.ReportTime.Start)
+		} else if params.ReportTime.End != nil {
+			query = query.Where("report_time <= ?", params.ReportTime.End)
+		}
 	}
 
 	return query

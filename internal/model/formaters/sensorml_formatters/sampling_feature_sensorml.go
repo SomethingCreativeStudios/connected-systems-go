@@ -50,7 +50,8 @@ func (f *SamplingFeatureSensorMLFormatter) SerializeAll(ctx context.Context, sam
 			Description:        sf.Description,
 			UniqueID:           string(sf.UniqueIdentifier),
 			Definition:         sf.FeatureType,
-			ValidTime:          sf.ValidTime,
+			ValidTime:          common_shared.NonEmptyTimeRange(sf.ValidTime),
+			Position:           sf.Geometry,
 			SampledFeatureLink: absolutizeLink(sf.SampledFeatureLink),
 			SampleOf:           absolutizeLinks(sf.SampleOf),
 			Links:              sf.Links,
@@ -137,7 +138,8 @@ func (f *SamplingFeatureSensorMLFormatter) Deserialize(ctx context.Context, read
 		sf.FeatureType = sensorML.Type
 	}
 
-	sf.ValidTime = sensorML.ValidTime
+	sf.ValidTime = common_shared.NonEmptyTimeRange(sensorML.ValidTime)
+	sf.Geometry = sensorML.Position
 	sf.SampledFeatureLink = sensorML.SampledFeatureLink
 	sf.SampleOf = sensorML.SampleOf
 
@@ -146,8 +148,16 @@ func (f *SamplingFeatureSensorMLFormatter) Deserialize(ctx context.Context, read
 		sf.SampledFeatureID = sensorML.SampledFeatureLink.GetId("samplingFeatures")
 	}
 
-	// Handle geometry from position field if present
-	if geomObj, ok := raw["position"]; ok {
+	// Handle geometry from position field if present.
+	var geomObj interface{}
+	if sensorML.Position == nil {
+		if position, ok := raw["position"]; ok {
+			geomObj = position
+		} else if geometry, ok := raw["geometry"]; ok {
+			geomObj = geometry
+		}
+	}
+	if geomObj != nil {
 		if gb, err := json.Marshal(geomObj); err == nil {
 			var gg common_shared.GoGeom
 			if err := json.Unmarshal(gb, &gg); err == nil {
