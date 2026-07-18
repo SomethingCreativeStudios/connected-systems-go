@@ -2,6 +2,7 @@ package sensorml_formatters
 
 import (
 	"context"
+	"fmt"
 	"encoding/json"
 	"io"
 
@@ -187,6 +188,20 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 		deployment.DeploymentType = sensorML.Definition
 	} else if sensorML.Type != "" {
 		deployment.DeploymentType = sensorML.Type
+	}
+
+	// Required root fields per OGC CS Part 1 deployment SensorML schema
+	if sensorML.Type == "" {
+		return nil, fmt.Errorf("type is required")
+	}
+	if deployment.UniqueIdentifier == "" {
+		return nil, fmt.Errorf("uniqueId is required")
+	}
+	if deployment.Name == "" {
+		return nil, fmt.Errorf("label is required")
+	}
+	if sensorML.Definition == "" {
+		return nil, fmt.Errorf("definition is required")
 	}
 
 	deployment.ValidTime = common_shared.NonEmptyTimeRange(sensorML.ValidTime)

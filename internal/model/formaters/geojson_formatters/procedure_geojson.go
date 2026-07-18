@@ -2,6 +2,7 @@ package geojson_formatters
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -81,6 +82,17 @@ func (f *ProcedureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.R
 
 	procedure := &domains.Procedure{
 		Links: common_shared.StripAssociationLinks(geoJSON.Links),
+	}
+
+	// Required root fields per OGC CS Part 1 procedure GeoJSON schema
+	if geoJSON.Properties.UID == "" {
+		return nil, fmt.Errorf("properties.uid is required")
+	}
+	if geoJSON.Properties.Name == "" {
+		return nil, fmt.Errorf("properties.name is required")
+	}
+	if geoJSON.Properties.FeatureType == "" {
+		return nil, fmt.Errorf("properties.featureType is required")
 	}
 
 	// Extract properties

@@ -53,6 +53,7 @@ func TestDeploymentSensorMLDeserialize_AssociationLinks(t *testing.T) {
 		"type": "Deployment",
 		"label": "Deployment 1",
 		"uniqueId": "urn:deployment:1",
+		"definition": "http://www.w3.org/ns/sosa/Deployment",
 		"links": [
 			{"href": "/deployments/dep-parent", "rel": "ogc-rel:parentDeployment"},
 			{"href": "/docs/spec", "rel": "alternate"}

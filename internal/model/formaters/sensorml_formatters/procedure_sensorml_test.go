@@ -41,6 +41,7 @@ func TestProcedureSensorMLDeserialize_StripsAssociationLinks(t *testing.T) {
 		"type": "SimpleProcess",
 		"label": "Procedure 1",
 		"uniqueId": "urn:procedure:1",
+		"definition": "http://www.w3.org/ns/sosa/Procedure",
 		"links": [
 			{"href": "/systems?procedure=proc-1", "rel": "ogc-rel:implementingSystems"},
 			{"href": "/docs/spec", "rel": "alternate"}

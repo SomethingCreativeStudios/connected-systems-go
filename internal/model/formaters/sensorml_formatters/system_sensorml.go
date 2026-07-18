@@ -3,6 +3,7 @@ package sensorml_formatters
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
@@ -232,6 +233,20 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 	// type is the SML process type, not the semantic definition
 	if v, ok := raw["type"].(string); ok && v != "" {
 		system.SMLType = &v
+	}
+
+	// Required root fields per OGC CS Part 1 system SensorML schema
+	if system.SMLType == nil {
+		return nil, fmt.Errorf("type is required")
+	}
+	if system.UniqueIdentifier == "" {
+		return nil, fmt.Errorf("uniqueId is required")
+	}
+	if system.Name == "" {
+		return nil, fmt.Errorf("label is required")
+	}
+	if system.SystemType == "" {
+		return nil, fmt.Errorf("definition is required")
 	}
 
 	system.ValidTime = common_shared.NonEmptyTimeRange(sml.ValidTime)

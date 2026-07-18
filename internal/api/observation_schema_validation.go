@@ -17,11 +17,18 @@ func validateObservationAgainstDatastreamSchema(obs *domains.Observation, ds *do
 	if obs == nil || ds == nil {
 		return nil
 	}
-	if ds.Schema == nil {
+	// Prefer the schema registered for the request's content type so
+	// multi-format datastreams validate against the matching encoding;
+	// fall back to the current schema.
+	schema := ds.Schemas.ForFormat(contentType)
+	if schema == nil {
+		schema = ds.Schema
+	}
+	if schema == nil {
 		return nil
 	}
 
-	obsFormat := strings.TrimSpace(strings.ToLower(ds.Schema.ObsFormat))
+	obsFormat := strings.TrimSpace(strings.ToLower(schema.ObsFormat))
 	ct := strings.ToLower(contentType)
 
 	if obsFormat == "" {
@@ -33,11 +40,11 @@ func validateObservationAgainstDatastreamSchema(obs *domains.Observation, ds *do
 	}
 
 	if strings.Contains(obsFormat, "protobuf") {
-		return validateObservationResultWithProtobufSchema(obs, ds.Schema)
+		return validateObservationResultWithProtobufSchema(obs, schema)
 	}
 
 	if strings.Contains(obsFormat, "json") || strings.Contains(obsFormat, "swe") || strings.Contains(ct, "json") {
-		return validateObservationResultWithJSONLikeSchema(obs, ds.Schema)
+		return validateObservationResultWithJSONLikeSchema(obs, schema)
 	}
 
 	// Other formats are accepted for now.

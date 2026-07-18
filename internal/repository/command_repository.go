@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -28,7 +29,55 @@ func (r *CommandRepository) Create(cmd *domains.Command) error {
 	if cmd.CurrentStatus == "" {
 		cmd.CurrentStatus = domains.CommandStatusPending
 	}
-	return r.db.Create(cmd).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(cmd).Error; err != nil {
+			return err
+		}
+		return expandControlStreamTimeRanges(tx, cmd.ControlStreamID, cmd)
+	})
+}
+
+// expandControlStreamTimeRanges widens the parent control stream's issueTime
+// and executionTime extents to include a newly written command. LEAST/GREATEST
+// ignore NULL args and columns, so nil execution bounds are no-ops and
+// initially-empty ranges get seeded.
+func expandControlStreamTimeRanges(tx *gorm.DB, controlStreamID string, cmd *domains.Command) error {
+	var execStart, execEnd *time.Time
+	if cmd.ExecutionTime != nil {
+		execStart = cmd.ExecutionTime.Start
+		execEnd = cmd.ExecutionTime.End
+		if execEnd == nil {
+			// Open-ended command execution counts as a point at its start.
+			execEnd = execStart
+		}
+	}
+	return tx.Exec(`UPDATE control_streams SET
+			issue_time_start     = LEAST(issue_time_start, ?),
+			issue_time_end       = GREATEST(issue_time_end, ?),
+			execution_time_start = LEAST(execution_time_start, ?),
+			execution_time_end   = GREATEST(execution_time_end, ?)
+		WHERE id = ?`,
+		cmd.IssueTime, cmd.IssueTime, execStart, execEnd, controlStreamID).Error
+}
+
+// recomputeControlStreamTimeRanges recalculates the parent control stream's
+// time extents from scratch after a command update or delete. With no commands
+// left the extents go NULL.
+func recomputeControlStreamTimeRanges(tx *gorm.DB, controlStreamID string) error {
+	return tx.Exec(`UPDATE control_streams SET
+			issue_time_start     = agg.it_min,
+			issue_time_end       = agg.it_max,
+			execution_time_start = agg.et_min,
+			execution_time_end   = agg.et_max
+		FROM (
+			SELECT MIN(issue_time) AS it_min,
+			       MAX(issue_time) AS it_max,
+			       MIN(execution_time_start) AS et_min,
+			       MAX(COALESCE(execution_time_end, execution_time_start)) AS et_max
+			FROM commands WHERE control_stream_id = ?
+		) agg
+		WHERE control_streams.id = ?`,
+		controlStreamID, controlStreamID).Error
 }
 
 // GetByID retrieves a command by ID.
@@ -79,27 +128,36 @@ func (r *CommandRepository) ListByControlStream(controlStreamID string, params *
 
 // Update updates a command.
 func (r *CommandRepository) Update(cmd *domains.Command) error {
-	return r.db.Save(cmd).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(cmd).Error; err != nil {
+			return err
+		}
+		return recomputeControlStreamTimeRanges(tx, cmd.ControlStreamID)
+	})
 }
 
 // Delete deletes a command.
 func (r *CommandRepository) Delete(id string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		var controlStreamID string
+		err := tx.Model(&domains.Command{}).Select("control_stream_id").
+			Where("id = ?", id).First(&controlStreamID).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
 		if err := tx.Delete(&domains.CommandStatusReport{}, "command_id = ?", id).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&domains.CommandResult{}, "command_id = ?", id).Error; err != nil {
 			return err
 		}
-
-		result := tx.Delete(&domains.Command{}, "id = ?", id)
-		if result.Error != nil {
-			return result.Error
+		if err := tx.Delete(&domains.Command{}, "id = ?", id).Error; err != nil {
+			return err
 		}
-		if result.RowsAffected == 0 {
-			return ErrNotFound
-		}
-		return nil
+		return recomputeControlStreamTimeRanges(tx, controlStreamID)
 	})
 }
 

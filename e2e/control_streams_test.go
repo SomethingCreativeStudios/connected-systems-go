@@ -29,6 +29,7 @@ func baseControlStreamPayload() map[string]interface{} {
 		"uid":       "urn:uuid:" + uniqueID,
 		"name":      "ControlStream " + uniqueID[:8],
 		"inputName": "thermostat-set-point",
+		"async":     false,
 		"formats":   []string{"application/json"},
 		"schema": map[string]interface{}{
 			"commandFormat": "application/json",
@@ -1070,16 +1071,21 @@ func TestControlStream_List_LatestIssueTime_ReturnsMostRecent(t *testing.T) {
 
 	systemID := createSystemForControlStreamTest(t)
 
-	csWithIssueTime := func(start, end string) map[string]interface{} {
-		p := baseControlStreamPayload()
-		p["issueTime"] = []string{start, end}
-		return p
+	// issueTime is a read-only extent computed from commands, so seed each
+	// control stream with one command carrying the desired issue time.
+	csWithIssueTime := func(issueTime string) string {
+		csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
+		createCommandViaAPI(t, csID, map[string]interface{}{
+			"parameters": map[string]interface{}{"setPoint": 21.0},
+			"issueTime":  issueTime,
+		})
+		return csID
 	}
 
 	// Create 3 control streams with issueTime starts in non-monotonic order.
-	createControlStreamViaAPI(t, systemID, csWithIssueTime("2025-01-01T00:00:00Z", "2025-12-31T23:59:59Z"))
-	newestID := createControlStreamViaAPI(t, systemID, csWithIssueTime("2027-01-01T00:00:00Z", "2027-12-31T23:59:59Z"))
-	createControlStreamViaAPI(t, systemID, csWithIssueTime("2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z"))
+	csWithIssueTime("2025-01-01T00:00:00Z")
+	newestID := csWithIssueTime("2027-01-01T00:00:00Z")
+	csWithIssueTime("2024-01-01T00:00:00Z")
 
 	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/controlstreams?issueTime=latest", nil)
 	require.NoError(t, err)

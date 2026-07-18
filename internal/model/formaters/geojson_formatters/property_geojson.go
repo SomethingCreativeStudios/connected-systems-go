@@ -2,6 +2,7 @@ package geojson_formatters
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -82,6 +83,17 @@ func (f *PropertyGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Re
 	}](body)
 	if err != nil {
 		return nil, err
+	}
+
+	// Required root fields per OGC CS Part 1 property (DerivedProperty) schema
+	if geoJSON.Properties.UID == "" {
+		return nil, fmt.Errorf("properties.uid is required")
+	}
+	if geoJSON.Properties.Name == "" {
+		return nil, fmt.Errorf("properties.name is required")
+	}
+	if geoJSON.Properties.BaseProperty == nil || *geoJSON.Properties.BaseProperty == "" {
+		return nil, fmt.Errorf("properties.baseProperty is required")
 	}
 
 	property := &domains.Property{

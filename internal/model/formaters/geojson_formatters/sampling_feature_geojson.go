@@ -2,6 +2,7 @@ package geojson_formatters
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -89,6 +90,20 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 	// Assign geometry
 	if geoJSON.Geometry != nil {
 		sf.Geometry = geoJSON.Geometry
+	}
+
+	// Required root fields per OGC CS Part 1 samplingFeature GeoJSON schema
+	if geoJSON.Properties.UID == "" {
+		return nil, fmt.Errorf("properties.uid is required")
+	}
+	if geoJSON.Properties.Name == "" {
+		return nil, fmt.Errorf("properties.name is required")
+	}
+	if geoJSON.Properties.FeatureType == "" {
+		return nil, fmt.Errorf("properties.featureType is required")
+	}
+	if geoJSON.Properties.SampledFeatureLink == nil || geoJSON.Properties.SampledFeatureLink.Href == "" {
+		return nil, fmt.Errorf("properties.sampledFeature@link is required")
 	}
 
 	// Extract properties

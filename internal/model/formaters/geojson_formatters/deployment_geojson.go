@@ -174,6 +174,17 @@ func (f *DeploymentGeoJSONFormatter) Deserialize(ctx context.Context, reader io.
 		deployment.Geometry = geoJSON.Geometry
 	}
 
+	// Required root fields per OGC CS Part 1 deployment GeoJSON schema
+	if geoJSON.Properties.UID == "" {
+		return nil, fmt.Errorf("properties.uid is required")
+	}
+	if geoJSON.Properties.Name == "" {
+		return nil, fmt.Errorf("properties.name is required")
+	}
+	if geoJSON.Properties.FeatureType == "" {
+		return nil, fmt.Errorf("properties.featureType is required")
+	}
+
 	// Extract properties
 	deployment.UniqueIdentifier = domains.UniqueID(geoJSON.Properties.UID)
 	deployment.Name = geoJSON.Properties.Name
@@ -181,6 +192,9 @@ func (f *DeploymentGeoJSONFormatter) Deserialize(ctx context.Context, reader io.
 	deployment.DeploymentType = geoJSON.Properties.FeatureType
 
 	deployment.ValidTime = common_shared.NonEmptyTimeRange(geoJSON.Properties.ValidTime)
+	if deployment.ValidTime == nil {
+		return nil, fmt.Errorf("properties.validTime is required")
+	}
 
 	// Platform and DeployedSystems
 	if geoJSON.Properties.Platform != nil {

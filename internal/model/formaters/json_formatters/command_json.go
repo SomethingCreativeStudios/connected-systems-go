@@ -106,5 +106,9 @@ func (f *CommandJSONFormatter) Deserialize(ctx context.Context, reader io.Reader
 	if err != nil {
 		return nil, err
 	}
+	// Required root fields per OGC CS Part 2 command schema
+	if len(wire.Parameters) == 0 {
+		return nil, fmt.Errorf("parameters is required")
+	}
 	return &wire, nil
 }

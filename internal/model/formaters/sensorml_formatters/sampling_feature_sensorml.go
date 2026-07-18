@@ -2,6 +2,7 @@ package sensorml_formatters
 
 import (
 	"context"
+	"fmt"
 	"encoding/json"
 	"io"
 
@@ -136,6 +137,21 @@ func (f *SamplingFeatureSensorMLFormatter) Deserialize(ctx context.Context, read
 		sf.FeatureType = sensorML.Definition
 	} else if sensorML.Type != "" {
 		sf.FeatureType = sensorML.Type
+	}
+
+	// Required root fields, mirroring the samplingFeature GeoJSON schema
+	// (SensorML sampling features are a non-normative extension)
+	if sf.UniqueIdentifier == "" {
+		return nil, fmt.Errorf("uniqueId is required")
+	}
+	if sf.Name == "" {
+		return nil, fmt.Errorf("label is required")
+	}
+	if sf.FeatureType == "" {
+		return nil, fmt.Errorf("type or definition is required")
+	}
+	if sensorML.SampledFeatureLink == nil || sensorML.SampledFeatureLink.Href == "" {
+		return nil, fmt.Errorf("sampledFeature is required")
 	}
 
 	sf.ValidTime = common_shared.NonEmptyTimeRange(sensorML.ValidTime)

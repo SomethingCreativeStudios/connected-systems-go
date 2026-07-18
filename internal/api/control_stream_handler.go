@@ -205,6 +205,13 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// schema is required on create per the OGC CS Part 2 controlStream create schema
+	if cs.Schema == nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": "schema is required"})
+		return
+	}
+
 	if systemID != "" {
 		cs.SystemID = &systemID
 	}
@@ -303,21 +310,33 @@ func (h *ControlStreamHandler) DeleteControlStream(w http.ResponseWriter, r *htt
 // GetControlStreamSchema handles GET /controlstreams/{id}/schema
 //
 // @Summary     Get control stream schema
-// @Description Returns the command schema for a given control stream
+// @Description Returns the command schema for a given control stream. With the
+// @Description commandFormat query parameter, returns the schema registered
+// @Description for that command format.
 // @Tags        Control Streams
 // @Produce     json
-// @Param       controlStreamId  path  string  true  "Control Stream ID"
+// @Param       controlStreamId  path   string  true   "Control Stream ID"
+// @Param       commandFormat    query  string  false  "Command format media type"
 // @Success     200  {object}  map[string]any
 // @Failure     404  {object}  map[string]string
 // @Router      /controlstreams/{controlStreamId}/schema [get]
 func (h *ControlStreamHandler) GetControlStreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
-	schema, err := h.repo.GetSchema(id)
+	schema, schemas, err := h.repo.GetSchema(id)
 	if err != nil {
 		h.logger.Error("Failed to get control stream schema", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusNotFound)
 		render.JSON(w, r, map[string]string{"error": "Control stream not found"})
 		return
+	}
+
+	if commandFormat := r.URL.Query().Get("commandFormat"); commandFormat != "" {
+		schema = schemas.ForFormat(commandFormat)
+		if schema == nil {
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Control stream has no schema for format " + commandFormat})
+			return
+		}
 	}
 
 	if schema == nil {
@@ -333,7 +352,10 @@ func (h *ControlStreamHandler) GetControlStreamSchema(w http.ResponseWriter, r *
 // UpdateControlStreamSchema handles PUT /controlstreams/{id}/schema
 //
 // @Summary     Update control stream schema
-// @Description Replaces the command schema for a given control stream
+// @Description Registers the schema for its command format (replacing any
+// @Description existing schema with the same commandFormat, adding a new
+// @Description format otherwise) and makes it the control stream's current
+// @Description schema. The formats list reflects all registered schemas.
 // @Tags        Control Streams
 // @Accept      json
 // @Param       controlStreamId  path  string          true  "Control Stream ID"

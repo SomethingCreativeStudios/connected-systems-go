@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -30,7 +31,45 @@ func (r *ObservationRepository) Create(observation *domains.Observation) error {
 			observation.PhenomenonTime = &now
 		}
 	}
-	return r.db.Create(observation).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(observation).Error; err != nil {
+			return err
+		}
+		return expandDatastreamTimeRanges(tx, observation.DatastreamID, *observation.PhenomenonTime, observation.ResultTime)
+	})
+}
+
+// expandDatastreamTimeRanges widens the parent datastream's phenomenonTime and
+// resultTime extents to include a newly written observation. LEAST/GREATEST
+// ignore NULL columns, so this also seeds initially-empty ranges.
+func expandDatastreamTimeRanges(tx *gorm.DB, datastreamID string, phenomenonTime, resultTime time.Time) error {
+	return tx.Exec(`UPDATE datastreams SET
+			phenomenon_time_start = LEAST(phenomenon_time_start, ?),
+			phenomenon_time_end   = GREATEST(phenomenon_time_end, ?),
+			result_time_start     = LEAST(result_time_start, ?),
+			result_time_end       = GREATEST(result_time_end, ?)
+		WHERE id = ?`,
+		phenomenonTime, phenomenonTime, resultTime, resultTime, datastreamID).Error
+}
+
+// recomputeDatastreamTimeRanges recalculates the parent datastream's time
+// extents from scratch after an observation update or delete (either can move
+// a min/max inward). With no observations left the extents go NULL.
+func recomputeDatastreamTimeRanges(tx *gorm.DB, datastreamID string) error {
+	return tx.Exec(`UPDATE datastreams SET
+			phenomenon_time_start = agg.pt_min,
+			phenomenon_time_end   = agg.pt_max,
+			result_time_start     = agg.rt_min,
+			result_time_end       = agg.rt_max
+		FROM (
+			SELECT MIN(COALESCE(phenomenon_time, result_time)) AS pt_min,
+			       MAX(COALESCE(phenomenon_time, result_time)) AS pt_max,
+			       MIN(result_time) AS rt_min,
+			       MAX(result_time) AS rt_max
+			FROM observations WHERE datastream_id = ?
+		) agg
+		WHERE datastreams.id = ?`,
+		datastreamID, datastreamID).Error
 }
 
 func (r *ObservationRepository) GetByID(id string) (*domains.Observation, error) {
@@ -89,18 +128,30 @@ func (r *ObservationRepository) Update(observation *domains.Observation) error {
 		t := observation.ResultTime
 		observation.PhenomenonTime = &t
 	}
-	return r.db.Save(observation).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(observation).Error; err != nil {
+			return err
+		}
+		return recomputeDatastreamTimeRanges(tx, observation.DatastreamID)
+	})
 }
 
 func (r *ObservationRepository) Delete(id string) error {
-	result := r.db.Delete(&domains.Observation{}, "id = ?", id)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var datastreamID string
+		err := tx.Model(&domains.Observation{}).Select("datastream_id").
+			Where("id = ?", id).First(&datastreamID).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if err := tx.Delete(&domains.Observation{}, "id = ?", id).Error; err != nil {
+			return err
+		}
+		return recomputeDatastreamTimeRanges(tx, datastreamID)
+	})
 }
 
 func (r *ObservationRepository) applyFilters(query *gorm.DB, params *queryparams.ObservationsQueryParams, datastreamFixed bool) *gorm.DB {

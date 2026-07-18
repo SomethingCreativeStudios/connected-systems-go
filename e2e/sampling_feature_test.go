@@ -26,6 +26,7 @@ func setupSamplingFeatureConformanceData(t *testing.T) (string, []string) {
 			"uid":         "urn:ogc:conf:system:sf-parent-001",
 			"name":        "Parent System for SF Conformance Tests",
 			"description": "System used as parent for sampling feature conformance tests",
+			"featureType": "http://www.w3.org/ns/sosa/Sensor",
 		},
 	}
 	sysBody, _ := json.Marshal(sysPayload)
@@ -752,6 +753,7 @@ func TestSamplingFeatureSystemLinks(t *testing.T) {
 			"uid":         "urn:ogc:conf:system:sf-link-parent-001",
 			"name":        "Parent System for Link Tests",
 			"description": "System used as parent for sampling feature link tests",
+			"featureType": "http://www.w3.org/ns/sosa/Sensor",
 		},
 	}
 	sysBody, _ := json.Marshal(sysPayload)
@@ -849,6 +851,7 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 			"uid":         "urn:ogc:conf:system:sf-sampleof-parent-001",
 			"name":        "Parent System for SampleOf Tests",
 			"description": "System used as parent for sampleOf relationship tests",
+			"featureType": "http://www.w3.org/ns/sosa/Sensor",
 		},
 	}
 	sysBody, _ := json.Marshal(sysPayload)

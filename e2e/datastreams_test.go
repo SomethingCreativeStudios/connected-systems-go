@@ -318,16 +318,22 @@ func TestDatastream_List_LatestPhenomenonTime_ReturnsMostRecent(t *testing.T) {
 
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("DS Latest System"))
 
-	dsWithPhenomenonTime := func(start, end string) map[string]interface{} {
-		p := baseDatastreamPayload()
-		p["phenomenonTime"] = []string{start, end}
-		return p
+	// phenomenonTime is a read-only extent computed from observations, so seed
+	// each datastream with one observation carrying the desired phenomenon time.
+	dsWithPhenomenonTime := func(start, end string) string {
+		dsID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", baseDatastreamPayload())
+		createObservationViaAPI(t, dsID, map[string]interface{}{
+			"phenomenonTime": start,
+			"resultTime":     end,
+			"result":         map[string]interface{}{"temperature": 21.0, "humidity": 40.0},
+		})
+		return dsID
 	}
 
 	// Create 3 datastreams with phenomenonTime starts in non-monotonic order.
-	createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", dsWithPhenomenonTime("2025-01-01T00:00:00Z", "2025-12-31T23:59:59Z"))
-	newestID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", dsWithPhenomenonTime("2027-01-01T00:00:00Z", "2027-12-31T23:59:59Z"))
-	createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", dsWithPhenomenonTime("2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z"))
+	dsWithPhenomenonTime("2025-01-01T00:00:00Z", "2025-12-31T23:59:59Z")
+	newestID := dsWithPhenomenonTime("2027-01-01T00:00:00Z", "2027-12-31T23:59:59Z")
+	dsWithPhenomenonTime("2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z")
 
 	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/datastreams?phenomenonTime=latest", nil)
 	require.NoError(t, err)

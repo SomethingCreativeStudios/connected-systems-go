@@ -2,6 +2,7 @@ package sensorml_formatters
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
@@ -68,6 +69,17 @@ func (f *PropertySensorMLFormatter) Deserialize(ctx context.Context, reader io.R
 	sensorML, err := common_shared.DecodeWithFieldErrors[domains.PropertySensorMLFeature](body)
 	if err != nil {
 		return nil, err
+	}
+
+	// Required root fields per OGC CS Part 1 property (DerivedProperty) schema
+	if sensorML.UniqueID == "" {
+		return nil, fmt.Errorf("uniqueId is required")
+	}
+	if sensorML.Label == "" {
+		return nil, fmt.Errorf("label is required")
+	}
+	if sensorML.BaseProperty == nil || *sensorML.BaseProperty == "" {
+		return nil, fmt.Errorf("baseProperty is required")
 	}
 
 	property := &domains.Property{

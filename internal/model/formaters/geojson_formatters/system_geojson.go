@@ -2,6 +2,7 @@ package geojson_formatters
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 
@@ -172,6 +173,17 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 	// Assign geometry
 	if geoJSON.Geometry != nil {
 		system.Geometry = geoJSON.Geometry
+	}
+
+	// Required root fields per OGC CS Part 1 system GeoJSON schema
+	if geoJSON.Properties.UID == "" {
+		return nil, fmt.Errorf("properties.uid is required")
+	}
+	if geoJSON.Properties.Name == "" {
+		return nil, fmt.Errorf("properties.name is required")
+	}
+	if geoJSON.Properties.FeatureType == "" {
+		return nil, fmt.Errorf("properties.featureType is required")
 	}
 
 	// Extract properties

@@ -39,6 +39,8 @@ func (f *DatastreamJSONFormatter) Serialize(ctx context.Context, datastream *dom
 		return DatastreamJSONFeature{}, fmt.Errorf("datastream cannot be nil")
 	}
 	out := DatastreamJSONFeature{Datastream: sanitizeDatastreamTimeRanges(*datastream)}
+	// schema is writeOnly per spec: retrievable only via the schema endpoint.
+	out.Schema = nil
 	out.Links = appendDatastreamAssociationLinks(datastream)
 	if datastream.SystemID != nil {
 		out.SystemLink = &common_shared.Link{
@@ -124,6 +126,8 @@ func (f *DatastreamJSONFormatter) SerializeAll(ctx context.Context, datastreams 
 			continue
 		}
 		out := DatastreamJSONFeature{Datastream: sanitizeDatastreamTimeRanges(*ds)}
+		// schema is writeOnly per spec: retrievable only via the schema endpoint.
+		out.Schema = nil
 		out.Links = appendDatastreamAssociationLinks(ds)
 		if ds.SystemID != nil {
 			out.SystemLink = &common_shared.Link{
@@ -211,6 +215,10 @@ func (f *DatastreamJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 		return nil, err
 	}
 	datastream := wire.Datastream
+	// Required root fields per OGC CS Part 2 dataStream schema
+	if datastream.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
 	datastream = sanitizeDatastreamTimeRanges(datastream)
 	if wire.SystemLink != nil {
 		datastream.SystemID = wire.SystemLink.GetId("systems")
@@ -222,7 +230,38 @@ func sanitizeDatastreamTimeRanges(datastream domains.Datastream) domains.Datastr
 	datastream.ValidTime = common_shared.NonEmptyTimeRange(datastream.ValidTime)
 	datastream.PhenomenonTime = common_shared.NonEmptyTimeRange(datastream.PhenomenonTime)
 	datastream.ResultTime = common_shared.NonEmptyTimeRange(datastream.ResultTime)
+	datastream.Formats = deriveDatastreamFormats(&datastream)
+	// live is a required boolean defaulting to false.
+	if datastream.Live == nil {
+		datastream.Live = new(bool)
+	}
 	return datastream
+}
+
+// deriveDatastreamFormats computes the read-only, required "formats" field
+// from the observation formats of all registered schemas.
+func deriveDatastreamFormats(datastream *domains.Datastream) common_shared.StringArray {
+	var formats common_shared.StringArray
+	seen := map[string]bool{}
+	add := func(format string) {
+		key := domains.NormalizeMediaType(format)
+		if key == "" || seen[key] {
+			return
+		}
+		seen[key] = true
+		formats = append(formats, format)
+	}
+	for i := range datastream.Schemas {
+		add(datastream.Schemas[i].ObsFormat)
+	}
+	// Legacy rows predate the schema registry.
+	if datastream.Schema != nil {
+		add(datastream.Schema.ObsFormat)
+	}
+	if len(formats) == 0 {
+		formats = common_shared.StringArray{JSONContentType}
+	}
+	return formats
 }
 
 func appendDatastreamAssociationLinks(ds *domains.Datastream) common_shared.Links {

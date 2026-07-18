@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -33,6 +34,21 @@ type SystemEventHandler struct {
 
 func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository, mqttManager *mqtt.Manager) *SystemEventHandler {
 	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, mqttManager: mqttManager}
+}
+
+// validateSystemEvent enforces the required root fields of the OGC CS Part 2
+// systemEvent schema (definition, label, time).
+func validateSystemEvent(e *domains.SystemEvent) error {
+	if e.Definition == "" {
+		return fmt.Errorf("definition is required")
+	}
+	if e.Label == "" {
+		return fmt.Errorf("label is required")
+	}
+	if e.Time.Instant == nil && e.Time.Range == nil {
+		return fmt.Errorf("time is required")
+	}
+	return nil
 }
 
 // ListSystemEvents returns a paginated list of system events
@@ -173,9 +189,6 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 	var lastCreatedEvent *domains.SystemEvent
 	createOne := func(e *domains.SystemEvent) error {
 		e.SystemID = systemID
-		if e.Label == "" {
-			e.Label = "System Event"
-		}
 		if err := h.repo.Create(e); err != nil {
 			return err
 		}
@@ -191,6 +204,11 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 		if err := json.Unmarshal(bytes, &evt); err != nil {
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, map[string]string{"error": "Invalid system event payload"})
+			return
+		}
+		if err := validateSystemEvent(&evt); err != nil {
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, map[string]string{"error": err.Error()})
 			return
 		}
 		if err := createOne(&evt); err != nil {
@@ -217,6 +235,11 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 			if err := json.Unmarshal(bytes, &evt); err != nil {
 				render.Status(r, http.StatusBadRequest)
 				render.JSON(w, r, map[string]string{"error": "Invalid system event payload"})
+				return
+			}
+			if err := validateSystemEvent(&evt); err != nil {
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, map[string]string{"error": err.Error()})
 				return
 			}
 			if err := createOne(&evt); err != nil {
@@ -303,6 +326,12 @@ func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Requ
 	var event domains.SystemEvent
 	if err := render.DecodeJSON(r.Body, &event); err != nil {
 		writeDeserializeError(w, r, err)
+		return
+	}
+
+	if err := validateSystemEvent(&event); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
 		return
 	}
 

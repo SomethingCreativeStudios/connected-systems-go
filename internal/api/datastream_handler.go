@@ -200,6 +200,13 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// schema is required on create per the OGC CS Part 2 dataStream create schema
+	if datastream.Schema == nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": "schema is required"})
+		return
+	}
+
 	if systemID != "" {
 		datastream.SystemID = &systemID
 	}
@@ -298,21 +305,33 @@ func (h *DatastreamHandler) DeleteDatastream(w http.ResponseWriter, r *http.Requ
 // GetDatastreamSchema returns the schema for a datastream
 //
 // @Summary     Get datastream schema
-// @Description Returns the observation schema for a given datastream
+// @Description Returns the observation schema for a given datastream. With the
+// @Description obsFormat query parameter, returns the schema registered for
+// @Description that observation format.
 // @Tags        Datastreams
 // @Produce     json
-// @Param       dataStreamId  path  string  true  "Datastream ID"
+// @Param       dataStreamId  path   string  true   "Datastream ID"
+// @Param       obsFormat     query  string  false  "Observation format media type"
 // @Success     200  {object}  map[string]any
 // @Failure     404  {object}  map[string]string
 // @Router      /datastreams/{dataStreamId}/schema [get]
 func (h *DatastreamHandler) GetDatastreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
-	schema, err := h.repo.GetSchema(id)
+	schema, schemas, err := h.repo.GetSchema(id)
 	if err != nil {
 		h.logger.Error("Failed to get datastream schema", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusNotFound)
 		render.JSON(w, r, map[string]string{"error": "Datastream not found"})
 		return
+	}
+
+	if obsFormat := r.URL.Query().Get("obsFormat"); obsFormat != "" {
+		schema = schemas.ForFormat(obsFormat)
+		if schema == nil {
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Datastream has no schema for format " + obsFormat})
+			return
+		}
 	}
 
 	if schema == nil {
@@ -325,10 +344,13 @@ func (h *DatastreamHandler) GetDatastreamSchema(w http.ResponseWriter, r *http.R
 	render.JSON(w, r, schema)
 }
 
-// UpdateDatastreamSchema replaces the schema for a datastream
+// UpdateDatastreamSchema upserts a schema for a datastream
 //
 // @Summary     Update datastream schema
-// @Description Replaces the observation schema for a given datastream
+// @Description Registers the schema for its observation format (replacing any
+// @Description existing schema with the same obsFormat, adding a new format
+// @Description otherwise) and makes it the datastream's current schema. The
+// @Description datastream's formats list reflects all registered schemas.
 // @Tags        Datastreams
 // @Accept      json
 // @Param       dataStreamId  path  string          true  "Datastream ID"

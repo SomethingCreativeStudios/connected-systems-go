@@ -371,12 +371,14 @@ func TestPropertyCRUD_Create(t *testing.T) {
 	}{
 		"minimal property": {
 			payload: map[string]interface{}{
-				"label":    "Test Minimal Property",
-				"uniqueId": "urn:ogc:conf:property:minimal-create",
+				"label":        "Test Minimal Property",
+				"uniqueId":     "urn:ogc:conf:property:minimal-create",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
 			},
 			validateFunc: func(t *testing.T, created map[string]interface{}) {
 				assert.Equal(t, "Test Minimal Property", created["label"])
 				assert.Equal(t, "urn:ogc:conf:property:minimal-create", created["uniqueId"])
+				assert.Equal(t, "https://qudt.org/vocab/quantitykind/Temperature", created["baseProperty"])
 			},
 		},
 		"property with all optional fields": {
@@ -458,6 +460,28 @@ func TestPropertyCRUD_Create(t *testing.T) {
 			tc.validateFunc(t, *created)
 		})
 	}
+}
+
+// TestPropertyCRUD_Create_MissingBaseProperty verifies that creating a
+// Property without baseProperty is rejected. Per the OGC API - Connected
+// Systems spec, the `property` schema is DerivedProperty + {required: [uniqueId]},
+// and DerivedProperty itself requires baseProperty (and label).
+func TestPropertyCRUD_Create_MissingBaseProperty(t *testing.T) {
+	payload := map[string]interface{}{
+		"label":    "Test Property Without Base",
+		"uniqueId": "urn:ogc:conf:property:missing-base-create",
+	}
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/properties", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/sml+json")
+	req.Header.Set("Accept", "application/sml+json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "POST /properties without baseProperty must return 400 Bad Request")
 }
 
 // =============================================================================
@@ -577,15 +601,17 @@ func TestPropertyCRUD_Delete(t *testing.T) {
 	}{
 		"delete existing property": {
 			createPayload: map[string]interface{}{
-				"label":    "Property to Delete",
-				"uniqueId": "urn:test:property:crud-delete",
+				"label":        "Property to Delete",
+				"uniqueId":     "urn:test:property:crud-delete",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
 			},
 			expectedGetCode: http.StatusNotFound,
 		},
 		"delete property with qualifiers": {
 			createPayload: map[string]interface{}{
-				"label":    "Property with Qualifiers to Delete",
-				"uniqueId": "urn:test:property:crud-delete-qualifiers",
+				"label":        "Property with Qualifiers to Delete",
+				"uniqueId":     "urn:test:property:crud-delete-qualifiers",
+				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
 				"qualifiers": []map[string]interface{}{
 					{
 						"type":       "Quantity",

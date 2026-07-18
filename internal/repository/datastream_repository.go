@@ -21,6 +21,15 @@ func NewDatastreamRepository(db *gorm.DB) *DatastreamRepository {
 
 // Create creates a new datastream.
 func (r *DatastreamRepository) Create(datastream *domains.Datastream) error {
+	// phenomenonTime and resultTime are read-only extents derived from
+	// observations; a new datastream has none.
+	datastream.PhenomenonTime = nil
+	datastream.ResultTime = nil
+	// Seed the per-format schema registry with the initial schema.
+	datastream.Schemas = nil
+	if datastream.Schema != nil {
+		datastream.Schemas = datastream.Schemas.Upsert(*datastream.Schema)
+	}
 	normalizeDatastreamRefs(datastream)
 	r.populateSystemAssociations(datastream)
 	if err := r.db.Create(datastream).Error; err != nil {
@@ -78,12 +87,22 @@ func (r *DatastreamRepository) List(params *queryparams.DatastreamsQueryParams, 
 // changed by the client; featureOfInterest is re-derived from the updated samplingFeature.
 func (r *DatastreamRepository) Update(datastream *domains.Datastream) error {
 	var existing domains.Datastream
-	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id").
+	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id",
+		"phenomenon_time_start", "phenomenon_time_end", "result_time_start", "result_time_end", "schemas").
 		Where("id = ?", datastream.ID).First(&existing).Error; err == nil {
 		datastream.ProcedureLink = existing.ProcedureLink
 		datastream.ProcedureID = existing.ProcedureID
 		datastream.DeploymentLink = existing.DeploymentLink
 		datastream.DeploymentID = existing.DeploymentID
+		// phenomenonTime and resultTime are read-only extents derived from
+		// observations; carry the stored values forward so Save can't clobber them.
+		datastream.PhenomenonTime = common_shared.NonEmptyTimeRange(existing.PhenomenonTime)
+		datastream.ResultTime = common_shared.NonEmptyTimeRange(existing.ResultTime)
+		// Carry the schema registry forward, folding in the incoming schema.
+		datastream.Schemas = existing.Schemas
+		if datastream.Schema != nil {
+			datastream.Schemas = datastream.Schemas.Upsert(*datastream.Schema)
+		}
 	}
 	normalizeDatastreamRefs(datastream)
 	r.deriveFOIFromSamplingFeature(datastream)
@@ -176,19 +195,41 @@ func (r *DatastreamRepository) Delete(id string, cascade bool) error {
 	})
 }
 
-// GetSchema retrieves only the schema for a datastream.
-func (r *DatastreamRepository) GetSchema(id string) (*domains.DatastreamSchema, error) {
+// GetSchema retrieves the current schema and the per-format schema registry
+// for a datastream.
+func (r *DatastreamRepository) GetSchema(id string) (*domains.DatastreamSchema, domains.DatastreamSchemas, error) {
 	var datastream domains.Datastream
-	err := r.db.Select("id", "schema").Where("id = ?", id).First(&datastream).Error
+	err := r.db.Select("id", "schema", "schemas").Where("id = ?", id).First(&datastream).Error
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return datastream.Schema, nil
+	// Legacy rows predate the registry: expose the current schema through it.
+	if len(datastream.Schemas) == 0 && datastream.Schema != nil {
+		datastream.Schemas = datastream.Schemas.Upsert(*datastream.Schema)
+	}
+	return datastream.Schema, datastream.Schemas, nil
 }
 
-// UpdateSchema updates only the schema of a datastream.
+// UpdateSchema upserts the schema into the datastream's per-format registry
+// (replacing the entry with the same obsFormat, adding it otherwise) and makes
+// it the current schema.
 func (r *DatastreamRepository) UpdateSchema(id string, schema *domains.DatastreamSchema) error {
-	return r.db.Model(&domains.Datastream{}).Where("id = ?", id).Update("schema", schema).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var existing domains.Datastream
+		if err := tx.Select("id", "schema", "schemas").Where("id = ?", id).First(&existing).Error; err != nil {
+			return err
+		}
+		schemas := existing.Schemas
+		// Legacy rows predate the registry: fold the stored schema in first.
+		if len(schemas) == 0 && existing.Schema != nil {
+			schemas = schemas.Upsert(*existing.Schema)
+		}
+		if schema != nil {
+			schemas = schemas.Upsert(*schema)
+		}
+		return tx.Model(&domains.Datastream{}).Where("id = ?", id).
+			Updates(map[string]interface{}{"schema": schema, "schemas": schemas}).Error
+	})
 }
 
 func (r *DatastreamRepository) applyFilters(query *gorm.DB, params *queryparams.DatastreamsQueryParams, systemID *string) *gorm.DB {

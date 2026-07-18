@@ -10,7 +10,9 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
-func TestDatastreamJSONSerialize_EmptyTimeRangesOmitted(t *testing.T) {
+// Empty validTime is omitted; empty phenomenonTime/resultTime serialize as
+// explicit null (required, read-only, nullable per spec).
+func TestDatastreamJSONSerialize_EmptyTimeRanges(t *testing.T) {
 	systemID := "sys-1"
 	formatter := NewDatastreamJSONFormatter(nil)
 	datastream := &domains.Datastream{
@@ -31,14 +33,19 @@ func TestDatastreamJSONSerialize_EmptyTimeRangesOmitted(t *testing.T) {
 	}
 
 	body := string(data)
-	for _, field := range []string{"validTime", "phenomenonTime", "resultTime"} {
-		if strings.Contains(body, field) {
-			t.Fatalf("expected %s to be omitted, got %s", field, body)
+	if strings.Contains(body, "validTime") {
+		t.Fatalf("expected validTime to be omitted, got %s", body)
+	}
+	for _, field := range []string{`"phenomenonTime":null`, `"resultTime":null`} {
+		if !strings.Contains(body, field) {
+			t.Fatalf("expected %s, got %s", field, body)
 		}
 	}
 }
 
-func TestControlStreamJSONSerialize_EmptyTimeRangesOmitted(t *testing.T) {
+// Empty validTime is omitted; empty issueTime/executionTime serialize as
+// explicit null (required, read-only, nullable per spec).
+func TestControlStreamJSONSerialize_EmptyTimeRanges(t *testing.T) {
 	formatter := NewControlStreamJSONFormatter(nil)
 	controlStream := &domains.ControlStream{
 		Base:          domains.Base{ID: "cs-1"},
@@ -57,9 +64,12 @@ func TestControlStreamJSONSerialize_EmptyTimeRangesOmitted(t *testing.T) {
 	}
 
 	body := string(data)
-	for _, field := range []string{"validTime", "issueTime", "executionTime"} {
-		if strings.Contains(body, field) {
-			t.Fatalf("expected %s to be omitted, got %s", field, body)
+	if strings.Contains(body, "validTime") {
+		t.Fatalf("expected validTime to be omitted, got %s", body)
+	}
+	for _, field := range []string{`"issueTime":null`, `"executionTime":null`} {
+		if !strings.Contains(body, field) {
+			t.Fatalf("expected %s, got %s", field, body)
 		}
 	}
 }

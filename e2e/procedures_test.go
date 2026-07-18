@@ -433,6 +433,7 @@ func TestProcedureCRUD_Replace(t *testing.T) {
 					"uniqueId":    "urn:test:procedure:update-" + suffix,
 					"label":       "Procedure to Update",
 					"description": "Original description",
+					"definition":  "http://www.w3.org/ns/sosa/Procedure",
 				}
 				b, _ := json.Marshal(payload)
 				return b
@@ -443,6 +444,7 @@ func TestProcedureCRUD_Replace(t *testing.T) {
 					"uniqueId":    "urn:test:procedure:update-" + suffix,
 					"label":       "Updated Procedure",
 					"description": "Updated description",
+					"definition":  "http://www.w3.org/ns/sosa/Procedure",
 				}
 				b, _ := json.Marshal(payload)
 				return b
@@ -540,9 +542,10 @@ func TestProcedureCRUD_Delete(t *testing.T) {
 	// Delete behavior is content-type agnostic. Create a single procedure
 	// (using SML payload) and verify delete/gone semantics.
 	payload := map[string]interface{}{
-		"type":     "SimpleProcess",
-		"uniqueId": "urn:test:procedure:delete-001",
-		"label":    "Procedure to Delete",
+		"type":       "SimpleProcess",
+		"uniqueId":   "urn:test:procedure:delete-001",
+		"label":      "Procedure to Delete",
+		"definition": "http://www.w3.org/ns/sosa/Procedure",
 	}
 	b, _ := json.Marshal(payload)
 

@@ -37,6 +37,8 @@ func (f *ControlStreamJSONFormatter) Serialize(ctx context.Context, cs *domains.
 		return ControlStreamJSONFeature{}, fmt.Errorf("control stream cannot be nil")
 	}
 	out := ControlStreamJSONFeature{ControlStream: sanitizeControlStreamTimeRanges(*cs)}
+	// schema is writeOnly per spec: retrievable only via the schema endpoint.
+	out.Schema = nil
 	out.Links = appendControlStreamAssociationLinks(cs)
 	if cs.SystemID != nil {
 		out.SystemLink = &common_shared.Link{
@@ -122,6 +124,8 @@ func (f *ControlStreamJSONFormatter) SerializeAll(ctx context.Context, controlSt
 			continue
 		}
 		out := ControlStreamJSONFeature{ControlStream: sanitizeControlStreamTimeRanges(*cs)}
+		// schema is writeOnly per spec: retrievable only via the schema endpoint.
+		out.Schema = nil
 		out.Links = appendControlStreamAssociationLinks(cs)
 		if cs.SystemID != nil {
 			out.SystemLink = &common_shared.Link{
@@ -209,6 +213,10 @@ func (f *ControlStreamJSONFormatter) Deserialize(ctx context.Context, reader io.
 		return nil, err
 	}
 	cs := wire.ControlStream
+	// Required root fields per OGC CS Part 2 controlStream schema
+	if cs.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
 	cs = sanitizeControlStreamTimeRanges(cs)
 	if wire.SystemLink != nil {
 		cs.SystemID = wire.SystemLink.GetId("systems")
@@ -220,7 +228,41 @@ func sanitizeControlStreamTimeRanges(cs domains.ControlStream) domains.ControlSt
 	cs.ValidTime = common_shared.NonEmptyTimeRange(cs.ValidTime)
 	cs.IssueTime = common_shared.NonEmptyTimeRange(cs.IssueTime)
 	cs.ExecutionTime = common_shared.NonEmptyTimeRange(cs.ExecutionTime)
+	cs.Formats = deriveControlStreamFormats(&cs)
+	// live and async are required booleans defaulting to false.
+	if cs.Live == nil {
+		cs.Live = new(bool)
+	}
+	if cs.Async == nil {
+		cs.Async = new(bool)
+	}
 	return cs
+}
+
+// deriveControlStreamFormats computes the read-only, required "formats" field
+// from the command formats of all registered schemas.
+func deriveControlStreamFormats(cs *domains.ControlStream) common_shared.StringArray {
+	var formats common_shared.StringArray
+	seen := map[string]bool{}
+	add := func(format string) {
+		key := domains.NormalizeMediaType(format)
+		if key == "" || seen[key] {
+			return
+		}
+		seen[key] = true
+		formats = append(formats, format)
+	}
+	for i := range cs.Schemas {
+		add(cs.Schemas[i].CommandFormat)
+	}
+	// Legacy rows predate the schema registry.
+	if cs.Schema != nil {
+		add(cs.Schema.CommandFormat)
+	}
+	if len(formats) == 0 {
+		formats = common_shared.StringArray{JSONContentType}
+	}
+	return formats
 }
 
 func appendControlStreamAssociationLinks(cs *domains.ControlStream) common_shared.Links {

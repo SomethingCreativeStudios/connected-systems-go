@@ -2,6 +2,7 @@ package sensorml_formatters
 
 import (
 	"context"
+	"fmt"
 	"encoding/json"
 	"io"
 
@@ -293,6 +294,20 @@ func (f *ProcedureSensorMLFormatter) Deserialize(ctx context.Context, reader io.
 	}
 	if sensorML.Type != "" {
 		procedure.ProcessType = sensorML.Type
+	}
+
+	// Required root fields per OGC CS Part 1 procedure SensorML schema
+	if procedure.ProcessType == "" {
+		return nil, fmt.Errorf("type is required")
+	}
+	if procedure.UniqueIdentifier == "" {
+		return nil, fmt.Errorf("uniqueId is required")
+	}
+	if procedure.Name == "" {
+		return nil, fmt.Errorf("label is required")
+	}
+	if procedure.ProcedureType == "" {
+		return nil, fmt.Errorf("definition is required")
 	}
 
 	procedure.Lang = sensorML.Lang

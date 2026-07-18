@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
@@ -30,18 +31,26 @@ type Datastream struct {
 
 	ObservedProperties *DatastreamObservedProperties `gorm:"type:jsonb" json:"observedProperties,omitempty"`
 
-	PhenomenonTime         *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:phenomenon_time_" json:"phenomenonTime,omitempty"`
+	// Read-only time extents derived from observations; required (nullable) per spec.
+	PhenomenonTime         *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:phenomenon_time_" json:"phenomenonTime"`
 	PhenomenonTimeInterval *string                  `gorm:"type:varchar(64)" json:"phenomenonTimeInterval,omitempty"`
-	ResultTime             *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:result_time_" json:"resultTime,omitempty"`
+	ResultTime             *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:result_time_" json:"resultTime"`
 	ResultTimeInterval     *string                  `gorm:"type:varchar(64)" json:"resultTimeInterval,omitempty"`
 
 	Type       string  `gorm:"type:varchar(32)" json:"type,omitempty"`
-	ResultType *string `gorm:"type:varchar(32)" json:"resultType,omitempty"`
-	Live       *bool   `gorm:"type:boolean" json:"live,omitempty"`
+	// Required per spec: resultType is nullable, live defaults to false.
+	ResultType *string `gorm:"type:varchar(32)" json:"resultType"`
+	Live       *bool   `gorm:"type:boolean" json:"live"`
 
 	// Schema is intentionally flexible because it supports multiple
 	// encoding families (JSON, SWE, protobuf, vendor-specific).
+	// It holds the current (most recently written) schema.
 	Schema *DatastreamSchema `gorm:"type:jsonb" json:"schema,omitempty"`
+
+	// Schemas is the server-managed registry of all schemas for this
+	// datastream, one per observation format. Maintained via the schema
+	// endpoint; never set by clients directly.
+	Schemas DatastreamSchemas `gorm:"type:jsonb" json:"-"`
 
 	// Additional links (schema field "links").
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
@@ -112,6 +121,68 @@ type DatastreamSchema struct {
 // DatastreamResultLink describes out-of-band result link media type info.
 type DatastreamResultLink struct {
 	MediaType string `json:"mediaType"`
+}
+
+// DatastreamSchemas is the per-format schema registry of a datastream.
+// Each entry describes observations in one format (keyed by ObsFormat).
+type DatastreamSchemas []DatastreamSchema
+
+// NormalizeMediaType lowercases a media type and strips any parameters
+// (e.g. "Application/JSON; charset=utf-8" -> "application/json").
+func NormalizeMediaType(mediaType string) string {
+	mediaType, _, _ = strings.Cut(mediaType, ";")
+	return strings.ToLower(strings.TrimSpace(mediaType))
+}
+
+// Upsert replaces the schema registered for the same observation format, or
+// appends the schema when its format is new. An empty ObsFormat is treated as
+// "application/json".
+func (s DatastreamSchemas) Upsert(schema DatastreamSchema) DatastreamSchemas {
+	if schema.ObsFormat == "" {
+		schema.ObsFormat = "application/json"
+	}
+	format := NormalizeMediaType(schema.ObsFormat)
+	for i := range s {
+		if NormalizeMediaType(s[i].ObsFormat) == format {
+			s[i] = schema
+			return s
+		}
+	}
+	return append(s, schema)
+}
+
+// ForFormat returns the schema registered for the given observation format.
+func (s DatastreamSchemas) ForFormat(format string) *DatastreamSchema {
+	format = NormalizeMediaType(format)
+	if format == "" {
+		return nil
+	}
+	for i := range s {
+		if NormalizeMediaType(s[i].ObsFormat) == format {
+			return &s[i]
+		}
+	}
+	return nil
+}
+
+// Value implements driver.Valuer for JSONB storage.
+func (s DatastreamSchemas) Value() (driver.Value, error) {
+	return json.Marshal(s)
+}
+
+// Scan implements sql.Scanner for JSONB retrieval.
+func (s *DatastreamSchemas) Scan(value interface{}) error {
+	if value == nil {
+		*s = nil
+		return nil
+	}
+
+	b, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("cannot scan type %T into DatastreamSchemas", value)
+	}
+
+	return json.Unmarshal(b, s)
 }
 
 // Value implements driver.Valuer for JSONB storage.

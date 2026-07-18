@@ -21,6 +21,15 @@ func NewControlStreamRepository(db *gorm.DB) *ControlStreamRepository {
 
 // Create creates a new control stream.
 func (r *ControlStreamRepository) Create(cs *domains.ControlStream) error {
+	// issueTime and executionTime are read-only extents derived from commands;
+	// a new control stream has none.
+	cs.IssueTime = nil
+	cs.ExecutionTime = nil
+	// Seed the per-format schema registry with the initial schema.
+	cs.Schemas = nil
+	if cs.Schema != nil {
+		cs.Schemas = cs.Schemas.Upsert(*cs.Schema)
+	}
 	normalizeControlStreamRefs(cs)
 	r.populateSystemAssociations(cs)
 	if err := r.db.Create(cs).Error; err != nil {
@@ -78,12 +87,22 @@ func (r *ControlStreamRepository) List(params *queryparams.ControlStreamsQueryPa
 // changed by the client; featureOfInterest is re-derived from the updated samplingFeature.
 func (r *ControlStreamRepository) Update(cs *domains.ControlStream) error {
 	var existing domains.ControlStream
-	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id").
+	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id",
+		"issue_time_start", "issue_time_end", "execution_time_start", "execution_time_end", "schemas").
 		Where("id = ?", cs.ID).First(&existing).Error; err == nil {
 		cs.ProcedureLink = existing.ProcedureLink
 		cs.ProcedureID = existing.ProcedureID
 		cs.DeploymentLink = existing.DeploymentLink
 		cs.DeploymentID = existing.DeploymentID
+		// issueTime and executionTime are read-only extents derived from
+		// commands; carry the stored values forward so Save can't clobber them.
+		cs.IssueTime = common_shared.NonEmptyTimeRange(existing.IssueTime)
+		cs.ExecutionTime = common_shared.NonEmptyTimeRange(existing.ExecutionTime)
+		// Carry the schema registry forward, folding in the incoming schema.
+		cs.Schemas = existing.Schemas
+		if cs.Schema != nil {
+			cs.Schemas = cs.Schemas.Upsert(*cs.Schema)
+		}
 	}
 	normalizeControlStreamRefs(cs)
 	r.deriveFOIFromSamplingFeature(cs)
@@ -176,19 +195,41 @@ func (r *ControlStreamRepository) Delete(id string, cascade bool) error {
 	})
 }
 
-// GetSchema retrieves only the schema for a control stream.
-func (r *ControlStreamRepository) GetSchema(id string) (*domains.ControlStreamSchema, error) {
+// GetSchema retrieves the current schema and the per-format schema registry
+// for a control stream.
+func (r *ControlStreamRepository) GetSchema(id string) (*domains.ControlStreamSchema, domains.ControlStreamSchemas, error) {
 	var cs domains.ControlStream
-	err := r.db.Select("id", "schema").Where("id = ?", id).First(&cs).Error
+	err := r.db.Select("id", "schema", "schemas").Where("id = ?", id).First(&cs).Error
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return cs.Schema, nil
+	// Legacy rows predate the registry: expose the current schema through it.
+	if len(cs.Schemas) == 0 && cs.Schema != nil {
+		cs.Schemas = cs.Schemas.Upsert(*cs.Schema)
+	}
+	return cs.Schema, cs.Schemas, nil
 }
 
-// UpdateSchema updates only the schema of a control stream.
+// UpdateSchema upserts the schema into the control stream's per-format
+// registry (replacing the entry with the same commandFormat, adding it
+// otherwise) and makes it the current schema.
 func (r *ControlStreamRepository) UpdateSchema(id string, schema *domains.ControlStreamSchema) error {
-	return r.db.Model(&domains.ControlStream{}).Where("id = ?", id).Update("schema", schema).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var existing domains.ControlStream
+		if err := tx.Select("id", "schema", "schemas").Where("id = ?", id).First(&existing).Error; err != nil {
+			return err
+		}
+		schemas := existing.Schemas
+		// Legacy rows predate the registry: fold the stored schema in first.
+		if len(schemas) == 0 && existing.Schema != nil {
+			schemas = schemas.Upsert(*existing.Schema)
+		}
+		if schema != nil {
+			schemas = schemas.Upsert(*schema)
+		}
+		return tx.Model(&domains.ControlStream{}).Where("id = ?", id).
+			Updates(map[string]interface{}{"schema": schema, "schemas": schemas}).Error
+	})
 }
 
 func (r *ControlStreamRepository) applyFilters(query *gorm.DB, params *queryparams.ControlStreamsQueryParams, systemID *string) *gorm.DB {

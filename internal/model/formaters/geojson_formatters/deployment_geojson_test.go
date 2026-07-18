@@ -53,7 +53,8 @@ func TestDeploymentGeoJSONDeserialize_AssociationLinks(t *testing.T) {
 		"properties": {
 			"uid": "urn:deployment:1",
 			"name": "Deployment 1",
-			"featureType": "http://www.w3.org/ns/sosa/Deployment"
+			"featureType": "http://www.w3.org/ns/sosa/Deployment",
+			"validTime": ["2026-01-01T00:00:00Z", "2026-12-31T23:59:59Z"]
 		},
 		"links": [
 			{"href": "/deployments/dep-parent", "rel": "ogc-rel:parentDeployment"},

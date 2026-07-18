@@ -79,6 +79,7 @@ func TestSystemSensorMLDeserialize_AssociationHandling(t *testing.T) {
 		"type": "PhysicalSystem",
 		"label": "System 1",
 		"uniqueId": "urn:system:1",
+		"definition": "http://www.w3.org/ns/sosa/Sensor",
 		"attachedTo": {"href": "/systems/sys-parent", "rel": "ogc-rel:attachedTo"},
 		"links": [
 			{"href": "/systems/sys-1/subsystems", "rel": "ogc-rel:subsystems"},

@@ -18,7 +18,8 @@ func TestSamplingFeatureDeserialize_StripsOnlyAssociationLinks(t *testing.T) {
 		"properties": {
 			"uid": "urn:test:sf:1",
 			"name": "SF 1",
-			"featureType": "http://www.w3.org/ns/sosa/Sample"
+			"featureType": "http://www.w3.org/ns/sosa/Sample",
+			"sampledFeature@link": {"href": "http://example.org/features/foi-1"}
 		},
 		"links": [
 			{"href": "/systems/abc", "rel": "ogc-rel:parentSystem"},

@@ -29,15 +29,22 @@ type ControlStream struct {
 
 	ControlledProperties *ControlStreamControlledProperties `gorm:"type:jsonb" json:"controlledProperties,omitempty"`
 
-	// Read-only time extents derived from commands.
-	IssueTime     *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:issue_time_" json:"issueTime,omitempty"`
-	ExecutionTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:execution_time_" json:"executionTime,omitempty"`
+	// Read-only time extents derived from commands; required (nullable) per spec.
+	IssueTime     *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:issue_time_" json:"issueTime"`
+	ExecutionTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:execution_time_" json:"executionTime"`
 
-	Live  *bool `gorm:"type:boolean" json:"live,omitempty"`
-	Async *bool `gorm:"type:boolean" json:"async,omitempty"`
+	// Required booleans defaulting to false.
+	Live  *bool `gorm:"type:boolean" json:"live"`
+	Async *bool `gorm:"type:boolean" json:"async"`
 
-	// Schema describing command parameters.
+	// Schema describing command parameters. It holds the current (most
+	// recently written) schema.
 	Schema *ControlStreamSchema `gorm:"type:jsonb" json:"schema,omitempty"`
+
+	// Schemas is the server-managed registry of all schemas for this control
+	// stream, one per command format. Maintained via the schema endpoint;
+	// never set by clients directly.
+	Schemas ControlStreamSchemas `gorm:"type:jsonb" json:"-"`
 
 	// Additional links.
 	Links common_shared.Links `gorm:"type:jsonb" json:"links,omitempty"`
@@ -111,6 +118,59 @@ func (s *ControlStreamSchema) Scan(value interface{}) error {
 	bytes, ok := value.([]byte)
 	if !ok {
 		return fmt.Errorf("cannot scan type %T into ControlStreamSchema", value)
+	}
+	return json.Unmarshal(bytes, s)
+}
+
+// ControlStreamSchemas is the per-format schema registry of a control stream.
+// Each entry describes commands in one format (keyed by CommandFormat).
+type ControlStreamSchemas []ControlStreamSchema
+
+// Upsert replaces the schema registered for the same command format, or
+// appends the schema when its format is new. An empty CommandFormat is
+// treated as "application/json".
+func (s ControlStreamSchemas) Upsert(schema ControlStreamSchema) ControlStreamSchemas {
+	if schema.CommandFormat == "" {
+		schema.CommandFormat = "application/json"
+	}
+	format := NormalizeMediaType(schema.CommandFormat)
+	for i := range s {
+		if NormalizeMediaType(s[i].CommandFormat) == format {
+			s[i] = schema
+			return s
+		}
+	}
+	return append(s, schema)
+}
+
+// ForFormat returns the schema registered for the given command format.
+func (s ControlStreamSchemas) ForFormat(format string) *ControlStreamSchema {
+	format = NormalizeMediaType(format)
+	if format == "" {
+		return nil
+	}
+	for i := range s {
+		if NormalizeMediaType(s[i].CommandFormat) == format {
+			return &s[i]
+		}
+	}
+	return nil
+}
+
+// Value implements driver.Valuer for JSONB storage.
+func (s ControlStreamSchemas) Value() (driver.Value, error) {
+	return json.Marshal(s)
+}
+
+// Scan implements sql.Scanner for JSONB retrieval.
+func (s *ControlStreamSchemas) Scan(value interface{}) error {
+	if value == nil {
+		*s = nil
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("cannot scan type %T into ControlStreamSchemas", value)
 	}
 	return json.Unmarshal(bytes, s)
 }
