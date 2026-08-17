@@ -1,6 +1,8 @@
 package domains
 
 import (
+	"encoding/json"
+
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
@@ -67,14 +69,33 @@ type DeploymentGeoJSONFeature struct {
 
 // DeploymentGeoJSONProperties represents the properties object in GeoJSON
 type DeploymentGeoJSONProperties struct {
-	UID             UniqueID                 `json:"uid"`
-	Name            string                   `json:"name"`
-	Description     string                   `json:"description,omitempty"`
-	FeatureType     string                   `json:"featureType,omitempty"`
-	ValidTime       *common_shared.TimeRange `json:"validTime,omitempty"`
+	UID         UniqueID `json:"uid"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	FeatureType string   `json:"featureType,omitempty"`
+	// validTime is required by the GeoJSON Deployment schema.
+	ValidTime       *common_shared.TimeRange `json:"validTime"`
 	Definition      string                   `json:"definition,omitempty"`
 	Platform        *common_shared.Link      `json:"platform@link,omitempty"`
 	DeployedSystems common_shared.Links      `json:"deployedSystems@link,omitempty"`
+}
+
+// MarshalJSON keeps validTime present in GeoJSON deployment responses. A
+// deployment without concrete bounds represents its valid time as ["now", ".."].
+func (p DeploymentGeoJSONProperties) MarshalJSON() ([]byte, error) {
+	if p.ValidTime != nil && p.ValidTime.HasBounds() {
+		type propertiesAlias DeploymentGeoJSONProperties
+		return json.Marshal(propertiesAlias(p))
+	}
+
+	type propertiesAlias DeploymentGeoJSONProperties
+	return json.Marshal(struct {
+		propertiesAlias
+		ValidTime []string `json:"validTime"`
+	}{
+		propertiesAlias: propertiesAlias(p),
+		ValidTime:       []string{"now", ".."},
+	})
 }
 
 // DeployedSystemItem represents an entry in the deployment's deployedSystems list

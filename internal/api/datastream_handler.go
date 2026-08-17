@@ -206,6 +206,11 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 		render.JSON(w, r, map[string]string{"error": "schema is required"})
 		return
 	}
+	if err := validateDatastreamSchema(datastream.Schema); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	if systemID != "" {
 		datastream.SystemID = &systemID
@@ -254,10 +259,15 @@ func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	datastream.ID = id
-	if datastream.SystemID == nil {
-		datastream.SystemID = existing.SystemID
+	if err := validateDatastreamSchema(datastream.Schema); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
 	}
+
+	datastream.ID = id
+	// system@link is read-only per spec: a datastream cannot be reparented.
+	datastream.SystemID = existing.SystemID
 	if err := h.repo.Update(datastream); err != nil {
 		h.logger.Error("Failed to update datastream", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -366,6 +376,12 @@ func (h *DatastreamHandler) UpdateDatastreamSchema(w http.ResponseWriter, r *htt
 	if err := render.DecodeJSON(r.Body, &schema); err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		return
+	}
+
+	if err := validateDatastreamSchema(&schema); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
 		return
 	}
 

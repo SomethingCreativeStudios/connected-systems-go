@@ -22,9 +22,11 @@ func NewControlStreamRepository(db *gorm.DB) *ControlStreamRepository {
 // Create creates a new control stream.
 func (r *ControlStreamRepository) Create(cs *domains.ControlStream) error {
 	// issueTime and executionTime are read-only extents derived from commands;
-	// a new control stream has none.
+	// a new control stream has none. live is server-owned (command channel
+	// availability) and starts out false.
 	cs.IssueTime = nil
 	cs.ExecutionTime = nil
+	cs.Live = nil
 	// Seed the per-format schema registry with the initial schema.
 	cs.Schemas = nil
 	if cs.Schema != nil {
@@ -88,7 +90,7 @@ func (r *ControlStreamRepository) List(params *queryparams.ControlStreamsQueryPa
 func (r *ControlStreamRepository) Update(cs *domains.ControlStream) error {
 	var existing domains.ControlStream
 	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id",
-		"issue_time_start", "issue_time_end", "execution_time_start", "execution_time_end", "schemas").
+		"issue_time_start", "issue_time_end", "execution_time_start", "execution_time_end", "schemas", "live").
 		Where("id = ?", cs.ID).First(&existing).Error; err == nil {
 		cs.ProcedureLink = existing.ProcedureLink
 		cs.ProcedureID = existing.ProcedureID
@@ -103,6 +105,8 @@ func (r *ControlStreamRepository) Update(cs *domains.ControlStream) error {
 		if cs.Schema != nil {
 			cs.Schemas = cs.Schemas.Upsert(*cs.Schema)
 		}
+		// live is server-owned; carry the stored value forward.
+		cs.Live = existing.Live
 	}
 	normalizeControlStreamRefs(cs)
 	r.deriveFOIFromSamplingFeature(cs)

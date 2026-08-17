@@ -211,6 +211,11 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 		render.JSON(w, r, map[string]string{"error": "schema is required"})
 		return
 	}
+	if err := validateControlStreamSchema(cs.Schema); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	if systemID != "" {
 		cs.SystemID = &systemID
@@ -259,10 +264,15 @@ func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *htt
 		return
 	}
 
-	cs.ID = id
-	if cs.SystemID == nil {
-		cs.SystemID = existing.SystemID
+	if err := validateControlStreamSchema(cs.Schema); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
 	}
+
+	cs.ID = id
+	// system@link is read-only per spec: a control stream cannot be reparented.
+	cs.SystemID = existing.SystemID
 	if err := h.repo.Update(cs); err != nil {
 		h.logger.Error("Failed to update control stream", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -371,6 +381,12 @@ func (h *ControlStreamHandler) UpdateControlStreamSchema(w http.ResponseWriter, 
 	if err := render.DecodeJSON(r.Body, &schema); err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		return
+	}
+
+	if err := validateControlStreamSchema(&schema); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
 		return
 	}
 

@@ -2,6 +2,7 @@ package geojson_formatters
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -9,6 +10,36 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 )
+
+func TestDeploymentGeoJSONSerialize_EmptyValidTimeDefaultsToNow(t *testing.T) {
+	formatter := NewDeploymentGeoJSONFormatter(nil)
+	feature, err := formatter.Serialize(context.Background(), &domains.Deployment{
+		Base: domains.Base{ID: "dep-1"},
+	})
+	if err != nil {
+		t.Fatalf("serialize failed: %v", err)
+	}
+
+	body, err := json.Marshal(feature)
+	if err != nil {
+		t.Fatalf("marshal feature: %v", err)
+	}
+
+	var payload struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal feature: %v", err)
+	}
+
+	validTime, ok := payload.Properties["validTime"]
+	if !ok {
+		t.Fatalf("expected validTime key in GeoJSON properties, got %s", body)
+	}
+	if string(validTime) != `["now",".."]` {
+		t.Fatalf("expected validTime to be [\"now\", \"..\"], got %s", validTime)
+	}
+}
 
 func TestDeploymentGeoJSONSerialize_AssociationLinks(t *testing.T) {
 	useTestAssociationBaseURL(t)

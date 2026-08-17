@@ -27,7 +27,9 @@ type ControlStream struct {
 	FeatureOfInterest   *common_shared.Link `gorm:"type:jsonb" json:"featureOfInterest@link,omitempty"`
 	SamplingFeatureLink *common_shared.Link `gorm:"type:jsonb" json:"samplingFeature@link,omitempty"`
 
-	ControlledProperties *ControlStreamControlledProperties `gorm:"type:jsonb" json:"controlledProperties,omitempty"`
+	// Read-only, derived from the semantic definitions in the parameter
+	// schemas; required (nullable) per spec.
+	ControlledProperties *ControlStreamControlledProperties `gorm:"type:jsonb" json:"controlledProperties"`
 
 	// Read-only time extents derived from commands; required (nullable) per spec.
 	IssueTime     *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:issue_time_" json:"issueTime"`

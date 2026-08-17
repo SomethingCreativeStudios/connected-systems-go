@@ -31,12 +31,18 @@ func baseDatastreamPayload() map[string]interface{} {
 				"type": "DataRecord",
 				"fields": []map[string]interface{}{
 					{
-						"name": "temperature",
-						"type": "Quantity",
+						"name":       "temperature",
+						"type":       "Quantity",
+						"definition": "http://sensorml.com/ont/swe/property/Temperature",
+						"label":      "Temperature",
+						"uom":        map[string]interface{}{"code": "Cel"},
 					},
 					{
-						"name": "humidity",
-						"type": "Quantity",
+						"name":       "humidity",
+						"type":       "Quantity",
+						"definition": "http://sensorml.com/ont/swe/property/RelativeHumidity",
+						"label":      "Humidity",
+						"uom":        map[string]interface{}{"code": "%"},
 					},
 				},
 			},

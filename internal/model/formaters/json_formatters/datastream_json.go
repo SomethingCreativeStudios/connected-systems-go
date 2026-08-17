@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
@@ -231,11 +232,125 @@ func sanitizeDatastreamTimeRanges(datastream domains.Datastream) domains.Datastr
 	datastream.PhenomenonTime = common_shared.NonEmptyTimeRange(datastream.PhenomenonTime)
 	datastream.ResultTime = common_shared.NonEmptyTimeRange(datastream.ResultTime)
 	datastream.Formats = deriveDatastreamFormats(&datastream)
+	datastream.ObservedProperties = deriveDatastreamObservedProperties(&datastream)
+	datastream.ResultType = deriveDatastreamResultType(&datastream)
 	// live is a required boolean defaulting to false.
 	if datastream.Live == nil {
 		datastream.Live = new(bool)
 	}
 	return datastream
+}
+
+// definedComponent pairs a schema component carrying a semantic definition
+// with its effective name (DatastreamNamedComponent shadows the embedded Name).
+type definedComponent struct {
+	component *domains.DatastreamDataComponent
+	name      string
+}
+
+// collectDefinedComponents recursively gathers every data component carrying a
+// semantic definition URI from a schema component tree.
+func collectDefinedComponents(component *domains.DatastreamDataComponent, name string, out *[]definedComponent) {
+	if component == nil {
+		return
+	}
+	if component.Name != "" {
+		name = component.Name
+	}
+	if component.Definition != "" {
+		*out = append(*out, definedComponent{component: component, name: name})
+	}
+	for i := range component.Fields {
+		collectDefinedComponents(&component.Fields[i].DatastreamDataComponent, component.Fields[i].Name, out)
+	}
+	for i := range component.Coordinates {
+		collectDefinedComponents(&component.Coordinates[i].DatastreamDataComponent, component.Coordinates[i].Name, out)
+	}
+	for i := range component.Items {
+		collectDefinedComponents(&component.Items[i].DatastreamDataComponent, component.Items[i].Name, out)
+	}
+	if component.ElementType != nil {
+		collectDefinedComponents(&component.ElementType.DatastreamDataComponent, component.ElementType.Name, out)
+	}
+}
+
+// datastreamResultComponent returns the observation result component of a
+// datastream schema (JSON or SWE branch).
+func datastreamResultComponent(schema *domains.DatastreamSchema) *domains.DatastreamDataComponent {
+	if schema == nil {
+		return nil
+	}
+	if schema.ResultSchema != nil {
+		return schema.ResultSchema
+	}
+	return schema.RecordSchema
+}
+
+// deriveDatastreamObservedProperties computes the read-only, required
+// "observedProperties" field from the semantic definitions declared in the
+// result schemas of all registered schemas. Nil (-> null) when none declared.
+func deriveDatastreamObservedProperties(datastream *domains.Datastream) *domains.DatastreamObservedProperties {
+	var components []definedComponent
+	for i := range datastream.Schemas {
+		collectDefinedComponents(datastreamResultComponent(&datastream.Schemas[i]), "", &components)
+	}
+	// Legacy rows predate the schema registry.
+	if len(components) == 0 {
+		collectDefinedComponents(datastreamResultComponent(datastream.Schema), "", &components)
+	}
+
+	var props domains.DatastreamObservedProperties
+	seen := map[string]bool{}
+	for _, dc := range components {
+		c := dc.component
+		if seen[c.Definition] {
+			continue
+		}
+		seen[c.Definition] = true
+		label := c.Label
+		if label == "" {
+			label = dc.name
+		}
+		props = append(props, domains.DatastreamObservedProperty{
+			Definition:  c.Definition,
+			Label:       label,
+			Description: c.Description,
+		})
+	}
+	if len(props) == 0 {
+		return nil
+	}
+	return &props
+}
+
+// deriveDatastreamResultType computes the read-only, required "resultType"
+// field from the root component of the observation result schema.
+// Nil (-> null) when no schema declares a result component.
+func deriveDatastreamResultType(datastream *domains.Datastream) *string {
+	component := datastreamResultComponent(datastream.Schema)
+	for i := range datastream.Schemas {
+		if component != nil {
+			break
+		}
+		component = datastreamResultComponent(&datastream.Schemas[i])
+	}
+	if component == nil {
+		return nil
+	}
+	var resultType string
+	switch strings.ToLower(component.Type) {
+	case "quantity", "count":
+		resultType = "measure"
+	case "vector":
+		resultType = "vector"
+	case "datarecord":
+		resultType = "record"
+	case "dataarray", "matrix":
+		resultType = "coverage"
+	default:
+		resultType = "complex"
+	}
+	return &resultType
 }
 
 // deriveDatastreamFormats computes the read-only, required "formats" field

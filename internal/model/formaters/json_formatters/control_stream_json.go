@@ -229,6 +229,7 @@ func sanitizeControlStreamTimeRanges(cs domains.ControlStream) domains.ControlSt
 	cs.IssueTime = common_shared.NonEmptyTimeRange(cs.IssueTime)
 	cs.ExecutionTime = common_shared.NonEmptyTimeRange(cs.ExecutionTime)
 	cs.Formats = deriveControlStreamFormats(&cs)
+	cs.ControlledProperties = deriveControlStreamControlledProperties(&cs)
 	// live and async are required booleans defaulting to false.
 	if cs.Live == nil {
 		cs.Live = new(bool)
@@ -237,6 +238,55 @@ func sanitizeControlStreamTimeRanges(cs domains.ControlStream) domains.ControlSt
 		cs.Async = new(bool)
 	}
 	return cs
+}
+
+// controlStreamParamsComponent returns the command parameters component of a
+// control stream schema (JSON or SWE branch).
+func controlStreamParamsComponent(schema *domains.ControlStreamSchema) *domains.DatastreamDataComponent {
+	if schema == nil {
+		return nil
+	}
+	if schema.ParametersSchema != nil {
+		return schema.ParametersSchema
+	}
+	return schema.RecordSchema
+}
+
+// deriveControlStreamControlledProperties computes the read-only, required
+// "controlledProperties" field from the semantic definitions declared in the
+// parameter schemas of all registered schemas. Nil (-> null) when none declared.
+func deriveControlStreamControlledProperties(cs *domains.ControlStream) *domains.ControlStreamControlledProperties {
+	var components []definedComponent
+	for i := range cs.Schemas {
+		collectDefinedComponents(controlStreamParamsComponent(&cs.Schemas[i]), "", &components)
+	}
+	// Legacy rows predate the schema registry.
+	if len(components) == 0 {
+		collectDefinedComponents(controlStreamParamsComponent(cs.Schema), "", &components)
+	}
+
+	var props domains.ControlStreamControlledProperties
+	seen := map[string]bool{}
+	for _, dc := range components {
+		c := dc.component
+		if seen[c.Definition] {
+			continue
+		}
+		seen[c.Definition] = true
+		label := c.Label
+		if label == "" {
+			label = dc.name
+		}
+		props = append(props, domains.ControlStreamControlledProperty{
+			Definition:  c.Definition,
+			Label:       label,
+			Description: c.Description,
+		})
+	}
+	if len(props) == 0 {
+		return nil
+	}
+	return &props
 }
 
 // deriveControlStreamFormats computes the read-only, required "formats" field

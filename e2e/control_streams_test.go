@@ -37,8 +37,11 @@ func baseControlStreamPayload() map[string]interface{} {
 				"type": "DataRecord",
 				"fields": []map[string]interface{}{
 					{
-						"name": "setPoint",
-						"type": "Quantity",
+						"name":       "setPoint",
+						"type":       "Quantity",
+						"definition": "http://sensorml.com/ont/swe/property/Temperature",
+						"label":      "Set Point",
+						"uom":        map[string]interface{}{"code": "Cel"},
 					},
 				},
 			},
@@ -453,8 +456,8 @@ func TestControlStream_SchemaSubResource(t *testing.T) {
 		"parametersSchema": map[string]interface{}{
 			"type": "DataRecord",
 			"fields": []map[string]interface{}{
-				{"name": "targetTemperature", "type": "Quantity"},
-				{"name": "mode", "type": "Text"},
+				{"name": "targetTemperature", "type": "Quantity", "definition": "http://sensorml.com/ont/swe/property/Temperature", "label": "Target Temperature", "uom": map[string]interface{}{"code": "Cel"}},
+				{"name": "mode", "type": "Text", "definition": "http://sensorml.com/ont/swe/property/OperatingMode", "label": "Mode"},
 			},
 		},
 	}
@@ -742,7 +745,8 @@ func TestCommandCRUD(t *testing.T) {
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&cmd))
 	assert.Equal(t, csID, cmd["controlstream@id"])
 
-	// UPDATE: change status to ACCEPTED
+	// UPDATE: parameters are writable; client-supplied currentStatus is
+	// read-only and must be ignored (only status reports change it).
 	updated := map[string]interface{}{
 		"currentStatus": "ACCEPTED",
 		"parameters":    map[string]interface{}{"setPoint": 25.0},
@@ -755,12 +759,15 @@ func TestCommandCRUD(t *testing.T) {
 	defer putResp.Body.Close()
 	assert.Equal(t, http.StatusNoContent, putResp.StatusCode)
 
-	// Verify update
+	// Verify update: parameters changed, currentStatus untouched (read-only).
 	getResp2 := doGet(t, "/commands/"+cmdID)
 	defer getResp2.Body.Close()
 	var refetched map[string]interface{}
 	require.NoError(t, json.NewDecoder(getResp2.Body).Decode(&refetched))
-	assert.Equal(t, "ACCEPTED", refetched["currentStatus"])
+	assert.Equal(t, "PENDING", refetched["currentStatus"], "currentStatus is read-only; only status reports may change it")
+	params, ok := refetched["parameters"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, 25.0, params["setPoint"])
 
 	// DELETE
 	delReq, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/commands/"+cmdID, nil)

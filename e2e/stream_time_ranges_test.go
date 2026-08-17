@@ -30,6 +30,25 @@ func putJSONResource(t *testing.T, path string, payload map[string]interface{}) 
 	require.Contains(t, []int{http.StatusOK, http.StatusNoContent}, resp.StatusCode, "PUT %s", path)
 }
 
+// postCommandStatus files a status report for a command — the only path that
+// may set a command's (read-only) executionTime.
+func postCommandStatus(t *testing.T, commandID, statusCode string, executionTime []interface{}) {
+	t.Helper()
+	payload := map[string]interface{}{"statusCode": statusCode}
+	if executionTime != nil {
+		payload["executionTime"] = executionTime
+	}
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/commands/"+commandID+"/status", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "POST status for command %s", commandID)
+}
+
 func deleteResourceViaAPI(t *testing.T, path string) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodDelete, testServer.URL+path, nil)
@@ -143,22 +162,25 @@ func TestControlStream_TimeRanges_ComputedFromCommands(t *testing.T) {
 	assert.Nil(t, cs["executionTime"], "empty control stream must report null executionTime")
 	assert.Equal(t, []interface{}{"application/json"}, cs["formats"], "formats must be derived from the schema commandFormat")
 
+	// executionTime is read-only on commands: it is populated from status
+	// reports, never from the command body (client-supplied values ignored).
 	boundedCmdID := createCommandViaAPI(t, csID, map[string]interface{}{
 		"parameters":    map[string]interface{}{"setPoint": 20.0},
 		"issueTime":     "2026-01-01T00:00:00Z",
-		"executionTime": []string{"2026-01-02T00:00:00Z", "2026-01-03T00:00:00Z"},
+		"executionTime": []string{"1999-01-01T00:00:00Z", "1999-01-02T00:00:00Z"},
 	})
+	postCommandStatus(t, boundedCmdID, "EXECUTING", []interface{}{"2026-01-02T00:00:00Z", "2026-01-03T00:00:00Z"})
 	// No executionTime — contributes only to issueTime. This is the newest issue time.
 	newestCmdID := createCommandViaAPI(t, csID, map[string]interface{}{
 		"parameters": map[string]interface{}{"setPoint": 21.0},
 		"issueTime":  "2026-02-01T00:00:00Z",
 	})
 	// Open-ended executionTime counts as a point at its start.
-	createCommandViaAPI(t, csID, map[string]interface{}{
-		"parameters":    map[string]interface{}{"setPoint": 22.0},
-		"issueTime":     "2025-12-01T00:00:00Z",
-		"executionTime": []interface{}{"2026-03-01T00:00:00Z", nil},
+	openCmdID := createCommandViaAPI(t, csID, map[string]interface{}{
+		"parameters": map[string]interface{}{"setPoint": 22.0},
+		"issueTime":  "2025-12-01T00:00:00Z",
 	})
+	postCommandStatus(t, openCmdID, "EXECUTING", []interface{}{"2026-03-01T00:00:00Z", nil})
 
 	cs = getJSONResource(t, "/controlstreams/"+csID, "application/json")
 	assertTimeRange(t, cs["issueTime"], "2025-12-01T00:00:00Z", "2026-02-01T00:00:00Z", "issueTime after 3 commands")
@@ -174,15 +196,18 @@ func TestControlStream_TimeRanges_ComputedFromCommands(t *testing.T) {
 	assertTimeRange(t, listedCS["issueTime"], "2025-12-01T00:00:00Z", "2026-02-01T00:00:00Z", "issueTime in list")
 	assertTimeRange(t, listedCS["executionTime"], "2026-01-02T00:00:00Z", "2026-03-01T00:00:00Z", "executionTime in list")
 
-	// PUT a command with a wider executionTime — the extent must be recomputed.
+	// A newer status report widens the command's execution time — the extent
+	// must be recomputed. A command PUT with bogus read-only fields must not.
 	putJSONResource(t, "/commands/"+boundedCmdID, map[string]interface{}{
 		"parameters":    map[string]interface{}{"setPoint": 20.0},
-		"issueTime":     "2026-01-01T00:00:00Z",
-		"executionTime": []string{"2026-01-02T00:00:00Z", "2026-04-01T00:00:00Z"},
+		"issueTime":     "1999-01-01T00:00:00Z",
+		"executionTime": []string{"1999-01-01T00:00:00Z", "1999-01-02T00:00:00Z"},
 	})
+	postCommandStatus(t, boundedCmdID, "COMPLETED", []interface{}{"2026-01-02T00:00:00Z", "2026-04-01T00:00:00Z"})
 
 	cs = getJSONResource(t, "/controlstreams/"+csID, "application/json")
-	assertTimeRange(t, cs["executionTime"], "2026-01-02T00:00:00Z", "2026-04-01T00:00:00Z", "executionTime after command PUT")
+	assertTimeRange(t, cs["issueTime"], "2025-12-01T00:00:00Z", "2026-02-01T00:00:00Z", "issueTime unchanged by command PUT (read-only)")
+	assertTimeRange(t, cs["executionTime"], "2026-01-02T00:00:00Z", "2026-04-01T00:00:00Z", "executionTime after status report")
 
 	// PUT on the control stream (with bogus client-supplied ranges) must not
 	// disturb the computed extents.

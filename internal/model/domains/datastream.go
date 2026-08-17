@@ -29,7 +29,9 @@ type Datastream struct {
 	FeatureOfInterest   *common_shared.Link `gorm:"type:jsonb" json:"featureOfInterest@link,omitempty"`
 	SamplingFeatureLink *common_shared.Link `gorm:"type:jsonb" json:"samplingFeature@link,omitempty"`
 
-	ObservedProperties *DatastreamObservedProperties `gorm:"type:jsonb" json:"observedProperties,omitempty"`
+	// Read-only, derived from the semantic definitions in the result schemas;
+	// required (nullable) per spec.
+	ObservedProperties *DatastreamObservedProperties `gorm:"type:jsonb" json:"observedProperties"`
 
 	// Read-only time extents derived from observations; required (nullable) per spec.
 	PhenomenonTime         *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:phenomenon_time_" json:"phenomenonTime"`

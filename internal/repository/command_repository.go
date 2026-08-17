@@ -171,11 +171,39 @@ func (r *CommandRepository) CreateStatus(status *domains.CommandStatusReport) er
 		if err := tx.Create(status).Error; err != nil {
 			return err
 		}
-		return tx.Model(&domains.Command{}).
+		if err := tx.Model(&domains.Command{}).
 			Where("id = ?", status.CommandID).
 			Update("current_status", status.StatusCode).
-			Error
+			Error; err != nil {
+			return err
+		}
+		return applyStatusExecutionTime(tx, status)
 	})
+}
+
+// applyStatusExecutionTime copies a status report's executionTime onto the
+// parent command (latest report wins) and refreshes the control stream's
+// execution extent. Commands' executionTime is read-only for clients and is
+// only ever populated through this path.
+func applyStatusExecutionTime(tx *gorm.DB, status *domains.CommandStatusReport) error {
+	if !status.ExecutionTime.HasBounds() {
+		return nil
+	}
+	var controlStreamID string
+	err := tx.Model(&domains.Command{}).Select("control_stream_id").
+		Where("id = ?", status.CommandID).First(&controlStreamID).Error
+	if err != nil {
+		return err
+	}
+	if err := tx.Model(&domains.Command{}).
+		Where("id = ?", status.CommandID).
+		Updates(map[string]interface{}{
+			"execution_time_start": status.ExecutionTime.Start,
+			"execution_time_end":   status.ExecutionTime.End,
+		}).Error; err != nil {
+		return err
+	}
+	return recomputeControlStreamTimeRanges(tx, controlStreamID)
 }
 
 // GetStatusByID retrieves a command status report by command ID and status ID.
@@ -226,10 +254,13 @@ func (r *CommandRepository) UpdateStatus(status *domains.CommandStatusReport) er
 		if err := tx.Save(status).Error; err != nil {
 			return err
 		}
-		return tx.Model(&domains.Command{}).
+		if err := tx.Model(&domains.Command{}).
 			Where("id = ?", status.CommandID).
 			Update("current_status", status.StatusCode).
-			Error
+			Error; err != nil {
+			return err
+		}
+		return applyStatusExecutionTime(tx, status)
 	})
 }
 

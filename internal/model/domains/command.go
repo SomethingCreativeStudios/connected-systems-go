@@ -30,8 +30,9 @@ type Command struct {
 	SamplingFeatureID *string             `gorm:"type:varchar(255);index" json:"samplingFeature@id,omitempty"`
 	ProcedureLink     *common_shared.Link `gorm:"type:jsonb" json:"procedure@link,omitempty"`
 
-	// issueTime: set by server on creation if omitted
-	IssueTime     *time.Time               `gorm:"index" json:"issueTime,omitempty"`
+	// issueTime: required in responses; set by server on creation if omitted.
+	// executionTime: read-only, populated from command status reports.
+	IssueTime     *time.Time               `gorm:"index" json:"issueTime"`
 	ExecutionTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:execution_time_" json:"executionTime,omitempty"`
 
 	Sender        string        `gorm:"type:varchar(255)" json:"sender,omitempty"`

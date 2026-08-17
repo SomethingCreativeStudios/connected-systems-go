@@ -240,6 +240,10 @@ func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *ht
 	}
 
 	cmd.ControlStreamID = controlStreamID
+	// currentStatus and executionTime are read-only per spec: status starts at
+	// PENDING and execution time is reported by the system via status reports.
+	cmd.CurrentStatus = ""
+	cmd.ExecutionTime = nil
 	if err := h.repo.Create(cmd); err != nil {
 		h.logger.Error("Failed to create command", zap.String("controlStreamId", controlStreamID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -288,6 +292,11 @@ func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 
 	cmd.ID = id
 	cmd.ControlStreamID = existing.ControlStreamID
+	// Read-only per spec: issueTime is fixed at creation, currentStatus and
+	// executionTime are driven by status reports.
+	cmd.IssueTime = existing.IssueTime
+	cmd.CurrentStatus = existing.CurrentStatus
+	cmd.ExecutionTime = existing.ExecutionTime
 	if err := h.repo.Update(cmd); err != nil {
 		h.logger.Error("Failed to update command", zap.String("id", id), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
