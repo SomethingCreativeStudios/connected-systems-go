@@ -110,14 +110,19 @@ func (r *CommandRepository) List(params *queryparams.CommandsQueryParams, contro
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+		Columns:     []string{"issue_time", "id"},
+		Descending:  true,
+		TimeColumns: map[int]bool{0: true},
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Order("issue_time desc").Find(&commands).Error
+	err = query.Find(&commands).Error
+	commands = FinalizeCursorPage(commands, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(commands, func(command *domains.Command) []string {
+		return []string{cursorTimeValue(command.IssueTime), command.ID}
+	})
 	return commands, total, err
 }
 
@@ -233,14 +238,19 @@ func (r *CommandRepository) ListStatuses(commandID string, params *queryparams.C
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+		Columns:     []string{"report_time", "id"},
+		Descending:  true,
+		TimeColumns: map[int]bool{0: true},
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Order("report_time desc").Find(&statuses).Error
+	err = query.Find(&statuses).Error
+	statuses = FinalizeCursorPage(statuses, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(statuses, func(status *domains.CommandStatusReport) []string {
+		return []string{queryparams.TimeCursorValue(status.ReportTime), status.ID}
+	})
 	return statuses, total, err
 }
 
@@ -305,14 +315,19 @@ func (r *CommandRepository) ListResults(commandID string, params *queryparams.Co
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+		Columns:     []string{"created_at", "id"},
+		Descending:  true,
+		TimeColumns: map[int]bool{0: true},
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Order("created_at desc").Find(&results).Error
+	err = query.Find(&results).Error
+	results = FinalizeCursorPage(results, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(results, func(result *domains.CommandResult) []string {
+		return []string{queryparams.TimeCursorValue(result.CreatedAt), result.ID}
+	})
 	return results, total, err
 }
 

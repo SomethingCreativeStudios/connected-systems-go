@@ -52,7 +52,7 @@ func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.S
 // @Tags        Systems
 // @Produce     json
 // @Param       limit               query  integer  false  "Maximum number of results"
-// @Param       offset              query  integer  false  "Result offset"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       id                  query  string   false  "Comma-separated resource IDs"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
 // @Param       bbox                query  string   false  "Bounding box filter: minx,miny,maxx,maxy"
@@ -247,7 +247,7 @@ func (h *SystemHandler) DeleteSystem(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id                  path   string   true   "System ID"
 // @Param       limit               query  integer  false  "Maximum number of results"
-// @Param       offset              query  integer  false  "Result offset"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       id                  query  string   false  "Comma-separated resource IDs"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
 // @Param       bbox                query  string   false  "Bounding box filter: minx,miny,maxx,maxy"
@@ -264,7 +264,6 @@ func (h *SystemHandler) DeleteSystem(w http.ResponseWriter, r *http.Request) {
 // @Router      /systems/{id}/subsystems [get]
 func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 	parentID := chi.URLParam(r, "id")
-	recursive := r.URL.Query().Get("recursive") == "true"
 	params, err := queryparams.SystemQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
@@ -272,7 +271,7 @@ func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	systems, err := h.repo.GetSubsystems(parentID, recursive)
+	systems, total, err := h.repo.ListSubsystems(parentID, params)
 	if err != nil {
 		h.logger.Error("Failed to get subsystems", zap.String("parentID", parentID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -283,7 +282,7 @@ func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 	h.populateSystemAssociationLinks(systems)
 
 	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, systems, h.cfg.API.BaseURL+r.URL.Path, len(systems), r.URL.Query(), params.QueryParams)
+	collection := h.fc.BuildCollection(acceptHeader, systems, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	writeNegotiated(w, collection)
@@ -306,7 +305,7 @@ func (h *SystemHandler) populateSystemAssociationLinks(systems []*domains.System
 // @Produce     json
 // @Param       id                  path   string   true   "System ID"
 // @Param       limit               query  integer  false  "Maximum number of results"
-// @Param       offset              query  integer  false  "Result offset"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
 // @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339)"
 // @Param       parent              query  string   false  "Comma-separated parent deployment IDs"
@@ -354,7 +353,7 @@ func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id                  path   string   true   "System ID"
 // @Param       limit               query  integer  false  "Maximum number of results"
-// @Param       offset              query  integer  false  "Result offset"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
 // @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339)"
 // @Param       observedProperty    query  string   false  "Comma-separated observed property IDs"

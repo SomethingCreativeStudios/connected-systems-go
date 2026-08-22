@@ -71,14 +71,13 @@ func (r *DatastreamRepository) List(params *queryparams.DatastreamsQueryParams, 
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Find(&datastreams).Error
+	err = query.Find(&datastreams).Error
+	datastreams = FinalizeCursorPage(datastreams, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(datastreams, func(datastream *domains.Datastream) []string { return []string{datastream.ID} })
 	return datastreams, total, err
 }
 

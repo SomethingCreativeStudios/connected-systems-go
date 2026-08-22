@@ -46,7 +46,7 @@ func NewControlStreamHandler(
 // @Tags        Control Streams
 // @Produce     json
 // @Param       limit               query  integer  false  "Maximum number of results"
-// @Param       offset              query  integer  false  "Result offset"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       id                  query  string   false  "Comma-separated resource IDs"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
 // @Param       system              query  string   false  "Comma-separated system IDs"
@@ -66,7 +66,7 @@ func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http
 		return
 	}
 
-	controlStreams, total, err := h.repo.List(params, nil)
+	controlStreams, _, err := h.repo.List(params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list control streams", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -83,8 +83,7 @@ func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http
 		return
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(controlStreams))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, ControlStreamCollectionResponse{Items: items, Links: links})
@@ -98,7 +97,7 @@ func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http
 // @Produce     json
 // @Param       id                  path   string   true   "System ID"
 // @Param       limit               query  integer  false  "Maximum number of results"
-// @Param       offset              query  integer  false  "Result offset"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
 // @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
 // @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
@@ -120,7 +119,7 @@ func (h *ControlStreamHandler) ListSystemControlStreams(w http.ResponseWriter, r
 		return
 	}
 
-	controlStreams, total, err := h.repo.List(params, &systemID)
+	controlStreams, _, err := h.repo.List(params, &systemID)
 	if err != nil {
 		h.logger.Error("Failed to list control streams for system", zap.String("systemId", systemID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -137,8 +136,7 @@ func (h *ControlStreamHandler) ListSystemControlStreams(w http.ResponseWriter, r
 		return
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(controlStreams))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, ControlStreamCollectionResponse{Items: items, Links: links})

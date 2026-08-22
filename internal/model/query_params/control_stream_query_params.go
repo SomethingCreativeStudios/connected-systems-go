@@ -22,8 +22,12 @@ type ControlStreamsQueryParams struct {
 
 // BuildFromRequest parses control stream query parameters from request.
 func (ControlStreamsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*ControlStreamsQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindIDAsc)
+	if err != nil {
+		return nil, err
+	}
 	params := &ControlStreamsQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	if system := r.URL.Query().Get("system"); system != "" {

@@ -57,14 +57,19 @@ func (r *SystemHistoryRepository) List(systemID string, params *queryparams.Syst
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+		Columns:     []string{"created_at", "id"},
+		Descending:  true,
+		TimeColumns: map[int]bool{0: true},
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Order("created_at desc").Find(&revisions).Error
+	err = query.Find(&revisions).Error
+	revisions = FinalizeCursorPage(revisions, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(revisions, func(revision *domains.SystemHistoryRevision) []string {
+		return []string{queryparams.TimeCursorValue(revision.CreatedAt), revision.ID}
+	})
 	return revisions, total, err
 }
 

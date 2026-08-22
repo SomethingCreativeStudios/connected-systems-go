@@ -138,11 +138,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     }
                 ],
@@ -474,11 +474,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -759,6 +759,180 @@
                 }
             }
         },
+        "/commands/{cmdId}/result": {
+            "get": {
+                "description": "Returns a paginated collection of results for a command",
+                "tags": [
+                    "Commands"
+                ],
+                "summary": "List command results",
+                "parameters": [
+                    {
+                        "description": "Command ID",
+                        "name": "cmdId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.CommandResultCollectionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/commands/{cmdId}/status": {
+            "get": {
+                "description": "Returns a paginated collection of status reports for a command",
+                "tags": [
+                    "Commands"
+                ],
+                "summary": "List command status reports",
+                "parameters": [
+                    {
+                        "description": "Command ID",
+                        "name": "cmdId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.CommandStatusCollectionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/conformance": {
             "get": {
                 "description": "Returns the list of OGC conformance classes this server implements",
@@ -798,11 +972,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -1122,11 +1296,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -1298,7 +1472,7 @@
         },
         "/controlstreams/{controlStreamId}/schema": {
             "get": {
-                "description": "Returns the command schema for a given control stream",
+                "description": "Returns the command schema for a given control stream. With the\ncommandFormat query parameter, returns the schema registered\nfor that command format.",
                 "tags": [
                     "Control Streams"
                 ],
@@ -1309,6 +1483,14 @@
                         "name": "controlStreamId",
                         "in": "path",
                         "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Command format media type",
+                        "name": "commandFormat",
+                        "in": "query",
                         "schema": {
                             "type": "string"
                         }
@@ -1342,7 +1524,7 @@
                 }
             },
             "put": {
-                "description": "Replaces the command schema for a given control stream",
+                "description": "Registers the schema for its command format (replacing any\nexisting schema with the same commandFormat, adding a new\nformat otherwise) and makes it the control stream's current\nschema. The formats list reflects all registered schemas.",
                 "tags": [
                     "Control Streams"
                 ],
@@ -1420,11 +1602,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -1744,11 +1926,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -1912,7 +2094,7 @@
         },
         "/datastreams/{dataStreamId}/schema": {
             "get": {
-                "description": "Returns the observation schema for a given datastream",
+                "description": "Returns the observation schema for a given datastream. With the\nobsFormat query parameter, returns the schema registered for\nthat observation format.",
                 "tags": [
                     "Datastreams"
                 ],
@@ -1923,6 +2105,14 @@
                         "name": "dataStreamId",
                         "in": "path",
                         "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Observation format media type",
+                        "name": "obsFormat",
+                        "in": "query",
                         "schema": {
                             "type": "string"
                         }
@@ -1956,7 +2146,7 @@
                 }
             },
             "put": {
-                "description": "Replaces the observation schema for a given datastream",
+                "description": "Registers the schema for its observation format (replacing any\nexisting schema with the same obsFormat, adding a new format\notherwise) and makes it the datastream's current schema. The\ndatastream's formats list reflects all registered schemas.",
                 "tags": [
                     "Datastreams"
                 ],
@@ -2034,11 +2224,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -2505,11 +2695,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -2807,11 +2997,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -3127,11 +3317,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -3413,11 +3603,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -3703,11 +3893,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -3816,11 +4006,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -4210,11 +4400,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -4376,11 +4566,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -4542,11 +4732,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -4673,11 +4863,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -5062,11 +5252,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -5375,11 +5565,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -5482,11 +5672,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -5678,11 +5868,11 @@
                         }
                     },
                     {
-                        "description": "Result offset",
-                        "name": "offset",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query",
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     },
                     {
@@ -5990,6 +6180,36 @@
         },
         "schemas": {
             "api.CommandCollectionResponse": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/common_shared.Link"
+                        }
+                    }
+                }
+            },
+            "api.CommandResultCollectionResponse": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/common_shared.Link"
+                        }
+                    }
+                }
+            },
+            "api.CommandStatusCollectionResponse": {
                 "type": "object",
                 "properties": {
                     "items": {

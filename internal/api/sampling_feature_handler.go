@@ -37,7 +37,7 @@ func NewSamplingFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *rep
 // @Tags        Sampling Features
 // @Produce     json
 // @Param       limit               query  integer  false  "Maximum number of results"
-// @Param       offset              query  integer  false  "Result offset"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       id                  query  string   false  "Comma-separated resource IDs"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
 // @Param       bbox                query  string   false  "Bounding box filter: minx,miny,maxx,maxy"
@@ -255,7 +255,7 @@ func (h *SamplingFeatureHandler) DeleteSamplingFeature(w http.ResponseWriter, r 
 // @Produce     json
 // @Param       id                  path   string   true   "System ID"
 // @Param       limit               query  integer  false  "Maximum number of results"
-// @Param       offset              query  integer  false  "Result offset"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
 // @Param       bbox                query  string   false  "Bounding box filter: minx,miny,maxx,maxy"
 // @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339)"

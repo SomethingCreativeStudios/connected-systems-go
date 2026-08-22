@@ -17,8 +17,12 @@ type SystemHistoryQueryParams struct {
 }
 
 func (SystemHistoryQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*SystemHistoryQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindTimeDesc)
+	if err != nil {
+		return nil, err
+	}
 	params := &SystemHistoryQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	if vals := r.URL.Query()["validTime"]; len(vals) > 0 {

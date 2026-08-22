@@ -298,18 +298,6 @@ func TestSystemRepository_List(t *testing.T) {
 			},
 		},
 		{
-			name: "list with limit and offset",
-			params: &queryparams.SystemQueryParams{
-				QueryParams: queryparams.QueryParams{Limit: 2, Offset: 2},
-				Recursive:   true,
-			},
-			wantCount: 2,
-			wantTotal: 5,
-			checkFunc: func(t *testing.T, systems []*domains.System) {
-				require.Len(t, systems, 2)
-			},
-		},
-		{
 			name: "filter by specific IDs",
 			params: &queryparams.SystemQueryParams{
 				QueryParams: queryparams.QueryParams{

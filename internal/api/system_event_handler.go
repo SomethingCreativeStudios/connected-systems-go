@@ -58,7 +58,7 @@ func validateSystemEvent(e *domains.SystemEvent) error {
 // @Tags        System Events
 // @Produce     json
 // @Param       limit      query  integer  false  "Maximum number of results"
-// @Param       offset     query  integer  false  "Result offset"
+// @Param       cursor     query  string   false  "Opaque pagination cursor"
 // @Param       id         query  string   false  "Comma-separated resource IDs"
 // @Param       q          query  string   false  "Comma-separated keywords for full-text search"
 // @Param       system     query  string   false  "Comma-separated system IDs"
@@ -77,7 +77,7 @@ func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	events, total, err := h.repo.List(params, nil)
+	events, _, err := h.repo.List(params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list system events", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -90,8 +90,7 @@ func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Req
 		items = append(items, event)
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(events))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", "application/json")
 	render.JSON(w, r, SystemEventCollectionResponse{Items: items, Links: links})
@@ -105,7 +104,7 @@ func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Req
 // @Produce     json
 // @Param       id         path   string   true   "System ID"
 // @Param       limit      query  integer  false  "Maximum number of results"
-// @Param       offset     query  integer  false  "Result offset"
+// @Param       cursor     query  string   false  "Opaque pagination cursor"
 // @Param       q          query  string   false  "Comma-separated keywords for full-text search"
 // @Param       eventType  query  string   false  "Comma-separated event type values"
 // @Param       keyword    query  string   false  "Comma-separated keywords to match against event fields"
@@ -133,7 +132,7 @@ func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.R
 		render.JSON(w, r, map[string]string{"error": err.Error()})
 		return
 	}
-	events, total, err := h.repo.List(params, &systemID)
+	events, _, err := h.repo.List(params, &systemID)
 	if err != nil {
 		h.logger.Error("Failed to list system events", zap.String("systemId", systemID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -146,8 +145,7 @@ func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.R
 		items = append(items, event)
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(events))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", "application/json")
 	render.JSON(w, r, SystemEventCollectionResponse{Items: items, Links: links})

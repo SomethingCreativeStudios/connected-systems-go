@@ -83,14 +83,13 @@ func (r *DeploymentRepository) List(params *queryparams.DeploymentsQueryParams, 
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Find(&deployments).Error
+	err = query.Find(&deployments).Error
+	deployments = FinalizeCursorPage(deployments, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(deployments, func(deployment *domains.Deployment) []string { return []string{deployment.ID} })
 
 	// Enrich deployments with associations
 	for i, deployment := range deployments {

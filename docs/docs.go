@@ -144,9 +144,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     }
                 ],
@@ -432,9 +432,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -662,6 +662,142 @@ const docTemplate = `{
                 }
             }
         },
+        "/commands/{cmdId}/result": {
+            "get": {
+                "description": "Returns a paginated collection of results for a command",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Commands"
+                ],
+                "summary": "List command results",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Command ID",
+                        "name": "cmdId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CommandResultCollectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/commands/{cmdId}/status": {
+            "get": {
+                "description": "Returns a paginated collection of status reports for a command",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Commands"
+                ],
+                "summary": "List command status reports",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Command ID",
+                        "name": "cmdId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CommandStatusCollectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/conformance": {
             "get": {
                 "description": "Returns the list of OGC conformance classes this server implements",
@@ -701,9 +837,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -965,9 +1101,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -1107,7 +1243,7 @@ const docTemplate = `{
         },
         "/controlstreams/{controlStreamId}/schema": {
             "get": {
-                "description": "Returns the command schema for a given control stream",
+                "description": "Returns the command schema for a given control stream. With the\ncommandFormat query parameter, returns the schema registered\nfor that command format.",
                 "produces": [
                     "application/json"
                 ],
@@ -1122,6 +1258,12 @@ const docTemplate = `{
                         "name": "controlStreamId",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Command format media type",
+                        "name": "commandFormat",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1144,7 +1286,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Replaces the command schema for a given control stream",
+                "description": "Registers the schema for its command format (replacing any\nexisting schema with the same commandFormat, adding a new\nformat otherwise) and makes it the control stream's current\nschema. The formats list reflects all registered schemas.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1214,9 +1356,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -1478,9 +1620,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -1614,7 +1756,7 @@ const docTemplate = `{
         },
         "/datastreams/{dataStreamId}/schema": {
             "get": {
-                "description": "Returns the observation schema for a given datastream",
+                "description": "Returns the observation schema for a given datastream. With the\nobsFormat query parameter, returns the schema registered for\nthat observation format.",
                 "produces": [
                     "application/json"
                 ],
@@ -1629,6 +1771,12 @@ const docTemplate = `{
                         "name": "dataStreamId",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Observation format media type",
+                        "name": "obsFormat",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1651,7 +1799,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Replaces the observation schema for a given datastream",
+                "description": "Registers the schema for its observation format (replacing any\nexisting schema with the same obsFormat, adding a new format\notherwise) and makes it the datastream's current schema. The\ndatastream's formats list reflects all registered schemas.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1721,9 +1869,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -2127,9 +2275,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -2375,9 +2523,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -2651,9 +2799,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -2903,9 +3051,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -3143,9 +3291,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -3231,9 +3379,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -3556,9 +3704,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -3697,9 +3845,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -3838,9 +3986,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -3940,9 +4088,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -4253,9 +4401,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -4503,9 +4651,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -4587,9 +4735,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -4750,9 +4898,9 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
-                        "description": "Result offset",
-                        "name": "offset",
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
                         "in": "query"
                     },
                     {
@@ -4900,6 +5048,36 @@ const docTemplate = `{
     },
     "definitions": {
         "api.CommandCollectionResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {}
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/common_shared.Link"
+                    }
+                }
+            }
+        },
+        "api.CommandResultCollectionResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {}
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/common_shared.Link"
+                    }
+                }
+            }
+        },
+        "api.CommandStatusCollectionResponse": {
             "type": "object",
             "properties": {
                 "items": {

@@ -22,8 +22,12 @@ type SamplingFeatureQueryParams struct {
 }
 
 func (SamplingFeatureQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*SamplingFeatureQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindIDAsc)
+	if err != nil {
+		return nil, err
+	}
 	params := &SamplingFeatureQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	if controlledProperty := r.URL.Query().Get("controlledProperty"); controlledProperty != "" {

@@ -13,9 +13,13 @@ type PropertiesQueryParams struct {
 }
 
 // parseQueryParams parses common query parameters
-func (PropertiesQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *PropertiesQueryParams {
+func (PropertiesQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*PropertiesQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindIDAsc)
+	if err != nil {
+		return nil, err
+	}
 	params := &PropertiesQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	if baseProps := r.URL.Query().Get("baseProperty"); baseProps != "" {
@@ -26,5 +30,5 @@ func (PropertiesQueryParams) BuildFromRequest(r *http.Request, defaultLimit int)
 		params.ObjectType = strings.Split(objTypes, ",")
 	}
 
-	return params
+	return params, nil
 }

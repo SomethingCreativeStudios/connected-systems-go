@@ -102,7 +102,7 @@ All resources follow the OGC API - Features pattern:
 - `bbox` - Bounding box filter (minx,miny,maxx,maxy)
 - `datetime` - Temporal filter (ISO 8601)
 - `limit` - Maximum number of items (default: 10)
-- `offset` - Pagination offset
+- `cursor` - Opaque cursor returned in collection links; use the `next` and `prev` links to page
 - `q` - Full-text search
 
 **System-specific:**

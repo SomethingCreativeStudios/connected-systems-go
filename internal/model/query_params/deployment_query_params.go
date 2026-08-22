@@ -21,8 +21,12 @@ type DeploymentsQueryParams struct {
 }
 
 func (DeploymentsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*DeploymentsQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindIDAsc)
+	if err != nil {
+		return nil, err
+	}
 	params := &DeploymentsQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	if observedProperty := r.URL.Query().Get("observedProperty"); observedProperty != "" {

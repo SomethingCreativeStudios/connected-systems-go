@@ -24,8 +24,12 @@ type ObservationsQueryParams struct {
 // BuildFromRequest parses observation query parameters from request.
 // Returns an error if a temporal parameter value is present but unparseable.
 func (ObservationsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*ObservationsQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindTimeDesc)
+	if err != nil {
+		return nil, err
+	}
 	params := &ObservationsQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	if foi := r.URL.Query().Get("foi"); foi != "" {

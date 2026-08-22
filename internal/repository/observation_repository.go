@@ -108,14 +108,19 @@ func (r *ObservationRepository) List(params *queryparams.ObservationsQueryParams
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+		Columns:     []string{"result_time", "id"},
+		Descending:  true,
+		TimeColumns: map[int]bool{0: true},
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Order("result_time desc").Find(&observations).Error
+	err = query.Find(&observations).Error
+	observations = FinalizeCursorPage(observations, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(observations, func(observation *domains.Observation) []string {
+		return []string{queryparams.TimeCursorValue(observation.ResultTime), observation.ID}
+	})
 	return observations, total, err
 }
 

@@ -162,7 +162,7 @@ Common query parameters across list endpoints:
 - `id` - Filter by resource ID or UID
 - `q` - Full-text search
 - `limit` - Page size
-- `offset` - Page offset
+- `cursor` - Opaque continuation token from a `next` or `prev` link
 
 Examples of resource-specific filters currently implemented:
 

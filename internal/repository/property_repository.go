@@ -47,14 +47,13 @@ func (r *PropertyRepository) List(params *queryparams.PropertiesQueryParams) ([]
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Find(&properties).Error
+	err = query.Find(&properties).Error
+	properties = FinalizeCursorPage(properties, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(properties, func(property *domains.Property) []string { return []string{property.ID} })
 	return properties, total, err
 }
 

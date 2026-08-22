@@ -393,6 +393,72 @@ func TestSystemList_SensorMLEnvelope(t *testing.T) {
 	require.NotContains(t, collection, "features")
 }
 
+func TestSystemList_CursorPagination(t *testing.T) {
+	cleanupDB(t)
+	createSystemViaAPI(t, "/systems", baseSystemPayload("Cursor System One"))
+	createSystemViaAPI(t, "/systems", baseSystemPayload("Cursor System Two"))
+	createSystemViaAPI(t, "/systems", baseSystemPayload("Cursor System Three"))
+
+	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/systems?limit=1", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept", "application/geo+json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	firstBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	firstIDs := getFeatureCollectionIDs(t, firstBody)
+	require.Len(t, firstIDs, 1)
+
+	var firstCollection map[string]interface{}
+	require.NoError(t, json.Unmarshal(firstBody, &firstCollection))
+	assert.Equal(t, float64(3), firstCollection["numberMatched"])
+	assert.Equal(t, float64(1), firstCollection["numberReturned"])
+	firstLinks, ok := firstCollection["links"].([]interface{})
+	require.True(t, ok)
+	var nextURL string
+	for _, link := range firstLinks {
+		entry := link.(map[string]interface{})
+		if entry["rel"] == "next" {
+			nextURL = entry["href"].(string)
+		}
+	}
+	require.NotEmpty(t, nextURL)
+	assert.Contains(t, nextURL, "cursor=")
+	assert.NotContains(t, nextURL, "offset=")
+
+	nextResp, err := http.Get(nextURL)
+	require.NoError(t, err)
+	defer nextResp.Body.Close()
+	require.Equal(t, http.StatusOK, nextResp.StatusCode)
+	nextBody, err := io.ReadAll(nextResp.Body)
+	require.NoError(t, err)
+	nextIDs := getFeatureCollectionIDs(t, nextBody)
+	require.Len(t, nextIDs, 1)
+	assert.NotEqual(t, firstIDs[0], nextIDs[0])
+
+	var nextCollection map[string]interface{}
+	require.NoError(t, json.Unmarshal(nextBody, &nextCollection))
+	nextLinks := nextCollection["links"].([]interface{})
+	var prevURL string
+	for _, link := range nextLinks {
+		entry := link.(map[string]interface{})
+		if entry["rel"] == "prev" {
+			prevURL = entry["href"].(string)
+		}
+	}
+	require.NotEmpty(t, prevURL)
+
+	prevResp, err := http.Get(prevURL)
+	require.NoError(t, err)
+	defer prevResp.Body.Close()
+	require.Equal(t, http.StatusOK, prevResp.StatusCode)
+	prevBody, err := io.ReadAll(prevResp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, firstIDs, getFeatureCollectionIDs(t, prevBody))
+}
+
 func TestSystemSchema_SensorML(t *testing.T) {
 	cleanupDB(t)
 

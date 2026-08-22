@@ -57,14 +57,13 @@ func (r *FeatureRepository) List(params *queryparams.FeatureQueryParams) ([]*dom
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Find(&features).Error
+	err = query.Find(&features).Error
+	features = FinalizeCursorPage(features, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(features, func(feature *domains.Feature) []string { return []string{feature.ID} })
 	return features, total, err
 }
 
@@ -80,14 +79,13 @@ func (r *FeatureRepository) ListByCollection(collectionID string, params *queryp
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Find(&features).Error
+	err = query.Find(&features).Error
+	features = FinalizeCursorPage(features, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(features, func(feature *domains.Feature) []string { return []string{feature.ID} })
 	return features, total, err
 }
 

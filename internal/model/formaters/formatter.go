@@ -188,7 +188,7 @@ func (m *MultiFormatFormatterCollection[Domain]) BuildCollection(
 	}
 
 	totalInt := int(total)
-	links := queryParams.BuildPagintationLinks(basePath, requestParams, &totalInt, len(items))
+	links := queryParams.BuildPaginationLinks(basePath, requestParams)
 
 	if formatter.ContentType() == "application/sml+json" {
 		return AnyItemCollection{

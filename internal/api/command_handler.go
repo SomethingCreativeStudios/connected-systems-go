@@ -72,7 +72,7 @@ func NewCommandHandler(
 // @Tags        Commands
 // @Produce     json
 // @Param       limit          query  integer  false  "Maximum number of results"
-// @Param       offset         query  integer  false  "Result offset"
+// @Param       cursor         query  string   false  "Opaque pagination cursor"
 // @Param       id             query  string   false  "Comma-separated resource IDs"
 // @Param       q              query  string   false  "Comma-separated keywords for full-text search"
 // @Param       controlStream  query  string   false  "Comma-separated control stream IDs"
@@ -93,7 +93,7 @@ func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	commands, total, err := h.repo.List(params, nil)
+	commands, _, err := h.repo.List(params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list commands", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -110,8 +110,7 @@ func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(commands))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, CommandCollectionResponse{Items: items, Links: links})
@@ -125,7 +124,7 @@ func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       controlStreamId  path   string   true   "Control Stream ID"
 // @Param       limit            query  integer  false  "Maximum number of results"
-// @Param       offset           query  integer  false  "Result offset"
+// @Param       cursor           query  string   false  "Opaque pagination cursor"
 // @Param       q                query  string   false  "Comma-separated keywords for full-text search"
 // @Param       system           query  string   false  "Comma-separated system IDs"
 // @Param       foi              query  string   false  "Comma-separated feature of interest IDs"
@@ -152,7 +151,7 @@ func (h *CommandHandler) ListControlStreamCommands(w http.ResponseWriter, r *htt
 		return
 	}
 
-	commands, total, err := h.repo.ListByControlStream(controlStreamID, params)
+	commands, _, err := h.repo.ListByControlStream(controlStreamID, params)
 	if err != nil {
 		h.logger.Error("Failed to list commands", zap.String("controlStreamId", controlStreamID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -169,8 +168,7 @@ func (h *CommandHandler) ListControlStreamCommands(w http.ResponseWriter, r *htt
 		return
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(commands))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, CommandCollectionResponse{Items: items, Links: links})
@@ -337,6 +335,19 @@ func (h *CommandHandler) DeleteCommand(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListCommandStatusReports handles GET /commands/{id}/status
+//
+// @Summary     List command status reports
+// @Description Returns a paginated collection of status reports for a command
+// @Tags        Commands
+// @Produce     json
+// @Param       cmdId   path   string   true   "Command ID"
+// @Param       limit   query  integer  false  "Maximum number of results"
+// @Param       cursor  query  string   false  "Opaque pagination cursor"
+// @Success     200     {object}  CommandStatusCollectionResponse
+// @Failure     400     {object}  map[string]string
+// @Failure     404     {object}  map[string]string
+// @Failure     500     {object}  map[string]string
+// @Router      /commands/{cmdId}/status [get]
 func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
 	if _, err := h.repo.GetByID(commandID); err != nil {
@@ -352,7 +363,7 @@ func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http
 		return
 	}
 
-	statuses, total, err := h.repo.ListStatuses(commandID, params)
+	statuses, _, err := h.repo.ListStatuses(commandID, params)
 	if err != nil {
 		h.logger.Error("Failed to list command status reports", zap.String("cmdId", commandID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -365,8 +376,7 @@ func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http
 		items = append(items, commandStatusResponse(status))
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(statuses))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", "application/json")
 	render.JSON(w, r, CommandStatusCollectionResponse{Items: items, Links: links})
@@ -473,6 +483,19 @@ func (h *CommandHandler) DeleteCommandStatusReport(w http.ResponseWriter, r *htt
 }
 
 // ListCommandResults handles GET /commands/{id}/result
+//
+// @Summary     List command results
+// @Description Returns a paginated collection of results for a command
+// @Tags        Commands
+// @Produce     json
+// @Param       cmdId   path   string   true   "Command ID"
+// @Param       limit   query  integer  false  "Maximum number of results"
+// @Param       cursor  query  string   false  "Opaque pagination cursor"
+// @Success     200     {object}  CommandResultCollectionResponse
+// @Failure     400     {object}  map[string]string
+// @Failure     404     {object}  map[string]string
+// @Failure     500     {object}  map[string]string
+// @Router      /commands/{cmdId}/result [get]
 func (h *CommandHandler) ListCommandResults(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
 	if _, err := h.repo.GetByID(commandID); err != nil {
@@ -481,8 +504,13 @@ func (h *CommandHandler) ListCommandResults(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	params := queryparams.CommandResultQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
-	results, total, err := h.repo.ListResults(commandID, params)
+	params, err := queryparams.CommandResultQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
+	results, _, err := h.repo.ListResults(commandID, params)
 	if err != nil {
 		h.logger.Error("Failed to list command results", zap.String("cmdId", commandID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -495,8 +523,7 @@ func (h *CommandHandler) ListCommandResults(w http.ResponseWriter, r *http.Reque
 		items = append(items, result)
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(results))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", "application/json")
 	render.JSON(w, r, CommandResultCollectionResponse{Items: items, Links: links})

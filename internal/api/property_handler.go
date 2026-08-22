@@ -35,7 +35,7 @@ func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository
 // @Tags        Properties
 // @Produce     json
 // @Param       limit         query  integer  false  "Maximum number of results"
-// @Param       offset        query  integer  false  "Result offset"
+// @Param       cursor        query  string   false  "Opaque pagination cursor"
 // @Param       id            query  string   false  "Comma-separated resource IDs"
 // @Param       q             query  string   false  "Comma-separated keywords for full-text search"
 // @Param       baseProperty  query  string   false  "Comma-separated base property IDs"
@@ -44,7 +44,12 @@ func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository
 // @Failure     500  {object}  map[string]string
 // @Router      /properties [get]
 func (h *PropertyHandler) ListProperties(w http.ResponseWriter, r *http.Request) {
-	params := queryparams.PropertiesQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.PropertiesQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	properties, total, err := h.repo.List(params)
 	if err != nil {

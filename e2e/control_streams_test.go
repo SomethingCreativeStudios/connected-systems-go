@@ -954,6 +954,122 @@ func TestCommandResults_CRUDAndEnvelope(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, missing.StatusCode)
 }
 
+func TestCommandStatusAndResults_CursorPagination(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemForControlStreamTest(t)
+	controlStreamID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
+	commandID := createCommandViaAPI(t, controlStreamID, baseCommandPayload())
+
+	for range 3 {
+		createCommandStatusReportViaAPI(t, commandID, map[string]interface{}{
+			"reportTime": "2026-04-01T12:00:00Z", // equal timestamps exercise the ID tie-breaker
+			"statusCode": "EXECUTING",
+		})
+	}
+	assertJSONCursorTraversal(t, "/commands/"+commandID+"/status?limit=1&statusCode=EXECUTING", 3)
+
+	for range 3 {
+		createCommandResultViaAPI(t, commandID, map[string]interface{}{
+			"data": map[string]interface{}{"accepted": true},
+		})
+	}
+	assertJSONCursorTraversal(t, "/commands/"+commandID+"/result?limit=1", 3)
+}
+
+func createCommandStatusReportViaAPI(t *testing.T, commandID string, payload map[string]interface{}) string {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/commands/"+commandID+"/status", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	return parseID(resp.Header.Get("Location"), "/status/")
+}
+
+func createCommandResultViaAPI(t *testing.T, commandID string, payload map[string]interface{}) string {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/commands/"+commandID+"/result", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	return parseID(resp.Header.Get("Location"), "/result/")
+}
+
+func assertJSONCursorTraversal(t *testing.T, path string, expectedCount int) {
+	t.Helper()
+
+	readPage := func(href string) ([]string, map[string]string) {
+		t.Helper()
+		if !strings.HasPrefix(href, "http") {
+			href = testServer.URL + href
+		}
+		resp, err := http.Get(href)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var collection map[string]interface{}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
+		items, ok := collection["items"].([]interface{})
+		require.True(t, ok)
+		ids := make([]string, 0, len(items))
+		for _, item := range items {
+			ids = append(ids, item.(map[string]interface{})["id"].(string))
+		}
+
+		links := map[string]string{}
+		for _, raw := range collection["links"].([]interface{}) {
+			link := raw.(map[string]interface{})
+			links[link["rel"].(string)] = link["href"].(string)
+		}
+		return ids, links
+	}
+
+	firstIDs, links := readPage(path)
+	require.Len(t, firstIDs, 1)
+	seen := map[string]bool{firstIDs[0]: true}
+	firstID := firstIDs[0]
+	pageCount := 1
+	for links["next"] != "" {
+		nextURL := links["next"]
+		assert.Contains(t, nextURL, "cursor=")
+		assert.NotContains(t, nextURL, "offset=")
+		if queryStart := strings.Index(path, "?"); queryStart >= 0 {
+			for _, parameter := range strings.Split(path[queryStart+1:], "&") {
+				if !strings.HasPrefix(parameter, "limit=") {
+					assert.Contains(t, nextURL, parameter, "next links must preserve active filters")
+				}
+			}
+		}
+		ids, nextLinks := readPage(nextURL)
+		require.Len(t, ids, 1)
+		assert.False(t, seen[ids[0]], "cursor pages must not repeat an item")
+		seen[ids[0]] = true
+		pageCount++
+
+		if pageCount == 2 {
+			prevURL := nextLinks["prev"]
+			require.NotEmpty(t, prevURL)
+			prevIDs, _ := readPage(prevURL)
+			require.Equal(t, []string{firstID}, prevIDs)
+		}
+		links = nextLinks
+	}
+	assert.Len(t, seen, expectedCount)
+}
+
 func TestCommandResult_RejectsMultipleVariants(t *testing.T) {
 	cleanupDB(t)
 

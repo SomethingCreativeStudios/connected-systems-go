@@ -363,7 +363,51 @@ func TestSystemEvent_PaginationLinks(t *testing.T) {
 
 	assert.NotEmpty(t, byRel["self"])
 	assert.NotEmpty(t, byRel["next"])
-	assert.True(t, strings.Contains(byRel["next"], "offset=1"), "next link must advance offset")
+	assert.True(t, strings.Contains(byRel["next"], "cursor="), "next link must contain an opaque cursor")
+	assert.NotContains(t, byRel["next"], "offset=")
+
+	firstItems, ok := collection["items"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, firstItems, 1)
+	firstID := firstItems[0].(map[string]interface{})["id"].(string)
+
+	nextResp, err := http.Get(byRel["next"])
+	require.NoError(t, err)
+	defer nextResp.Body.Close()
+	require.Equal(t, http.StatusOK, nextResp.StatusCode)
+
+	var nextCollection map[string]interface{}
+	require.NoError(t, json.NewDecoder(nextResp.Body).Decode(&nextCollection))
+	nextLinks, ok := nextCollection["links"].([]interface{})
+	require.True(t, ok)
+	var prevURL string
+	for _, link := range nextLinks {
+		obj, _ := link.(map[string]interface{})
+		if obj["rel"] != "prev" {
+			continue
+		}
+		prevURL = obj["href"].(string)
+	}
+	require.NotEmpty(t, prevURL)
+
+	prevResp, err := http.Get(prevURL)
+	require.NoError(t, err)
+	defer prevResp.Body.Close()
+	require.Equal(t, http.StatusOK, prevResp.StatusCode)
+	var prevCollection map[string]interface{}
+	require.NoError(t, json.NewDecoder(prevResp.Body).Decode(&prevCollection))
+	prevItems := prevCollection["items"].([]interface{})
+	require.Len(t, prevItems, 1)
+	assert.Equal(t, firstID, prevItems[0].(map[string]interface{})["id"])
+}
+
+func TestSystemEvent_OffsetIsRejected(t *testing.T) {
+	resp := doGet(t, "/systemEvents?offset=1")
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Equal(t, "offset is no longer supported; use cursor", body["error"])
 }
 
 // =============================================================================
@@ -530,7 +574,8 @@ func TestSystemHistory_PaginationLinks(t *testing.T) {
 
 	assert.NotEmpty(t, byRel["self"])
 	assert.NotEmpty(t, byRel["next"])
-	assert.True(t, strings.Contains(byRel["next"], "offset=1"), "next link must advance offset")
+	assert.True(t, strings.Contains(byRel["next"], "cursor="), "next link must contain an opaque cursor")
+	assert.NotContains(t, byRel["next"], "offset=")
 }
 
 // =============================================================================

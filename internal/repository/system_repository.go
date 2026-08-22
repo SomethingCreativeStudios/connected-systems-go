@@ -143,14 +143,13 @@ func (r *SystemRepository) List(params *queryparams.SystemQueryParams) ([]*domai
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Debug().Find(&systems).Error
+	err = query.Find(&systems).Error
+	systems = FinalizeCursorPage(systems, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(systems, func(system *domains.System) []string { return []string{system.ID} })
 	return systems, total, err
 }
 
@@ -180,6 +179,40 @@ func (r *SystemRepository) GetSubsystems(parentID string, recursive bool) ([]*do
 	}
 
 	return systems, nil
+}
+
+// ListSubsystems retrieves direct or recursive subsystems through the database
+// so the route can use the same deterministic cursor pagination as all other
+// resource collections.
+func (r *SystemRepository) ListSubsystems(parentID string, params *queryparams.SystemQueryParams) ([]*domains.System, int64, error) {
+	var systems []*domains.System
+	var total int64
+
+	query := r.db.Model(&domains.System{})
+	if params.Recursive {
+		query = query.Where(`systems.id IN (
+			WITH RECURSIVE subtree(id) AS (
+				SELECT id FROM systems WHERE parent_system_id = ?
+				UNION
+				SELECT systems.id FROM systems JOIN subtree ON systems.parent_system_id = subtree.id
+			)
+			SELECT id FROM subtree
+		)`, parentID)
+	} else {
+		query = query.Where("systems.parent_system_id = ?", parentID)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{Columns: []string{"systems.id"}})
+	if err != nil {
+		return nil, 0, err
+	}
+	err = query.Find(&systems).Error
+	systems = FinalizeCursorPage(systems, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(systems, func(system *domains.System) []string { return []string{system.ID} })
+	return systems, total, err
 }
 
 // Update updates a system

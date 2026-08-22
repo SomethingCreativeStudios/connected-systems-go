@@ -63,7 +63,7 @@ func NewFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.
 // @Produce     json
 // @Param       collectionId  path   string  true   "Collection ID"
 // @Param       limit         query  int     false  "Maximum number of results"
-// @Param       offset        query  int     false  "Result offset"
+// @Param       cursor        query  string  false  "Opaque pagination cursor"
 // @Success     200  {object}  map[string]any
 // @Success     307  {object}  nil  "Redirect to canonical resource endpoint"
 // @Failure     500  {object}  map[string]string
@@ -75,7 +75,12 @@ func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := queryparams.FeatureQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	params, err := queryparams.FeatureQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 	params.CollectionID = collectionID
 
 	features, total, err := h.repo.ListByCollection(collectionID, params)

@@ -19,8 +19,12 @@ type SystemEventsQueryParams struct {
 }
 
 func (SystemEventsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*SystemEventsQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindEventDesc)
+	if err != nil {
+		return nil, err
+	}
 	params := &SystemEventsQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	// Accept both "datetime" (OGC standard) and "eventTime" (legacy alias)

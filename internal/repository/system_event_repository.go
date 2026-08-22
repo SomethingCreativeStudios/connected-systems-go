@@ -48,14 +48,19 @@ func (r *SystemEventRepository) List(params *queryparams.SystemEventsQueryParams
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+		Columns:     []string{"time_start", "created_at", "id"},
+		Descending:  true,
+		TimeColumns: map[int]bool{0: true, 1: true},
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Order("time_start desc, created_at desc").Find(&events).Error
+	err = query.Find(&events).Error
+	events = FinalizeCursorPage(events, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(events, func(event *domains.SystemEvent) []string {
+		return []string{cursorTimeValue(event.TimeStart), queryparams.TimeCursorValue(event.CreatedAt), event.ID}
+	})
 	return events, total, err
 }
 

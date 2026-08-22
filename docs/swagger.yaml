@@ -10,6 +10,26 @@ definitions:
           $ref: '#/definitions/common_shared.Link'
         type: array
     type: object
+  api.CommandResultCollectionResponse:
+    properties:
+      items:
+        items: {}
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/common_shared.Link'
+        type: array
+    type: object
+  api.CommandStatusCollectionResponse:
+    properties:
+      items:
+        items: {}
+        type: array
+      links:
+        items:
+          $ref: '#/definitions/common_shared.Link'
+        type: array
+    type: object
   api.ControlStreamCollectionResponse:
     properties:
       items:
@@ -153,10 +173,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
@@ -347,10 +367,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -504,6 +524,96 @@ paths:
       summary: Update command
       tags:
       - Commands
+  /commands/{cmdId}/result:
+    get:
+      description: Returns a paginated collection of results for a command
+      parameters:
+      - description: Command ID
+        in: path
+        name: cmdId
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CommandResultCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List command results
+      tags:
+      - Commands
+  /commands/{cmdId}/status:
+    get:
+      description: Returns a paginated collection of status reports for a command
+      parameters:
+      - description: Command ID
+        in: path
+        name: cmdId
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CommandStatusCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List command status reports
+      tags:
+      - Commands
   /conformance:
     get:
       description: Returns the list of OGC conformance classes this server implements
@@ -526,10 +636,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -702,10 +812,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated keywords for full-text search
         in: query
         name: q
@@ -801,12 +911,19 @@ paths:
       - Commands
   /controlstreams/{controlStreamId}/schema:
     get:
-      description: Returns the command schema for a given control stream
+      description: |-
+        Returns the command schema for a given control stream. With the
+        commandFormat query parameter, returns the schema registered
+        for that command format.
       parameters:
       - description: Control Stream ID
         in: path
         name: controlStreamId
         required: true
+        type: string
+      - description: Command format media type
+        in: query
+        name: commandFormat
         type: string
       produces:
       - application/json
@@ -828,7 +945,11 @@ paths:
     put:
       consumes:
       - application/json
-      description: Replaces the command schema for a given control stream
+      description: |-
+        Registers the schema for its command format (replacing any
+        existing schema with the same commandFormat, adding a new
+        format otherwise) and makes it the control stream's current
+        schema. The formats list reflects all registered schemas.
       parameters:
       - description: Control Stream ID
         in: path
@@ -868,10 +989,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -1044,10 +1165,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated keywords for full-text search
         in: query
         name: q
@@ -1139,12 +1260,19 @@ paths:
       - Observations
   /datastreams/{dataStreamId}/schema:
     get:
-      description: Returns the observation schema for a given datastream
+      description: |-
+        Returns the observation schema for a given datastream. With the
+        obsFormat query parameter, returns the schema registered for
+        that observation format.
       parameters:
       - description: Datastream ID
         in: path
         name: dataStreamId
         required: true
+        type: string
+      - description: Observation format media type
+        in: query
+        name: obsFormat
         type: string
       produces:
       - application/json
@@ -1166,7 +1294,11 @@ paths:
     put:
       consumes:
       - application/json
-      description: Replaces the observation schema for a given datastream
+      description: |-
+        Registers the schema for its observation format (replacing any
+        existing schema with the same obsFormat, adding a new format
+        otherwise) and makes it the datastream's current schema. The
+        datastream's formats list reflects all registered schemas.
       parameters:
       - description: Datastream ID
         in: path
@@ -1206,10 +1338,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -1477,10 +1609,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -1642,10 +1774,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -1826,10 +1958,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -1994,10 +2126,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -2154,10 +2286,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -2212,10 +2344,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id
@@ -2429,10 +2561,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated keywords for full-text search
         in: query
         name: q
@@ -2523,10 +2655,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated keywords for full-text search
         in: query
         name: q
@@ -2617,10 +2749,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated keywords for full-text search
         in: query
         name: q
@@ -2685,10 +2817,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated keywords for full-text search
         in: query
         name: q
@@ -2895,10 +3027,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Valid time filter (RFC 3339 date-time or interval)
         in: query
         name: validTime
@@ -3064,10 +3196,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated keywords for full-text search
         in: query
         name: q
@@ -3120,10 +3252,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated keywords for full-text search
         in: query
         name: q
@@ -3229,10 +3361,10 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Result offset
+      - description: Opaque pagination cursor
         in: query
-        name: offset
-        type: integer
+        name: cursor
+        type: string
       - description: Comma-separated resource IDs
         in: query
         name: id

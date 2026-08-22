@@ -18,8 +18,12 @@ type CommandStatusQueryParams struct {
 
 // BuildFromRequest parses command status query parameters from request.
 func (CommandStatusQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*CommandStatusQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindTimeDesc)
+	if err != nil {
+		return nil, err
+	}
 	params := &CommandStatusQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	if status := r.URL.Query().Get("statusCode"); status != "" {
@@ -43,8 +47,10 @@ type CommandResultQueryParams struct {
 }
 
 // BuildFromRequest parses command result query parameters from request.
-func (CommandResultQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *CommandResultQueryParams {
-	return &CommandResultQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+func (CommandResultQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*CommandResultQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindTimeDesc)
+	if err != nil {
+		return nil, err
 	}
+	return &CommandResultQueryParams{QueryParams: *base}, nil
 }

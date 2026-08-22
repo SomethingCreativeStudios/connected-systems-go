@@ -23,8 +23,12 @@ type SystemQueryParams struct {
 }
 
 func (SystemQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*SystemQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindIDAsc)
+	if err != nil {
+		return nil, err
+	}
 	params := &SystemQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	params.Recursive = r.URL.Query().Get("recursive") == "true"

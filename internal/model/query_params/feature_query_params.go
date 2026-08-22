@@ -26,12 +26,13 @@ type TimeFilter struct {
 }
 
 // BuildFromRequest parses query parameters from HTTP request
-func (FeatureQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *FeatureQueryParams {
-	params := &FeatureQueryParams{}
-	baseParams := QueryParams{}.BuildFromRequest(r, defaultLimit)
-	if baseParams != nil {
-		params.QueryParams = *baseParams
+func (FeatureQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*FeatureQueryParams, error) {
+	baseParams, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindIDAsc)
+	if err != nil {
+		return nil, err
 	}
+	params := &FeatureQueryParams{}
+	params.QueryParams = *baseParams
 
 	// Parse bbox parameter
 	if bboxStr := r.URL.Query().Get("bbox"); bboxStr != "" {
@@ -52,7 +53,7 @@ func (FeatureQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) *F
 		params.DateTime = parseDateTime(dtStr)
 	}
 
-	return params
+	return params, nil
 }
 
 // parseDateTime parses OGC API datetime parameter

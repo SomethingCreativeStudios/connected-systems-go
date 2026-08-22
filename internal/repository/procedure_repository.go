@@ -46,14 +46,13 @@ func (r *ProcedureRepository) List(params *queryparams.ProceduresQueryParams) ([
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Find(&procedures).Error
+	err = query.Find(&procedures).Error
+	procedures = FinalizeCursorPage(procedures, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(procedures, func(procedure *domains.Procedure) []string { return []string{procedure.ID} })
 	return procedures, total, err
 }
 
@@ -72,14 +71,13 @@ func (r *ProcedureRepository) ListBySystem(systemID string, params *queryparams.
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Find(&procedures).Error
+	err = query.Find(&procedures).Error
+	procedures = FinalizeCursorPage(procedures, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(procedures, func(procedure *domains.Procedure) []string { return []string{procedure.ID} })
 	return procedures, total, err
 }
 

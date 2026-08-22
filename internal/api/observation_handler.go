@@ -48,7 +48,7 @@ func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *reposit
 // @Tags        Observations
 // @Produce     json
 // @Param       limit             query  integer  false  "Maximum number of results"
-// @Param       offset            query  integer  false  "Result offset"
+// @Param       cursor            query  string   false  "Opaque pagination cursor"
 // @Param       id                query  string   false  "Comma-separated resource IDs"
 // @Param       q                 query  string   false  "Comma-separated keywords for full-text search"
 // @Param       dataStream        query  string   false  "Comma-separated datastream IDs"
@@ -69,7 +69,7 @@ func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	observations, total, err := h.repo.List(params, nil)
+	observations, _, err := h.repo.List(params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list observations", zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -86,8 +86,7 @@ func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(observations))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, ObservationCollectionResponse{Items: items, Links: links})
@@ -101,7 +100,7 @@ func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Req
 // @Produce     json
 // @Param       dataStreamId      path   string   true   "Datastream ID"
 // @Param       limit             query  integer  false  "Maximum number of results"
-// @Param       offset            query  integer  false  "Result offset"
+// @Param       cursor            query  string   false  "Opaque pagination cursor"
 // @Param       q                 query  string   false  "Comma-separated keywords for full-text search"
 // @Param       foi               query  string   false  "Comma-separated feature of interest IDs"
 // @Param       observedProperty  query  string   false  "Comma-separated observed property IDs"
@@ -127,7 +126,7 @@ func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r
 		return
 	}
 
-	observations, total, err := h.repo.ListByDatastream(datastreamID, params)
+	observations, _, err := h.repo.ListByDatastream(datastreamID, params)
 	if err != nil {
 		h.logger.Error("Failed to list observations", zap.String("dataStreamId", datastreamID), zap.Error(err))
 		render.Status(r, http.StatusInternalServerError)
@@ -144,8 +143,7 @@ func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r
 		return
 	}
 
-	totalInt := int(total)
-	links := params.QueryParams.BuildPagintationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query(), &totalInt, len(observations))
+	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	render.JSON(w, r, ObservationCollectionResponse{Items: items, Links: links})

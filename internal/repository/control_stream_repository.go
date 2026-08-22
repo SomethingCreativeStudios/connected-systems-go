@@ -73,14 +73,13 @@ func (r *ControlStreamRepository) List(params *queryparams.ControlStreamsQueryPa
 		return nil, 0, err
 	}
 
-	if params.Limit > 0 {
-		query = query.Limit(params.Limit)
+	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
+	if err != nil {
+		return nil, 0, err
 	}
-	if params.Offset > 0 {
-		query = query.Offset(params.Offset)
-	}
-
-	err := query.Find(&controlStreams).Error
+	err = query.Find(&controlStreams).Error
+	controlStreams = FinalizeCursorPage(controlStreams, &params.QueryParams)
+	params.Anchors = queryparams.CursorAnchorsFor(controlStreams, func(controlStream *domains.ControlStream) []string { return []string{controlStream.ID} })
 	return controlStreams, total, err
 }
 

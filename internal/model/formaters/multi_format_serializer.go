@@ -171,6 +171,6 @@ func (m *MultiFormatSerializerCollection[Input]) BuildCollection(
 		Features:       features,
 		NumberMatched:  &totalInt,
 		NumberReturned: len(items),
-		Links:          queryParams.BuildPagintationLinks(basePath, requestParams, &totalInt, len(items)),
+		Links:          queryParams.BuildPaginationLinks(basePath, requestParams),
 	}
 }

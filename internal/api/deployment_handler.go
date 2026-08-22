@@ -35,7 +35,7 @@ func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 // @Tags        Deployments
 // @Produce     json
 // @Param       limit               query  integer  false  "Maximum number of results"
-// @Param       offset              query  integer  false  "Result offset"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       id                  query  string   false  "Comma-separated resource IDs"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
 // @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"

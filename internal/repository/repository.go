@@ -74,7 +74,30 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := EnsureClosureSupport(db, "deployments", "id", "parent_deployment_id", "deployment_closures"); err != nil {
 		return err
 	}
+	if err := ensureCursorIndexes(db); err != nil {
+		return err
+	}
 
+	return nil
+}
+
+// ensureCursorIndexes keeps keyset pagination efficient for the time-sorted
+// nested collections. PostgreSQL accepts these idempotent statements on both
+// fresh schemas and existing deployments.
+func ensureCursorIndexes(db *gorm.DB) error {
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_observations_datastream_result_cursor ON observations (datastream_id, result_time DESC, id DESC)",
+		"CREATE INDEX IF NOT EXISTS idx_commands_controlstream_issue_cursor ON commands (control_stream_id, issue_time DESC, id DESC)",
+		"CREATE INDEX IF NOT EXISTS idx_command_status_reports_command_report_cursor ON command_status_reports (command_id, report_time DESC, id DESC)",
+		"CREATE INDEX IF NOT EXISTS idx_command_results_command_created_cursor ON command_results (command_id, created_at DESC, id DESC)",
+		"CREATE INDEX IF NOT EXISTS idx_system_events_system_time_cursor ON system_events (system_id, time_start DESC, created_at DESC, id DESC)",
+		"CREATE INDEX IF NOT EXISTS idx_system_history_revisions_system_created_cursor ON system_history_revisions (system_id, created_at DESC, id DESC)",
+	}
+	for _, statement := range indexes {
+		if err := db.Exec(statement).Error; err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

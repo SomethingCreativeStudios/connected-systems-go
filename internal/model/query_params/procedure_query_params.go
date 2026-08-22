@@ -18,8 +18,12 @@ type ProceduresQueryParams struct {
 }
 
 func (ProceduresQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*ProceduresQueryParams, error) {
+	base, err := QueryParams{}.BuildFromRequest(r, defaultLimit, CursorKindIDAsc)
+	if err != nil {
+		return nil, err
+	}
 	params := &ProceduresQueryParams{
-		QueryParams: *QueryParams{}.BuildFromRequest(r, defaultLimit),
+		QueryParams: *base,
 	}
 
 	if controlledProperties := r.URL.Query().Get("controlledProperty"); controlledProperties != "" {
