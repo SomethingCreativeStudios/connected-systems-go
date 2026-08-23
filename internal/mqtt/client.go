@@ -1,7 +1,9 @@
 package mqtt
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,19 +22,29 @@ type Config struct {
 }
 
 // Manager wraps an MQTT client connection and provides publish/subscribe helpers
-// for OGC Connected Systems Part 3 topics.
+// for OGC Connected Systems Pub/Sub topics.
 type Manager struct {
-	cfg    Config
-	logger *zap.Logger
-	client mqtt.Client
-	mu     sync.RWMutex
+	cfg             Config
+	logger          *zap.Logger
+	client          mqtt.Client
+	mu              sync.Mutex
+	publishedEchoes map[string]publishedEcho
+	subscriptions   []string
 }
+
+type publishedEcho struct {
+	count     int
+	expiresAt time.Time
+}
+
+const publishedEchoTTL = 30 * time.Second
 
 // NewManager creates a new MQTT Manager. Call Connect() to establish the connection.
 func NewManager(cfg Config, logger *zap.Logger) *Manager {
 	return &Manager{
-		cfg:    cfg,
-		logger: logger,
+		cfg:             cfg,
+		logger:          logger,
+		publishedEchoes: make(map[string]publishedEcho),
 	}
 }
 
@@ -92,6 +104,9 @@ func (m *Manager) Publish(topic string, payload []byte) {
 		return
 	}
 
+	if m.hasMatchingSubscription(topic) {
+		m.rememberPublishedMessage(topic, payload)
+	}
 	token := m.client.Publish(topic, m.cfg.QoS, m.cfg.Retained, payload)
 	// Fire-and-forget: don't block the caller. Log errors asynchronously.
 	go func() {
@@ -110,16 +125,70 @@ func (m *Manager) Subscribe(topic string, handler mqtt.MessageHandler) error {
 		return fmt.Errorf("mqtt not connected")
 	}
 
-	token := m.client.Subscribe(topic, m.cfg.QoS, handler)
+	wrapper := func(client mqtt.Client, message mqtt.Message) {
+		if m.consumePublishedEcho(message.Topic(), message.Payload()) {
+			m.logger.Debug("Ignored locally published MQTT echo", zap.String("topic", message.Topic()))
+			return
+		}
+		handler(client, message)
+	}
+	token := m.client.Subscribe(topic, m.cfg.QoS, wrapper)
 	if !token.WaitTimeout(10 * time.Second) {
 		return fmt.Errorf("mqtt subscribe %s: timed out waiting for broker", topic)
 	}
 	if token.Error() != nil {
 		return fmt.Errorf("mqtt subscribe %s: %w", topic, token.Error())
 	}
+	m.mu.Lock()
+	m.subscriptions = append(m.subscriptions, topic)
+	m.mu.Unlock()
 
 	m.logger.Info("MQTT subscribed", zap.String("topic", topic))
 	return nil
+}
+
+func (m *Manager) rememberPublishedMessage(topic string, payload []byte) {
+	key := publishedMessageKey(topic, payload)
+	now := time.Now()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.prunePublishedEchoes(now)
+	echo := m.publishedEchoes[key]
+	echo.count++
+	echo.expiresAt = now.Add(publishedEchoTTL)
+	m.publishedEchoes[key] = echo
+}
+
+func (m *Manager) consumePublishedEcho(topic string, payload []byte) bool {
+	key := publishedMessageKey(topic, payload)
+	now := time.Now()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.prunePublishedEchoes(now)
+	echo, exists := m.publishedEchoes[key]
+	if !exists {
+		return false
+	}
+	echo.count--
+	if echo.count <= 0 {
+		delete(m.publishedEchoes, key)
+	} else {
+		m.publishedEchoes[key] = echo
+	}
+	return true
+}
+
+func (m *Manager) prunePublishedEchoes(now time.Time) {
+	for key, echo := range m.publishedEchoes {
+		if !echo.expiresAt.After(now) {
+			delete(m.publishedEchoes, key)
+		}
+	}
+}
+
+func publishedMessageKey(topic string, payload []byte) string {
+	digest := sha256.Sum256(payload)
+	return fmt.Sprintf("%s\x00%x", topic, digest)
 }
 
 // Unsubscribe removes a subscription for the given topic.
@@ -135,6 +204,39 @@ func (m *Manager) Unsubscribe(topic string) error {
 	if token.Error() != nil {
 		return fmt.Errorf("mqtt unsubscribe %s: %w", topic, token.Error())
 	}
+	m.mu.Lock()
+	for i, subscription := range m.subscriptions {
+		if subscription == topic {
+			m.subscriptions = append(m.subscriptions[:i], m.subscriptions[i+1:]...)
+			break
+		}
+	}
+	m.mu.Unlock()
 
 	return nil
+}
+
+func (m *Manager) hasMatchingSubscription(topic string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, filter := range m.subscriptions {
+		if topicMatchesFilter(topic, filter) {
+			return true
+		}
+	}
+	return false
+}
+
+func topicMatchesFilter(topic, filter string) bool {
+	topicParts := strings.Split(topic, "/")
+	filterParts := strings.Split(filter, "/")
+	for i, filterPart := range filterParts {
+		if filterPart == "#" {
+			return i == len(filterParts)-1
+		}
+		if i >= len(topicParts) || (filterPart != "+" && filterPart != topicParts[i]) {
+			return false
+		}
+	}
+	return len(topicParts) == len(filterParts)
 }

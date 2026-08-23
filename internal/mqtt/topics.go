@@ -2,46 +2,47 @@ package mqtt
 
 import "fmt"
 
-// Topic helpers for OGC Connected Systems Part 3 (AsyncAPI) MQTT topics.
+// Topic helpers for OGC Connected Systems Pub/Sub (AsyncAPI) MQTT topics.
 
-// SystemEventTopic returns the topic for a specific system's events.
-// Pattern: systems/{systemId}/events
+// SystemEventTopic returns the Resource Data topic for a specific system's events.
+// Pattern: systems/{systemId}/events:data
 func SystemEventTopic(systemID string) string {
-	return fmt.Sprintf("systems/%s/events", systemID)
+	return fmt.Sprintf("systems/%s/events:data", systemID)
 }
 
-// SystemEventsTopic returns the wildcard topic for all system events.
-// Pattern: systems/events
+// SystemEventsTopic returns the Resource Data topic for the canonical top-level
+// system event collection.
+// Pattern: systemEvents:data
 func SystemEventsTopic() string {
-	return "systems/events"
+	return "systemEvents:data"
 }
 
-// ObservationTopic returns the topic for observations on a specific datastream.
-// Pattern: datastreams/{dataStreamId}/observations
+// ObservationTopic returns the Resource Data topic for observations on a specific datastream.
+// Pattern: datastreams/{dataStreamId}/observations:data
 func ObservationTopic(datastreamID string) string {
-	return fmt.Sprintf("datastreams/%s/observations", datastreamID)
+	return fmt.Sprintf("datastreams/%s/observations:data", datastreamID)
 }
 
 // ObservationsWildcardTopic returns the wildcard subscription topic for all datastream observations.
-// Pattern: datastreams/+/observations
+// Pattern: datastreams/+/observations:data
 func ObservationsWildcardTopic() string {
-	return "datastreams/+/observations"
+	return "datastreams/+/observations:data"
 }
 
-// CommandTopic returns the topic for commands on a specific control stream.
-// Pattern: controls/{controlStreamId}/commands
+// CommandTopic returns the Resource Data topic for commands on a specific control stream.
+// Pattern: controlstreams/{controlStreamId}/commands:data
 func CommandTopic(controlStreamID string) string {
-	return fmt.Sprintf("controls/%s/commands", controlStreamID)
+	return fmt.Sprintf("controlstreams/%s/commands:data", controlStreamID)
 }
 
 // CommandStatusTopic returns the topic for command status updates.
-// Pattern: controls/{controlStreamId}/commands/{cmdId}/status
-func CommandStatusTopic(controlStreamID, cmdID string) string {
-	return fmt.Sprintf("controls/%s/commands/%s/status", controlStreamID, cmdID)
+// Pattern: commands/{cmdId}/status:data
+func CommandStatusTopic(cmdID string) string {
+	return fmt.Sprintf("commands/%s/status:data", cmdID)
 }
 
 // CommandStatusWildcardTopic returns the wildcard subscription topic for all command status updates.
-// Pattern: controls/+/commands/+/status
+// Pattern: commands/+/status:data
 func CommandStatusWildcardTopic() string {
-	return "controls/+/commands/+/status"
+	return "commands/+/status:data"
 }

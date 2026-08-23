@@ -1,0 +1,414 @@
+asyncapi: 2.6.0
+info:
+  title: OGC API - Connected Systems MQTT Pub/Sub
+  version: 1.0.0
+  description: Implemented Resource Data Message, Resource Event, and Batch Resource Event channels.
+
+x-ogc-resource-data-types:
+  - observation
+  - command
+  - commandstatus
+  - systemevent
+
+x-ogc-batch-resource-event-types:
+  - observation.create
+  - observation.update
+  - observation.delete
+  - command.create
+  - command.update
+  - command.delete
+
+x-ogc-resource-event-types:
+  - system.create
+  - system.update
+  - system.delete
+  - subsystem.create
+  - subsystem.update
+  - subsystem.delete
+  - deployment.create
+  - deployment.update
+  - deployment.delete
+  - procedure.create
+  - procedure.update
+  - procedure.delete
+  - property.create
+  - property.update
+  - property.delete
+  - samplingfeature.create
+  - samplingfeature.update
+  - samplingfeature.delete
+  - datastream.create
+  - datastream.update
+  - datastream.delete
+  - controlstream.create
+  - controlstream.update
+  - controlstream.delete
+  - commandstatus.create
+  - commandstatus.update
+  - commandstatus.delete
+  - commandresult.create
+  - commandresult.update
+  - commandresult.delete
+  - systemevent.create
+  - systemevent.update
+  - systemevent.delete
+
+channels:
+  systems/{systemId}/events:data:
+    parameters:
+      systemId:
+        $ref: '#/components/parameters/systemId'
+    subscribe:
+      summary: System Event Resource Data Messages for one system
+      message:
+        $ref: '#/components/messages/resourceData'
+
+  systemEvents:data:
+    subscribe:
+      summary: System Event Resource Data Messages for all systems
+      message:
+        $ref: '#/components/messages/resourceData'
+
+  datastreams/{dataStreamId}/observations:data:
+    parameters:
+      dataStreamId:
+        $ref: '#/components/parameters/dataStreamId'
+    subscribe:
+      summary: Observation Resource Data Messages
+      message:
+        $ref: '#/components/messages/resourceData'
+    publish:
+      summary: Publish Observation Resource Data Messages
+      message:
+        $ref: '#/components/messages/resourceData'
+
+  controlstreams/{controlStreamId}/commands:data:
+    parameters:
+      controlStreamId:
+        $ref: '#/components/parameters/controlStreamId'
+    subscribe:
+      summary: Command Resource Data Messages
+      message:
+        $ref: '#/components/messages/resourceData'
+
+  commands/{cmdId}/status:data:
+    parameters:
+      cmdId:
+        $ref: '#/components/parameters/cmdId'
+    subscribe:
+      summary: Command Status Resource Data Messages
+      message:
+        $ref: '#/components/messages/resourceData'
+    publish:
+      summary: Publish Command Status Resource Data Messages
+      message:
+        $ref: '#/components/messages/resourceData'
+
+  systems:events:
+    subscribe: &resourceEventSubscription
+      summary: Resource Events for a canonical REST resource or collection
+      message:
+        $ref: '#/components/messages/resourceEvent'
+
+  systems/{systemId}:events:
+    parameters:
+      systemId:
+        $ref: '#/components/parameters/systemId'
+    subscribe: *resourceEventSubscription
+
+  systems/{systemId}/subsystems:events:
+    parameters:
+      systemId:
+        $ref: '#/components/parameters/systemId'
+    subscribe: *resourceEventSubscription
+
+  deployments:events:
+    subscribe: *resourceEventSubscription
+
+  deployments/{deploymentId}:events:
+    parameters:
+      deploymentId:
+        $ref: '#/components/parameters/deploymentId'
+    subscribe: *resourceEventSubscription
+
+  procedures:events:
+    subscribe: *resourceEventSubscription
+
+  procedures/{procedureId}:events:
+    parameters:
+      procedureId:
+        $ref: '#/components/parameters/procedureId'
+    subscribe: *resourceEventSubscription
+
+  properties:events:
+    subscribe: *resourceEventSubscription
+
+  properties/{propertyId}:events:
+    parameters:
+      propertyId:
+        $ref: '#/components/parameters/propertyId'
+    subscribe: *resourceEventSubscription
+
+  samplingFeatures:events:
+    subscribe: *resourceEventSubscription
+
+  systems/{systemId}/samplingFeatures:events:
+    parameters:
+      systemId:
+        $ref: '#/components/parameters/systemId'
+    subscribe: *resourceEventSubscription
+
+  samplingFeatures/{samplingFeatureId}:events:
+    parameters:
+      samplingFeatureId:
+        $ref: '#/components/parameters/samplingFeatureId'
+    subscribe: *resourceEventSubscription
+
+  datastreams:events:
+    subscribe: *resourceEventSubscription
+
+  systems/{systemId}/datastreams:events:
+    parameters:
+      systemId:
+        $ref: '#/components/parameters/systemId'
+    subscribe: *resourceEventSubscription
+
+  datastreams/{dataStreamId}:events:
+    parameters:
+      dataStreamId:
+        $ref: '#/components/parameters/dataStreamId'
+    subscribe: *resourceEventSubscription
+
+  controlstreams:events:
+    subscribe: *resourceEventSubscription
+
+  systems/{systemId}/controlstreams:events:
+    parameters:
+      systemId:
+        $ref: '#/components/parameters/systemId'
+    subscribe: *resourceEventSubscription
+
+  controlstreams/{controlStreamId}:events:
+    parameters:
+      controlStreamId:
+        $ref: '#/components/parameters/controlStreamId'
+    subscribe: *resourceEventSubscription
+
+  commands/{cmdId}/status:events:
+    parameters:
+      cmdId:
+        $ref: '#/components/parameters/cmdId'
+    subscribe: *resourceEventSubscription
+
+  commands/{cmdId}/status/{statusId}:events:
+    parameters:
+      cmdId:
+        $ref: '#/components/parameters/cmdId'
+      statusId:
+        $ref: '#/components/parameters/statusId'
+    subscribe: *resourceEventSubscription
+
+  commands/{cmdId}/result:events:
+    parameters:
+      cmdId:
+        $ref: '#/components/parameters/cmdId'
+    subscribe: *resourceEventSubscription
+
+  commands/{cmdId}/result/{resultId}:events:
+    parameters:
+      cmdId:
+        $ref: '#/components/parameters/cmdId'
+      resultId:
+        $ref: '#/components/parameters/resultId'
+    subscribe: *resourceEventSubscription
+
+  systems/{systemId}/events:events:
+    parameters:
+      systemId:
+        $ref: '#/components/parameters/systemId'
+    subscribe: *resourceEventSubscription
+
+  systems/{systemId}/events/{eventId}:events:
+    parameters:
+      systemId:
+        $ref: '#/components/parameters/systemId'
+      eventId:
+        $ref: '#/components/parameters/eventId'
+    subscribe: *resourceEventSubscription
+
+  datastreams/{dataStreamId}/observations:batch-events:
+    parameters:
+      dataStreamId:
+        $ref: '#/components/parameters/dataStreamId'
+    subscribe:
+      summary: Batch Resource Events for observations in one datastream
+      message:
+        $ref: '#/components/messages/batchResourceEvent'
+
+  controlstreams/{controlStreamId}/commands:batch-events:
+    parameters:
+      controlStreamId:
+        $ref: '#/components/parameters/controlStreamId'
+    subscribe:
+      summary: Batch Resource Events for commands in one control stream
+      message:
+        $ref: '#/components/messages/batchResourceEvent'
+
+components:
+  messages:
+    resourceData:
+      name: resourceData
+      title: Resource Data Message
+      contentType: application/json
+      payload:
+        type: object
+        description: A complete native representation of one supported Connected Systems resource.
+        additionalProperties: true
+
+    resourceEvent:
+      name: resourceEvent
+      title: Resource Event
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        required:
+          - specversion
+          - type
+          - source
+          - subject
+          - id
+          - time
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          type:
+            type: string
+            pattern: '^org\.ogc\.api\.consys\.[a-z]+\.(create|update|delete)$'
+          source:
+            type: string
+            format: uri
+          subject:
+            type: string
+            format: uri
+          id:
+            type: string
+            minLength: 1
+          parentId:
+            type: string
+            format: uri
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          data:
+            type: object
+            properties:
+              name:
+                type: string
+                minLength: 1
+              description:
+                type: string
+                minLength: 1
+              uniqueId:
+                type: string
+                minLength: 1
+                format: uri
+            additionalProperties: true
+
+    batchResourceEvent:
+      name: batchResourceEvent
+      title: Batch Resource Event
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        required:
+          - specversion
+          - type
+          - source
+          - subject
+          - id
+          - parentId
+          - time
+          - datacontenttype
+          - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          type:
+            type: string
+            pattern: '^org\.ogc\.api\.consys\.(observation|command)\.(create|update|delete)$'
+          source:
+            type: string
+            format: uri
+          subject:
+            type: string
+            format: uri
+          id:
+            type: string
+            minLength: 1
+          parentId:
+            type: string
+            format: uri
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          data:
+            type: object
+            required:
+              - timerange
+              - count
+            properties:
+              timerange:
+                type: array
+                minItems: 2
+                maxItems: 2
+                items:
+                  type: string
+                  format: date-time
+              count:
+                type: integer
+                minimum: 0
+
+  parameters:
+    systemId: &stringIdParameter
+      description: System resource ID
+      schema:
+        type: string
+        minLength: 1
+    deploymentId:
+      <<: *stringIdParameter
+      description: Deployment resource ID
+    procedureId:
+      <<: *stringIdParameter
+      description: Procedure resource ID
+    propertyId:
+      <<: *stringIdParameter
+      description: Property resource ID
+    samplingFeatureId:
+      <<: *stringIdParameter
+      description: Sampling Feature resource ID
+    dataStreamId:
+      <<: *stringIdParameter
+      description: Datastream resource ID
+    controlStreamId:
+      <<: *stringIdParameter
+      description: Control Stream resource ID
+    cmdId:
+      <<: *stringIdParameter
+      description: Command resource ID
+    statusId:
+      <<: *stringIdParameter
+      description: Command Status resource ID
+    resultId:
+      <<: *stringIdParameter
+      description: Command Result resource ID
+    eventId:
+      <<: *stringIdParameter
+      description: System Event resource ID

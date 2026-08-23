@@ -15,7 +15,7 @@ api:
   description: "OGC API - Connected Systems - Part 1: Feature Resources"
   version: "1.0.0"
 
-# MQTT broker for Part 3 pub/sub (disabled by default)
+# MQTT broker for publish/subscribe messaging (disabled by default)
 # mqtt:
 #   enabled: false
 #   broker: tcp://localhost:1883
@@ -24,3 +24,15 @@ api:
 #   password: ""
 #   qos: 1
 #   retained: false
+
+# Connected Systems publish/subscribe message classes. These default to true,
+# but MQTT must also be enabled before any class can publish or subscribe.
+pubsub:
+  resource_data:
+    enabled: true
+  resource_events:
+    enabled: true
+  batch_resource_events:
+    enabled: true
+    # Go-style duration for UTC clock-aligned observation and command batches.
+    window: 1m

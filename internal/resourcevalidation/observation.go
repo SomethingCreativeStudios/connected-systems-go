@@ -1,4 +1,4 @@
-package api
+package resourcevalidation
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
-func validateObservationAgainstDatastreamSchema(obs *domains.Observation, ds *domains.Datastream, contentType string) error {
+func ValidateObservationAgainstDatastreamSchema(obs *domains.Observation, ds *domains.Datastream, contentType string) error {
 	if obs == nil || ds == nil {
 		return nil
 	}

@@ -95,6 +95,14 @@ func (h *LandingHandler) GetLandingPage(w http.ResponseWriter, r *http.Request) 
 			},
 		},
 	}
+	if pubSubResourceDataConfigured(h.cfg) || pubSubResourceEventsConfigured(h.cfg) || pubSubBatchResourceEventsConfigured(h.cfg) {
+		landingPage.Links = append(landingPage.Links, common_shared.Link{
+			Href:  baseURL + "/asyncapi",
+			Rel:   "service-desc",
+			Type:  asyncAPIContentType,
+			Title: "Pub/Sub MQTT service definition",
+		})
+	}
 
 	render.JSON(w, r, landingPage)
 }

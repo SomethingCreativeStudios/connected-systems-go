@@ -1,4 +1,4 @@
-package api
+package resourcevalidation
 
 import (
 	"encoding/json"

@@ -12,7 +12,10 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/yourusername/connected-systems-go/internal/mqtt"
+	"github.com/yourusername/connected-systems-go/internal/pubsub"
 	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/yourusername/connected-systems-go/internal/resourcevalidation"
 	"go.uber.org/zap"
 )
 
@@ -24,20 +27,22 @@ type ObservationCollectionResponse struct {
 
 // ObservationHandler handles Observation resource requests.
 type ObservationHandler struct {
-	cfg            *config.Config
-	logger         *zap.Logger
-	repo           *repository.ObservationRepository
-	datastreamRepo *repository.DatastreamRepository
-	fc             *formaters.MultiFormatFormatterCollection[*domains.Observation]
+	cfg             *config.Config
+	logger          *zap.Logger
+	repo            *repository.ObservationRepository
+	datastreamRepo  *repository.DatastreamRepository
+	pubSubPublisher *pubsub.Publisher
+	fc              *formaters.MultiFormatFormatterCollection[*domains.Observation]
 }
 
-func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ObservationRepository, datastreamRepo *repository.DatastreamRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Observation]) *ObservationHandler {
+func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ObservationRepository, datastreamRepo *repository.DatastreamRepository, pubSubPublisher *pubsub.Publisher, fc *formaters.MultiFormatFormatterCollection[*domains.Observation]) *ObservationHandler {
 	return &ObservationHandler{
-		cfg:            cfg,
-		logger:         logger,
-		repo:           repo,
-		datastreamRepo: datastreamRepo,
-		fc:             fc,
+		cfg:             cfg,
+		logger:          logger,
+		repo:            repo,
+		datastreamRepo:  datastreamRepo,
+		pubSubPublisher: pubSubPublisher,
+		fc:              fc,
 	}
 }
 
@@ -221,7 +226,7 @@ func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Re
 		render.JSON(w, r, map[string]string{"error": "Parent datastream not found"})
 		return
 	}
-	if err := validateObservationAgainstDatastreamSchema(obs, datastream, r.Header.Get("Content-Type")); err != nil {
+	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(obs, datastream, r.Header.Get("Content-Type")); err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": "Observation does not match parent datastream schema: " + err.Error()})
 		return
@@ -237,6 +242,7 @@ func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Re
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+	h.publishObservationToMQTT(existing.DatastreamID, obs)
 }
 
 // DeleteObservation deletes an observation by ID
@@ -297,7 +303,7 @@ func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, 
 		return
 	}
 
-	if err := validateObservationAgainstDatastreamSchema(obs, datastream, r.Header.Get("Content-Type")); err != nil {
+	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(obs, datastream, r.Header.Get("Content-Type")); err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, map[string]string{"error": "Observation does not match parent datastream schema: " + err.Error()})
 		return
@@ -314,4 +320,17 @@ func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, 
 	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/observations/" + obs.ID
 	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusCreated)
+	h.publishObservationToMQTT(datastreamID, obs)
+}
+
+func (h *ObservationHandler) publishObservationToMQTT(datastreamID string, observation *domains.Observation) {
+	if h.pubSubPublisher == nil || !h.pubSubPublisher.ResourceDataEnabled() {
+		return
+	}
+	serialized, err := h.fc.Serialize("application/json", observation)
+	if err != nil {
+		h.logger.Error("Failed to serialize observation Resource Data Message", zap.Error(err))
+		return
+	}
+	h.pubSubPublisher.PublishResourceData(mqtt.ObservationTopic(datastreamID), serialized)
 }

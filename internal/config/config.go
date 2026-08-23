@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -12,6 +14,7 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	API      APIConfig      `mapstructure:"api"`
 	MQTT     MQTTConfig     `mapstructure:"mqtt"`
+	PubSub   PubSubConfig   `mapstructure:"pubsub"`
 }
 
 // ServerConfig holds server configuration
@@ -49,6 +52,28 @@ type MQTTConfig struct {
 	Retained bool   `mapstructure:"retained"`
 }
 
+// PubSubConfig controls the independently optional publish/subscribe message classes.
+// MQTT remains the transport-level master switch; these flags decide which
+// message classes are active once an MQTT transport is available.
+type PubSubConfig struct {
+	ResourceData        PubSubFeatureConfig       `mapstructure:"resource_data"`
+	ResourceEvents      PubSubFeatureConfig       `mapstructure:"resource_events"`
+	BatchResourceEvents BatchResourceEventsConfig `mapstructure:"batch_resource_events"`
+}
+
+// PubSubFeatureConfig is intentionally nested so class-specific settings can
+// be added later without changing the environment-variable shape.
+type PubSubFeatureConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+}
+
+// BatchResourceEventsConfig controls aggregation of high-volume lifecycle
+// events. Window is a clock-aligned tumbling-window duration.
+type BatchResourceEventsConfig struct {
+	Enabled bool          `mapstructure:"enabled"`
+	Window  time.Duration `mapstructure:"window"`
+}
+
 // Load loads configuration from file and environment
 func Load() (*Config, error) {
 	viper.SetConfigName("config")
@@ -67,6 +92,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("api.title", "OGC Connected Systems API")
 	viper.SetDefault("api.version", "1.0.0")
 	viper.SetDefault("api.description", "OGC API - Connected Systems - Part 1: Feature Resources")
+	viper.SetDefault("api.base_url", "http://localhost:8080")
 	viper.SetDefault("api.default_limit", 10)
 	viper.SetDefault("mqtt.enabled", false)
 	viper.SetDefault("mqtt.broker", "tcp://localhost:1883")
@@ -75,6 +101,10 @@ func Load() (*Config, error) {
 	viper.SetDefault("mqtt.password", "")
 	viper.SetDefault("mqtt.qos", 1)
 	viper.SetDefault("mqtt.retained", false)
+	viper.SetDefault("pubsub.resource_data.enabled", true)
+	viper.SetDefault("pubsub.resource_events.enabled", true)
+	viper.SetDefault("pubsub.batch_resource_events.enabled", true)
+	viper.SetDefault("pubsub.batch_resource_events.window", time.Minute)
 
 	// Read from environment — replace "." with "_" so database.host → DATABASE_HOST
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -90,6 +120,9 @@ func Load() (*Config, error) {
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, err
+	}
+	if config.PubSub.BatchResourceEvents.Window <= 0 {
+		return nil, fmt.Errorf("pubsub.batch_resource_events.window must be a positive duration")
 	}
 
 	return &config, nil

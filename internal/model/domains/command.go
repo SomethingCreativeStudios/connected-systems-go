@@ -22,6 +22,25 @@ const (
 	CommandStatusCompleted CommandStatus = "COMPLETED"
 )
 
+// IsValid reports whether the value is one of the command lifecycle states
+// defined by the Connected Systems command model.
+func (s CommandStatus) IsValid() bool {
+	switch s {
+	case CommandStatusPending,
+		CommandStatusAccepted,
+		CommandStatusRejected,
+		CommandStatusScheduled,
+		CommandStatusUpdated,
+		CommandStatusCanceled,
+		CommandStatusExecuting,
+		CommandStatusFailed,
+		CommandStatusCompleted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Command represents one command sent through a control stream.
 type Command struct {
 	Base

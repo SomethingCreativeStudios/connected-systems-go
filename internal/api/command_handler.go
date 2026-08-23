@@ -13,8 +13,10 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/yourusername/connected-systems-go/internal/model/formaters/json_formatters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"github.com/yourusername/connected-systems-go/internal/mqtt"
+	"github.com/yourusername/connected-systems-go/internal/pubsub"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -43,7 +45,7 @@ type CommandHandler struct {
 	logger            *zap.Logger
 	repo              *repository.CommandRepository
 	controlStreamRepo *repository.ControlStreamRepository
-	mqttManager       *mqtt.Manager
+	pubSubPublisher   *pubsub.Publisher
 	fc                *formaters.MultiFormatFormatterCollection[*domains.Command]
 }
 
@@ -52,7 +54,7 @@ func NewCommandHandler(
 	logger *zap.Logger,
 	repo *repository.CommandRepository,
 	controlStreamRepo *repository.ControlStreamRepository,
-	mqttManager *mqtt.Manager,
+	pubSubPublisher *pubsub.Publisher,
 	fc *formaters.MultiFormatFormatterCollection[*domains.Command],
 ) *CommandHandler {
 	return &CommandHandler{
@@ -60,7 +62,7 @@ func NewCommandHandler(
 		logger:            logger,
 		repo:              repo,
 		controlStreamRepo: controlStreamRepo,
-		mqttManager:       mqttManager,
+		pubSubPublisher:   pubSubPublisher,
 		fc:                fc,
 	}
 }
@@ -303,6 +305,9 @@ func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+
+	// A Resource Data Message carries the complete updated command.
+	h.publishCommandToMQTT(existing.ControlStreamID, cmd)
 }
 
 // DeleteCommand handles DELETE /commands/{id}
@@ -385,7 +390,8 @@ func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http
 // CreateCommandStatusReport handles POST /commands/{id}/status
 func (h *CommandHandler) CreateCommandStatusReport(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
-	if _, err := h.repo.GetByID(commandID); err != nil {
+	_, err := h.repo.GetByID(commandID)
+	if err != nil {
 		render.Status(r, http.StatusNotFound)
 		render.JSON(w, r, map[string]string{"error": "Command not found"})
 		return
@@ -409,6 +415,7 @@ func (h *CommandHandler) CreateCommandStatusReport(w http.ResponseWriter, r *htt
 	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/commands/" + commandID + "/status/" + status.ID
 	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusCreated)
+	h.publishCommandStatusToMQTT(commandID, status)
 }
 
 // GetCommandStatusReport handles GET /commands/{id}/status/{statusId}
@@ -459,6 +466,7 @@ func (h *CommandHandler) UpdateCommandStatusReport(w http.ResponseWriter, r *htt
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+	h.publishCommandStatusToMQTT(commandID, status)
 }
 
 // DeleteCommandStatusReport handles DELETE /commands/{id}/status/{statusId}
@@ -689,77 +697,7 @@ func decodeCommandPayload(r *http.Request) (*domains.Command, error) {
 }
 
 func decodeCommandStatusPayload(r *http.Request) (*domains.CommandStatusReport, error) {
-	var raw map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		return nil, err
-	}
-
-	statusRaw, ok := raw["statusCode"].(string)
-	if !ok || statusRaw == "" {
-		return nil, errors.New("statusCode is required")
-	}
-	statusCode := domains.CommandStatus(statusRaw)
-	if !isValidCommandStatus(statusCode) {
-		return nil, errors.New("statusCode is invalid")
-	}
-
-	status := &domains.CommandStatusReport{
-		StatusCode: statusCode,
-	}
-
-	if reportTimeRaw, exists := raw["reportTime"]; exists {
-		reportTimeStr, ok := reportTimeRaw.(string)
-		if !ok {
-			return nil, errors.New("reportTime must be an ISO 8601 string")
-		}
-		if reportTimeStr != "" {
-			reportTime, err := time.Parse(time.RFC3339, reportTimeStr)
-			if err != nil {
-				return nil, errors.New("reportTime must be an ISO 8601 string")
-			}
-			status.ReportTime = reportTime
-		}
-	}
-
-	if percentRaw, exists := raw["percentCompletion"]; exists {
-		percent, ok := percentRaw.(float64)
-		if !ok {
-			return nil, errors.New("percentCompletion must be a number")
-		}
-		if percent < 0 || percent > 100 {
-			return nil, errors.New("percentCompletion must be between 0 and 100")
-		}
-		status.PercentCompletion = &percent
-	}
-
-	if executionRaw, exists := raw["executionTime"]; exists {
-		executionBytes, err := json.Marshal(executionRaw)
-		if err != nil {
-			return nil, errors.New("Invalid executionTime payload")
-		}
-		var executionTime common_shared.TimeRange
-		if err := json.Unmarshal(executionBytes, &executionTime); err != nil {
-			return nil, errors.New("executionTime must be a valid time period")
-		}
-		status.ExecutionTime = common_shared.NonEmptyTimeRange(&executionTime)
-	}
-
-	if message, ok := raw["message"].(string); ok {
-		status.Message = message
-	}
-
-	if resultsRaw, exists := raw["results"]; exists {
-		if _, ok := resultsRaw.([]any); !ok {
-			return nil, errors.New("results must be an array")
-		}
-		resultsBytes, err := json.Marshal(resultsRaw)
-		if err != nil {
-			return nil, errors.New("Invalid results payload")
-		}
-		status.Results = resultsBytes
-	}
-
-	return status, nil
+	return json_formatters.DecodeCommandStatusReport(r.Body, false)
 }
 
 func decodeCommandResultPayload(r *http.Request) (*domains.CommandResult, error) {
@@ -822,23 +760,6 @@ func validateLinkLikePayload(field string, value any) error {
 	return nil
 }
 
-func isValidCommandStatus(status domains.CommandStatus) bool {
-	switch status {
-	case domains.CommandStatusPending,
-		domains.CommandStatusAccepted,
-		domains.CommandStatusRejected,
-		domains.CommandStatusScheduled,
-		domains.CommandStatusUpdated,
-		domains.CommandStatusCanceled,
-		domains.CommandStatusExecuting,
-		domains.CommandStatusFailed,
-		domains.CommandStatusCompleted:
-		return true
-	default:
-		return false
-	}
-}
-
 func commandResponse(cmd *domains.Command) *domains.Command {
 	if cmd == nil {
 		return nil
@@ -860,15 +781,22 @@ func commandStatusResponse(status *domains.CommandStatusReport) *domains.Command
 // publishCommandToMQTT publishes a command to the MQTT topic for its control stream.
 // Non-blocking — errors are logged.
 func (h *CommandHandler) publishCommandToMQTT(controlStreamID string, cmd *domains.Command) {
-	if h.mqttManager == nil || !h.mqttManager.IsConnected() {
+	if h.pubSubPublisher == nil || !h.pubSubPublisher.ResourceDataEnabled() {
 		return
 	}
 
-	payload, err := json.Marshal(cmd)
+	payload, err := h.fc.Serialize("application/json", cmd)
 	if err != nil {
-		h.logger.Error("Failed to marshal command for MQTT", zap.Error(err))
+		h.logger.Error("Failed to serialize command for MQTT", zap.Error(err))
 		return
 	}
 
-	h.mqttManager.Publish(mqtt.CommandTopic(controlStreamID), payload)
+	h.pubSubPublisher.PublishResourceData(mqtt.CommandTopic(controlStreamID), payload)
+}
+
+func (h *CommandHandler) publishCommandStatusToMQTT(commandID string, status *domains.CommandStatusReport) {
+	if h.pubSubPublisher == nil || !h.pubSubPublisher.ResourceDataEnabled() {
+		return
+	}
+	h.pubSubPublisher.PublishResourceData(mqtt.CommandStatusTopic(commandID), commandStatusResponse(status))
 }

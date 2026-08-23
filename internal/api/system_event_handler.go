@@ -13,6 +13,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 	"github.com/yourusername/connected-systems-go/internal/mqtt"
+	"github.com/yourusername/connected-systems-go/internal/pubsub"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -25,15 +26,15 @@ type SystemEventCollectionResponse struct {
 
 // SystemEventHandler handles /systemEvents and /systems/{id}/events resources.
 type SystemEventHandler struct {
-	cfg         *config.Config
-	logger      *zap.Logger
-	repo        *repository.SystemEventRepository
-	systemRepo  *repository.SystemRepository
-	mqttManager *mqtt.Manager
+	cfg             *config.Config
+	logger          *zap.Logger
+	repo            *repository.SystemEventRepository
+	systemRepo      *repository.SystemRepository
+	pubSubPublisher *pubsub.Publisher
 }
 
-func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository, mqttManager *mqtt.Manager) *SystemEventHandler {
-	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, mqttManager: mqttManager}
+func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository, pubSubPublisher *pubsub.Publisher) *SystemEventHandler {
+	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, pubSubPublisher: pubSubPublisher}
 }
 
 // validateSystemEvent enforces the required root fields of the OGC CS Part 2
@@ -184,14 +185,16 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 	}
 
 	createdIDs := make([]string, 0, 1)
-	var lastCreatedEvent *domains.SystemEvent
 	createOne := func(e *domains.SystemEvent) error {
 		e.SystemID = systemID
 		if err := h.repo.Create(e); err != nil {
 			return err
 		}
 		createdIDs = append(createdIDs, e.ID)
-		lastCreatedEvent = e
+		// The repository write has committed, so notify subscribers even if a
+		// later item in an array request fails independently.
+		h.publishSystemEventToMQTT(systemID, e)
+		h.publishSystemEventLifecycle(systemID, e, pubsub.OperationCreate)
 		return nil
 	}
 
@@ -256,11 +259,6 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/systems/" + systemID + "/events/" + createdIDs[0]
 	w.Header().Set("Location", location)
 	w.WriteHeader(http.StatusCreated)
-
-	// Publish to MQTT (fire-and-forget)
-	if lastCreatedEvent != nil {
-		h.publishSystemEventToMQTT(systemID, lastCreatedEvent)
-	}
 }
 
 // GetEventByID returns a single system event by ID
@@ -385,17 +383,26 @@ func (h *SystemEventHandler) DeleteEventByID(w http.ResponseWriter, r *http.Requ
 // publishSystemEventToMQTT publishes a system event to MQTT topics.
 // Non-blocking — errors are logged.
 func (h *SystemEventHandler) publishSystemEventToMQTT(systemID string, event *domains.SystemEvent) {
-	if h.mqttManager == nil || !h.mqttManager.IsConnected() {
+	if h.pubSubPublisher == nil || !h.pubSubPublisher.ResourceDataEnabled() {
 		return
 	}
 
-	payload, err := json.Marshal(event)
-	if err != nil {
-		h.logger.Error("Failed to marshal system event for MQTT", zap.Error(err))
+	// Publish to both the nested and top-level canonical collection topics.
+	h.pubSubPublisher.PublishResourceData(mqtt.SystemEventTopic(systemID), event)
+	h.pubSubPublisher.PublishResourceData(mqtt.SystemEventsTopic(), event)
+}
+
+func (h *SystemEventHandler) publishSystemEventLifecycle(systemID string, event *domains.SystemEvent, operation pubsub.Operation) {
+	if h.pubSubPublisher == nil || event == nil {
 		return
 	}
-
-	// Publish to both the specific system topic and the wildcard topic
-	h.mqttManager.Publish(mqtt.SystemEventTopic(systemID), payload)
-	h.mqttManager.Publish(mqtt.SystemEventsTopic(), payload)
+	h.pubSubPublisher.PublishChange(pubsub.Change{
+		ResourceType:   "systemevent",
+		ResourceID:     event.ID,
+		Operation:      operation,
+		SubjectPath:    "/systems/" + systemID + "/events/" + event.ID,
+		ParentPath:     "/systems/" + systemID,
+		CollectionPath: "/systems/" + systemID + "/events",
+		Data:           pubsub.BuildResourceEventSummary(event.Label, event.Description, ""),
+	})
 }

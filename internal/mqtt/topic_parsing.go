@@ -2,21 +2,22 @@ package mqtt
 
 import "strings"
 
-// extractDatastreamID parses the datastream ID from a topic like "datastreams/{id}/observations".
+// extractDatastreamID parses the datastream ID from a topic like
+// "datastreams/{id}/observations:data".
 func extractDatastreamID(topic string) string {
 	parts := strings.Split(topic, "/")
-	if len(parts) >= 2 && parts[0] == "datastreams" {
+	if len(parts) == 3 && parts[0] == "datastreams" && parts[1] != "" && parts[2] == "observations:data" {
 		return parts[1]
 	}
 	return ""
 }
 
-// extractCommandStatusIDs parses control stream ID and command ID from a topic
-// like "controls/{controlStreamId}/commands/{cmdId}/status".
-func extractCommandStatusIDs(topic string) (controlStreamID, cmdID string) {
+// extractCommandStatusID parses the command ID from a topic like
+// "commands/{cmdId}/status:data".
+func extractCommandStatusID(topic string) string {
 	parts := strings.Split(topic, "/")
-	if len(parts) >= 5 && parts[0] == "controls" && parts[2] == "commands" && parts[4] == "status" {
-		return parts[1], parts[3]
+	if len(parts) == 3 && parts[0] == "commands" && parts[1] != "" && parts[2] == "status:data" {
+		return parts[1]
 	}
-	return "", ""
+	return ""
 }

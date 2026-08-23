@@ -19,6 +19,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/api"
 	"github.com/yourusername/connected-systems-go/internal/config"
 	"github.com/yourusername/connected-systems-go/internal/mqtt"
+	"github.com/yourusername/connected-systems-go/internal/pubsub"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -81,17 +82,20 @@ func main() {
 
 		logger.Info("MQTT pub/sub enabled", zap.String("broker", cfg.MQTT.Broker))
 
-		// Set up MQTT → DB ingestion handlers
-		ingestion := mqtt.NewIngestionHandlers(logger, repos)
+	}
 
-		// Subscribe to observations from external sources
+	pubSubPublisher := pubsub.NewPublisher(cfg.API.BaseURL, cfg.PubSub, mqttManager, logger)
+	defer pubSubPublisher.Close()
+	if mqttManager != nil && cfg.PubSub.ResourceData.Enabled {
+		// Set up strict Resource Data Message ingestion.
+		ingestion := mqtt.NewIngestionHandlers(logger, repos, pubSubPublisher)
+
 		if err := mqttManager.Subscribe(mqtt.ObservationsWildcardTopic(), func(client paho.Client, msg paho.Message) {
 			ingestion.HandleObservation(msg.Topic(), msg.Payload())
 		}); err != nil {
 			logger.Fatal("Failed to subscribe to observation topics", zap.Error(err))
 		}
 
-		// Subscribe to command status updates from external sources
 		if err := mqttManager.Subscribe(mqtt.CommandStatusWildcardTopic(), func(client paho.Client, msg paho.Message) {
 			ingestion.HandleCommandStatus(msg.Topic(), msg.Payload())
 		}); err != nil {
@@ -100,7 +104,7 @@ func main() {
 	}
 
 	// Initialize API router
-	router := api.NewRouter(cfg, logger, repos, mqttManager)
+	router := api.NewRouter(cfg, logger, repos, pubSubPublisher)
 
 	// Create HTTP server
 	server := &http.Server{
