@@ -30,6 +30,12 @@ func (SystemQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*S
 	params := &SystemQueryParams{
 		QueryParams: *base,
 	}
+	bbox, geom, err := buildSpatialQueryParams(r)
+	if err != nil {
+		return nil, err
+	}
+	params.Bbox = bbox
+	params.Geom = geom
 
 	params.Recursive = r.URL.Query().Get("recursive") == "true"
 
@@ -59,10 +65,6 @@ func (SystemQueryParams) BuildFromRequest(r *http.Request, defaultLimit int) (*S
 
 	if controlledProperty := r.URL.Query().Get("controlledProperty"); controlledProperty != "" {
 		params.ControlledProperty = strings.Split(controlledProperty, ",")
-	}
-
-	if geom := r.URL.Query().Get("geom"); geom != "" {
-		params.Geom = geom
 	}
 
 	return params, nil

@@ -69,6 +69,9 @@ func AutoMigrate(db *gorm.DB) error {
 	); err != nil {
 		return err
 	}
+	if err := ensureSpatialGeometryStorage(db); err != nil {
+		return err
+	}
 
 	// Ensure generic closure support for deployments (creates triggers/functions)
 	if err := EnsureClosureSupport(db, "deployments", "id", "parent_deployment_id", "deployment_closures"); err != nil {
@@ -78,6 +81,34 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
+	return nil
+}
+
+// ensureSpatialGeometryStorage upgrades legacy GeoJSON rows that were stored
+// with SRID 0 and adds indexes used by bbox/geom intersection queries. GeoJSON
+// coordinates are CRS84, which PostGIS represents with SRID 4326.
+func ensureSpatialGeometryStorage(db *gorm.DB) error {
+	tables := []string{"systems", "sampling_features", "deployments"}
+	for _, table := range tables {
+		statement := fmt.Sprintf(
+			`UPDATE "%s"
+			 SET geometry = ST_SetSRID(geometry, 4326)
+			 WHERE geometry IS NOT NULL AND ST_SRID(geometry) = 0`,
+			table,
+		)
+		if err := db.Exec(statement).Error; err != nil {
+			return err
+		}
+
+		indexStatement := fmt.Sprintf(
+			`CREATE INDEX IF NOT EXISTS "idx_%s_geometry_gist" ON "%s" USING GIST (geometry)`,
+			table,
+			table,
+		)
+		if err := db.Exec(indexStatement).Error; err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

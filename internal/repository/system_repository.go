@@ -201,6 +201,12 @@ func (r *SystemRepository) ListSubsystems(parentID string, params *queryparams.S
 	} else {
 		query = query.Where("systems.parent_system_id = ?", parentID)
 	}
+	query = r.applyResourceFilters(query, params)
+
+	if params.Datetime != nil && params.Datetime.Latest {
+		err := query.Order("valid_time_start desc").Limit(1).Find(&systems).Error
+		return systems, int64(len(systems)), err
+	}
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -503,7 +509,12 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 	if !params.Recursive {
 		query = query.Where("systems.parent_system_id IS NULL")
 	}
+	return r.applyResourceFilters(query, params)
+}
 
+// applyResourceFilters applies filters that are common to canonical and
+// nested System collections. Hierarchy scoping is handled by the caller.
+func (r *SystemRepository) applyResourceFilters(query *gorm.DB, params *queryparams.SystemQueryParams) *gorm.DB {
 	if len(params.IDs) > 0 {
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
@@ -535,13 +546,7 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 		}
 	}
 
-	if params.Bbox != nil {
-		query = query.Where("ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", params.Bbox.MinX, params.Bbox.MinY, params.Bbox.MaxX, params.Bbox.MaxY)
-	}
-
-	if params.Geom != "" {
-		query = query.Where("ST_Intersects(geometry, ST_GeomFromText(?, 4326))", params.Geom)
-	}
+	query = applySpatialIntersectionFilters(query, "systems.geometry", params.Bbox, params.Geom)
 
 	if len(params.Procedure) > 0 {
 		query = query.Joins("JOIN system_procedures ON systems.id = system_procedures.system_id").

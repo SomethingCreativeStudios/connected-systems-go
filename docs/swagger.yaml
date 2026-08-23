@@ -1350,9 +1350,17 @@ paths:
         in: query
         name: q
         type: string
+      - description: 'Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]'
+        in: query
+        name: bbox
+        type: string
       - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
         in: query
         name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
         type: string
       - description: Comma-separated parent deployment IDs
         in: query
@@ -1543,6 +1551,50 @@ paths:
         name: id
         required: true
         type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      - description: Comma-separated keywords for full-text search
+        in: query
+        name: q
+        type: string
+      - description: 'Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]'
+        in: query
+        name: bbox
+        type: string
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
+        type: string
+      - description: Comma-separated system IDs
+        in: query
+        name: system
+        type: string
+      - description: Comma-separated feature of interest IDs
+        in: query
+        name: foi
+        type: string
+      - description: Comma-separated observed property IDs
+        in: query
+        name: observedProperty
+        type: string
+      - description: Comma-separated controlled property IDs
+        in: query
+        name: controlledProperty
+        type: string
+      - description: Include nested sub-deployments recursively
+        in: query
+        name: recursive
+        type: boolean
       produces:
       - application/json
       responses:
@@ -2138,7 +2190,7 @@ paths:
         in: query
         name: q
         type: string
-      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+      - description: 'Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]'
         in: query
         name: bbox
         type: string
@@ -2356,7 +2408,7 @@ paths:
         in: query
         name: q
         type: string
-      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+      - description: 'Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]'
         in: query
         name: bbox
         type: string
@@ -2757,9 +2809,17 @@ paths:
         in: query
         name: q
         type: string
+      - description: 'Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]'
+        in: query
+        name: bbox
+        type: string
       - description: Date-time or interval (RFC 3339)
         in: query
         name: dateTime
+        type: string
+      - description: WKT geometry for spatial intersection
+        in: query
+        name: geom
         type: string
       - description: Comma-separated parent deployment IDs
         in: query
@@ -3260,7 +3320,7 @@ paths:
         in: query
         name: q
         type: string
-      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+      - description: 'Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]'
         in: query
         name: bbox
         type: string
@@ -3373,7 +3433,7 @@ paths:
         in: query
         name: q
         type: string
-      - description: 'Bounding box filter: minx,miny,maxx,maxy'
+      - description: 'Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]'
         in: query
         name: bbox
         type: string

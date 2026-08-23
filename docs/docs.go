@@ -1888,8 +1888,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
+                        "name": "bbox",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z",
                         "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
                         "in": "query"
                     },
                     {
@@ -2174,6 +2186,72 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
+                        "name": "bbox",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date-time or interval (RFC 3339)",
+                        "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated system IDs",
+                        "name": "system",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include nested sub-deployments recursively",
+                        "name": "recursive",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3070,7 +3148,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
                         "name": "bbox",
                         "in": "query"
                     },
@@ -3398,7 +3476,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
                         "name": "bbox",
                         "in": "query"
                     },
@@ -3999,8 +4077,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
+                        "name": "bbox",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Date-time or interval (RFC 3339)",
                         "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
                         "in": "query"
                     },
                     {
@@ -4748,7 +4838,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
                         "name": "bbox",
                         "in": "query"
                     },
@@ -4917,7 +5007,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
                         "name": "bbox",
                         "in": "query"
                     },

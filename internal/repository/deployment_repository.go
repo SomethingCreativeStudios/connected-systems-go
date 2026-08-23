@@ -226,6 +226,8 @@ func (r *DeploymentRepository) applyFilters(query *gorm.DB, params *queryparams.
 		}
 	}
 
+	query = applySpatialIntersectionFilters(query, "deployments.geometry", params.Bbox, params.Geom)
+
 	if len(params.ControlledProperty) > 0 {
 		query = query.Joins("JOIN procedure_controlled_properties ON procedures.id = procedure_controlled_properties.procedure_id").
 			Where("procedure_controlled_properties.property_id IN ?", params.ControlledProperty)

@@ -124,13 +124,7 @@ func (r *SamplingFeatureRepository) applyFilters(query *gorm.DB, params *querypa
 		}
 	}
 
-	if params.Bbox != nil {
-		query = query.Where("ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", params.Bbox.MinX, params.Bbox.MinY, params.Bbox.MaxX, params.Bbox.MaxY)
-	}
-
-	if params.Geom != "" {
-		query = query.Where("ST_Intersects(geometry, ST_GeomFromText(?, 4326))", params.Geom)
-	}
+	query = applySpatialIntersectionFilters(query, "sampling_features.geometry", params.Bbox, params.Geom)
 
 	if len(params.FOI) > 0 {
 		query = query.Joins("JOIN sampling_feature_fois sff ON sff.sampling_feature_id = sampling_features.id").

@@ -20,6 +20,10 @@ type GoGeom struct {
 	T geom.T
 }
 
+// DefaultGeometrySRID is the CRS84-compatible PostGIS SRID used by Connected
+// Systems GeoJSON resources and spatial query parameters.
+const DefaultGeometrySRID = 4326
+
 // Value returns WKB bytes for storage in PostGIS; falls back to GeoJSON bytes on error
 func (gg GoGeom) Value() (driver.Value, error) {
 	if gg.T == nil {
@@ -113,6 +117,10 @@ func (gg *GoGeom) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if tg, err := toGeomFromGeoJSON(raw); err == nil {
+		tg, err = geom.SetSRID(tg, DefaultGeometrySRID)
+		if err != nil {
+			return fmt.Errorf("set geometry SRID: %w", err)
+		}
 		gg.T = tg
 		return nil
 	}

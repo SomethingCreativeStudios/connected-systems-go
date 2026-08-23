@@ -144,14 +144,14 @@ func TestSamplingFeatureRepository_List(t *testing.T) {
 	sf2 := &domains.SamplingFeature{
 		CommonSSN:   domains.CommonSSN{UniqueIdentifier: "urn:test:sf2", Name: "Curve Feature 1"},
 		FeatureType: "Curve",
-		Geometry:    testutil.MakeLineString([]float64{-122.0, 37.0, -123.0, 38.0}),
+		Geometry:    testutil.MakeLineString([]float64{-118.3, 34.0, -118.2, 34.1}),
 	}
 	require.NoError(t, repo.Create(sf2))
 
 	sf3 := &domains.SamplingFeature{
 		CommonSSN:   domains.CommonSSN{UniqueIdentifier: "urn:test:sf3", Name: "Surface Feature 1", Description: "Test surface"},
 		FeatureType: "Surface",
-		Geometry:    testutil.MakePolygon([]float64{-122.0, 37.0, -123.0, 37.0, -123.0, 38.0, -122.0, 38.0, -122.0, 37.0}),
+		Geometry:    testutil.MakePolygon([]float64{-122.4, 47.5, -122.2, 47.5, -122.2, 47.7, -122.4, 47.7, -122.4, 47.5}),
 	}
 	require.NoError(t, repo.Create(sf3))
 
@@ -229,6 +229,30 @@ func TestSamplingFeatureRepository_List(t *testing.T) {
 			checkFunc: func(t *testing.T, features []*domains.SamplingFeature) {
 				require.Len(t, features, 1)
 				require.Equal(t, "Surface Feature 1", features[0].Name)
+			},
+		},
+		{
+			name: "bbox filter",
+			params: &queryparams.SamplingFeatureQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				Bbox:        testutil.TestBoundingBoxLA(),
+			},
+			wantCount: 1,
+			wantTotal: 1,
+			checkFunc: func(t *testing.T, features []*domains.SamplingFeature) {
+				require.Equal(t, sf2.ID, features[0].ID)
+			},
+		},
+		{
+			name: "geom filter",
+			params: &queryparams.SamplingFeatureQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				Geom:        "POLYGON((-122.5 37.5,-122.3 37.5,-122.3 37.9,-122.5 37.9,-122.5 37.5))",
+			},
+			wantCount: 1,
+			wantTotal: 1,
+			checkFunc: func(t *testing.T, features []*domains.SamplingFeature) {
+				require.Equal(t, sf1.ID, features[0].ID)
 			},
 		},
 		{

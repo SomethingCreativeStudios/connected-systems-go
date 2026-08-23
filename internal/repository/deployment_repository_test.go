@@ -200,18 +200,21 @@ func TestDeploymentRepository_List(t *testing.T) {
 	dep1 := &domains.Deployment{
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:dep1", Name: "Deployment Alpha"},
 		DeploymentType: "Fixed",
+		Geometry:       testutil.MakePoint(-122.4194, 37.7749),
 	}
 	require.NoError(t, repo.Create(dep1))
 
 	dep2 := &domains.Deployment{
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:dep2", Name: "Deployment Beta"},
 		DeploymentType: "Mobile",
+		Geometry:       testutil.MakePoint(-118.2437, 34.0522),
 	}
 	require.NoError(t, repo.Create(dep2))
 
 	dep3 := &domains.Deployment{
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:dep3", Name: "Deployment Gamma", Description: "Special deployment"},
 		DeploymentType: "Fixed",
+		Geometry:       testutil.MakePoint(-122.3321, 47.6062),
 	}
 	require.NoError(t, repo.Create(dep3))
 
@@ -289,6 +292,30 @@ func TestDeploymentRepository_List(t *testing.T) {
 			checkFunc: func(t *testing.T, deployments []*domains.Deployment) {
 				require.Len(t, deployments, 1)
 				require.Equal(t, "Deployment Gamma", deployments[0].Name)
+			},
+		},
+		{
+			name: "bbox filter",
+			params: &queryparams.DeploymentsQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				Bbox:        testutil.TestBoundingBoxLA(),
+			},
+			wantCount: 1,
+			wantTotal: 1,
+			checkFunc: func(t *testing.T, deployments []*domains.Deployment) {
+				require.Equal(t, dep2.ID, deployments[0].ID)
+			},
+		},
+		{
+			name: "geom filter",
+			params: &queryparams.DeploymentsQueryParams{
+				QueryParams: queryparams.QueryParams{Limit: 10},
+				Geom:        "POLYGON((-122.5 37.5,-122.3 37.5,-122.3 37.9,-122.5 37.9,-122.5 37.5))",
+			},
+			wantCount: 1,
+			wantTotal: 1,
+			checkFunc: func(t *testing.T, deployments []*domains.Deployment) {
+				require.Equal(t, dep1.ID, deployments[0].ID)
 			},
 		},
 		{
@@ -403,10 +430,10 @@ func TestDeploymentRepository_Delete(t *testing.T) {
 	repo := NewDeploymentRepository(db)
 
 	tests := []struct {
-		name        string
-		setupFunc   func() []string
-		expectErr   error
-		checkFunc   func(t *testing.T, id []string)
+		name      string
+		setupFunc func() []string
+		expectErr error
+		checkFunc func(t *testing.T, id []string)
 	}{
 		{
 			name: "delete existing deployment",

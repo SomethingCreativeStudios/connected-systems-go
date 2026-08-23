@@ -29,6 +29,12 @@ func (SamplingFeatureQueryParams) BuildFromRequest(r *http.Request, defaultLimit
 	params := &SamplingFeatureQueryParams{
 		QueryParams: *base,
 	}
+	bbox, geom, err := buildSpatialQueryParams(r)
+	if err != nil {
+		return nil, err
+	}
+	params.Bbox = bbox
+	params.Geom = geom
 
 	if controlledProperty := r.URL.Query().Get("controlledProperty"); controlledProperty != "" {
 		params.ControlledProperty = strings.Split(controlledProperty, ",")

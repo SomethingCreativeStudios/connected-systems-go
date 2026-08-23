@@ -2248,8 +2248,24 @@
                         }
                     },
                     {
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
+                        "name": "bbox",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z",
                         "name": "dateTime",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
                         "in": "query",
                         "schema": {
                             "type": "string"
@@ -2582,6 +2598,94 @@
                         "required": true,
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of results",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Opaque pagination cursor",
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Comma-separated keywords for full-text search",
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
+                        "name": "bbox",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Date-time or interval (RFC 3339)",
+                        "name": "dateTime",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Comma-separated system IDs",
+                        "name": "system",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Comma-separated feature of interest IDs",
+                        "name": "foi",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Comma-separated observed property IDs",
+                        "name": "observedProperty",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Comma-separated controlled property IDs",
+                        "name": "controlledProperty",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Include nested sub-deployments recursively",
+                        "name": "recursive",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
                         }
                     }
                 ],
@@ -3627,7 +3731,7 @@
                         }
                     },
                     {
-                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
                         "name": "bbox",
                         "in": "query",
                         "schema": {
@@ -4030,7 +4134,7 @@
                         }
                     },
                     {
-                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
                         "name": "bbox",
                         "in": "query",
                         "schema": {
@@ -4748,8 +4852,24 @@
                         }
                     },
                     {
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
+                        "name": "bbox",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Date-time or interval (RFC 3339)",
                         "name": "dateTime",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "WKT geometry for spatial intersection",
+                        "name": "geom",
                         "in": "query",
                         "schema": {
                             "type": "string"
@@ -5688,7 +5808,7 @@
                         }
                     },
                     {
-                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
                         "name": "bbox",
                         "in": "query",
                         "schema": {
@@ -5892,7 +6012,7 @@
                         }
                     },
                     {
-                        "description": "Bounding box filter: minx,miny,maxx,maxy",
+                        "description": "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]",
                         "name": "bbox",
                         "in": "query",
                         "schema": {

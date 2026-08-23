@@ -38,7 +38,9 @@ func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 // @Param       cursor              query  string   false  "Opaque pagination cursor"
 // @Param       id                  query  string   false  "Comma-separated resource IDs"
 // @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       bbox                query  string   false  "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]"
 // @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"
+// @Param       geom                query  string   false  "WKT geometry for spatial intersection"
 // @Param       parent              query  string   false  "Comma-separated parent deployment IDs"
 // @Param       system              query  string   false  "Comma-separated system IDs"
 // @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
@@ -215,7 +217,18 @@ func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Requ
 // @Description Returns child deployments of the given deployment
 // @Tags        Deployments
 // @Produce     json
-// @Param       id  path  string  true  "Parent deployment ID"
+// @Param       id                  path   string   true   "Parent deployment ID"
+// @Param       limit               query  integer  false  "Maximum number of results"
+// @Param       cursor              query  string   false  "Opaque pagination cursor"
+// @Param       q                   query  string   false  "Comma-separated keywords for full-text search"
+// @Param       bbox                query  string   false  "Bounding box filter: minx,miny[,minz],maxx,maxy[,maxz]"
+// @Param       dateTime            query  string   false  "Date-time or interval (RFC 3339)"
+// @Param       geom                query  string   false  "WKT geometry for spatial intersection"
+// @Param       system              query  string   false  "Comma-separated system IDs"
+// @Param       foi                 query  string   false  "Comma-separated feature of interest IDs"
+// @Param       observedProperty    query  string   false  "Comma-separated observed property IDs"
+// @Param       controlledProperty  query  string   false  "Comma-separated controlled property IDs"
+// @Param       recursive           query  boolean  false  "Include nested sub-deployments recursively"
 // @Success     200  {object}  map[string]any
 // @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string

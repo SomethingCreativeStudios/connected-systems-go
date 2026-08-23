@@ -11,6 +11,8 @@ import (
 type DeploymentsQueryParams struct {
 	QueryParams
 
+	Bbox               *common_shared.BoundingBox
+	Geom               string // WKT geometry
 	DateTime           *common_shared.TimeRange
 	ObservedProperty   []string
 	ControlledProperty []string
@@ -28,6 +30,12 @@ func (DeploymentsQueryParams) BuildFromRequest(r *http.Request, defaultLimit int
 	params := &DeploymentsQueryParams{
 		QueryParams: *base,
 	}
+	bbox, geom, err := buildSpatialQueryParams(r)
+	if err != nil {
+		return nil, err
+	}
+	params.Bbox = bbox
+	params.Geom = geom
 
 	if observedProperty := r.URL.Query().Get("observedProperty"); observedProperty != "" {
 		params.ObservedProperty = strings.Split(observedProperty, ",")
