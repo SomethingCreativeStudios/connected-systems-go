@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -198,7 +199,7 @@ func (h *ObservationHandler) GetObservation(w http.ResponseWriter, r *http.Reque
 // @Param       obsId        path  string          true  "Observation ID"
 // @Param       observation  body  map[string]any  true  "Observation resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     404  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /observations/{obsId} [put]
@@ -227,8 +228,7 @@ func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(obs, datastream, r.Header.Get("Content-Type")); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Observation does not match parent datastream schema: " + err.Error()})
+		writeValidationError(w, r, fmt.Errorf("Observation does not match parent datastream schema: %w", err))
 		return
 	}
 
@@ -283,7 +283,7 @@ func (h *ObservationHandler) DeleteObservation(w http.ResponseWriter, r *http.Re
 // @Param       dataStreamId  path  string          true  "Datastream ID"
 // @Param       observation   body  map[string]any  true  "Observation resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     404  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /datastreams/{dataStreamId}/observations [post]
@@ -304,8 +304,7 @@ func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, 
 	}
 
 	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(obs, datastream, r.Header.Get("Content-Type")); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Observation does not match parent datastream schema: " + err.Error()})
+		writeValidationError(w, r, fmt.Errorf("Observation does not match parent datastream schema: %w", err))
 		return
 	}
 

@@ -86,11 +86,13 @@ const (
 
 // AssetType constants
 const (
-	AssetTypeEquipment  = "Equipment"
-	AssetTypeHuman      = "Human"
-	AssetTypePlatform   = "Platform"
-	AssetTypeProcess    = "Process"
-	AssetTypeSimulation = "Simulation"
+	AssetTypeEquipment   = "Equipment"
+	AssetTypeHuman       = "Human"
+	AssetTypeLivingThing = "LivingThing"
+	AssetTypeProcess     = "Process"
+	AssetTypeSimulation  = "Simulation"
+	AssetTypeGroup       = "Group"
+	AssetTypeOther       = "Other"
 )
 
 // GeoJSONFeature converts System to GeoJSON Feature format

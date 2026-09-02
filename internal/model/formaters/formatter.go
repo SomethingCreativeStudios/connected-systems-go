@@ -1,9 +1,12 @@
 package formaters
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"mime"
 	"net/url"
+	"strings"
 
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 )
@@ -93,6 +96,7 @@ type MultiFormatFormatterCollection[Domain any] struct {
 	formatters     map[string]AnyFormatter[Domain]
 	defaultKey     string
 	defaultContent string
+	validateBody   func(contentType string, body []byte) error
 }
 
 // NewMultiFormatFormatterCollection creates a new multi-format formatter collection
@@ -116,6 +120,14 @@ func (m *MultiFormatFormatterCollection[Domain]) RegisterDefault(formatter AnyFo
 	return m
 }
 
+// SetRequestValidator attaches a raw-body validation hook. The hook runs
+// before deserialization and receives a replayable byte slice, allowing API
+// handlers to apply contract validation without consuming the request body.
+func (m *MultiFormatFormatterCollection[Domain]) SetRequestValidator(validator func(contentType string, body []byte) error) *MultiFormatFormatterCollection[Domain] {
+	m.validateBody = validator
+	return m
+}
+
 // RegisterTyped is a convenience method to register a typed formatter
 func RegisterFormatterTyped[Output any, Domain any](m *MultiFormatFormatterCollection[Domain], contentType string, formatter Formatter[Output, Domain]) *MultiFormatFormatterCollection[Domain] {
 	adapter := NewFormatterAdapter(formatter, contentType)
@@ -130,6 +142,7 @@ func RegisterFormatterTypedDefault[Output any, Domain any](m *MultiFormatFormatt
 
 // GetFormatter returns the formatter for the given content type
 func (m *MultiFormatFormatterCollection[Domain]) GetFormatter(contentType string) AnyFormatter[Domain] {
+	contentType = normalizeContentType(contentType)
 	if formatter, exists := m.formatters[contentType]; exists {
 		return formatter
 	}
@@ -162,8 +175,34 @@ func (m *MultiFormatFormatterCollection[Domain]) SerializeAll(contentType string
 
 // Deserialize deserializes from a reader using the appropriate formatter
 func (m *MultiFormatFormatterCollection[Domain]) Deserialize(contentType string, reader io.Reader) (Domain, error) {
+	var zero Domain
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return zero, err
+	}
 	formatter := m.GetFormatter(contentType)
-	return formatter.Deserialize(context.Background(), reader)
+	validationContentType := normalizeContentType(contentType)
+	if _, registered := m.formatters[validationContentType]; !registered {
+		// The formatter falls back to its default representation for a missing
+		// or unsupported Content-Type, so validate that resolved representation
+		// too. In particular, a Procedure cannot bypass its SensorML-only write
+		// rule by omitting Content-Type.
+		validationContentType = formatter.ContentType()
+	}
+	if m.validateBody != nil {
+		if err := m.validateBody(validationContentType, body); err != nil {
+			return zero, err
+		}
+	}
+	return formatter.Deserialize(context.Background(), bytes.NewReader(body))
+}
+
+func normalizeContentType(contentType string) string {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err == nil && mediaType != "" {
+		return strings.ToLower(mediaType)
+	}
+	return strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
 }
 
 // --- Collection building ---

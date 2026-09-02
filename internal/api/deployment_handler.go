@@ -118,7 +118,7 @@ func (h *DeploymentHandler) GetDeployment(w http.ResponseWriter, r *http.Request
 // @Accept      json
 // @Param       deployment  body  map[string]any  true  "Deployment resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /deployments [post]
 func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +151,7 @@ func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Requ
 // @Param       id          path  string          true  "Deployment ID"
 // @Param       deployment  body  map[string]any  true  "Deployment resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /deployments/{id} [put]
 func (h *DeploymentHandler) UpdateDeployment(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +266,7 @@ func (h *DeploymentHandler) ListSubdeployments(w http.ResponseWriter, r *http.Re
 // @Param       id          path  string          true  "Parent deployment ID"
 // @Param       deployment  body  map[string]any  true  "Deployment resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /deployments/{id}/subdeployments [post]
 func (h *DeploymentHandler) AddSubdeployment(w http.ResponseWriter, r *http.Request) {

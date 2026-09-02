@@ -134,11 +134,57 @@ func (r *ObservationRepository) Update(observation *domains.Observation) error {
 		observation.PhenomenonTime = &t
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(observation).Error; err != nil {
+		var existing domains.Observation
+		if err := tx.Where("id = ?", observation.ID).First(&existing).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
 			return err
+		}
+
+		// Preserve lifecycle fields across a replacement. result_time is part of
+		// the composite primary key, so moving an observation to another chunk
+		// must delete the old tuple and insert the replacement atomically.
+		observation.CreatedAt = existing.CreatedAt
+		observation.UpdatedAt = time.Now().UTC()
+		if !observation.ResultTime.Equal(existing.ResultTime) {
+			if err := tx.Where("id = ? AND result_time = ?", existing.ID, existing.ResultTime).
+				Delete(&domains.Observation{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Create(observation).Error; err != nil {
+				return err
+			}
+		} else if err := updateObservationRow(tx, observation); err != nil {
+			return err
+		}
+
+		if existing.DatastreamID != observation.DatastreamID {
+			if err := recomputeDatastreamTimeRanges(tx, existing.DatastreamID); err != nil {
+				return err
+			}
 		}
 		return recomputeDatastreamTimeRanges(tx, observation.DatastreamID)
 	})
+}
+
+func updateObservationRow(tx *gorm.DB, observation *domains.Observation) error {
+	// Target the stable API ID and original time tuple rather than using Save,
+	// which would otherwise treat the composite replacement key as a new row.
+	updates := map[string]any{
+		"datastream_id":       observation.DatastreamID,
+		"sampling_feature_id": observation.SamplingFeatureID,
+		"procedure_link":      observation.ProcedureLink,
+		"phenomenon_time":     observation.PhenomenonTime,
+		"result_time":         observation.ResultTime,
+		"parameters":          observation.Parameters,
+		"result":              observation.Result,
+		"result_link":         observation.ResultLink,
+		"updated_at":          time.Now().UTC(),
+	}
+	return tx.Model(&domains.Observation{}).
+		Where("id = ? AND result_time = ?", observation.ID, observation.ResultTime).
+		Updates(updates).Error
 }
 
 func (r *ObservationRepository) Delete(id string) error {

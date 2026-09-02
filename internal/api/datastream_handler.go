@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
+	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
@@ -24,14 +25,15 @@ type DatastreamCollectionResponse struct {
 
 // DatastreamHandler handles datastream endpoints.
 type DatastreamHandler struct {
-	cfg    *config.Config
-	logger *zap.Logger
-	repo   *repository.DatastreamRepository
-	fc     *formaters.MultiFormatFormatterCollection[*domains.Datastream]
+	cfg       *config.Config
+	logger    *zap.Logger
+	repo      *repository.DatastreamRepository
+	fc        *formaters.MultiFormatFormatterCollection[*domains.Datastream]
+	validator *contractvalidation.Validator
 }
 
-func NewDatastreamHandler(cfg *config.Config, logger *zap.Logger, repo *repository.DatastreamRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Datastream]) *DatastreamHandler {
-	return &DatastreamHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
+func NewDatastreamHandler(cfg *config.Config, logger *zap.Logger, repo *repository.DatastreamRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Datastream], validator *contractvalidation.Validator) *DatastreamHandler {
+	return &DatastreamHandler{cfg: cfg, logger: logger, repo: repo, fc: fc, validator: validator}
 }
 
 // ListDatastreams returns a paginated list of datastreams
@@ -181,7 +183,7 @@ func (h *DatastreamHandler) GetDatastream(w http.ResponseWriter, r *http.Request
 // @Param       id          path  string          true  "System ID"
 // @Param       datastream  body  map[string]any  true  "Datastream resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/datastreams [post]
 func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Request) {
@@ -200,13 +202,11 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 
 	// schema is required on create per the OGC CS Part 2 dataStream create schema
 	if datastream.Schema == nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "schema is required"})
+		writeValidationError(w, r, errors.New("schema is required"))
 		return
 	}
 	if err := validateDatastreamSchema(datastream.Schema); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
 		return
 	}
 
@@ -235,7 +235,7 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 // @Param       dataStreamId  path  string          true  "Datastream ID"
 // @Param       datastream    body  map[string]any  true  "Datastream resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     404  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /datastreams/{dataStreamId} [put]
@@ -258,8 +258,7 @@ func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := validateDatastreamSchema(datastream.Schema); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
 		return
 	}
 
@@ -364,22 +363,25 @@ func (h *DatastreamHandler) GetDatastreamSchema(w http.ResponseWriter, r *http.R
 // @Param       dataStreamId  path  string          true  "Datastream ID"
 // @Param       schema        body  map[string]any  true  "Datastream schema"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /datastreams/{dataStreamId}/schema [put]
 func (h *DatastreamHandler) UpdateDatastreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
 
-	var schema domains.DatastreamSchema
-	if err := render.DecodeJSON(r.Body, &schema); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+	body, err := validateRawRequestBody(r, h.validator, contractvalidation.Datastream)
+	if err != nil {
+		writeDeserializeError(w, r, err)
+		return
+	}
+	schema, err := decodeStrictJSON[domains.DatastreamSchema](body)
+	if err != nil {
+		writeDeserializeError(w, r, err)
 		return
 	}
 
 	if err := validateDatastreamSchema(&schema); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
 		return
 	}
 

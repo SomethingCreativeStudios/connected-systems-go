@@ -112,7 +112,7 @@ func (h *PropertyHandler) GetProperty(w http.ResponseWriter, r *http.Request) {
 // @Accept      json
 // @Param       property  body  map[string]any  true  "Property resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /properties [post]
 func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +147,7 @@ func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request)
 // @Param       id        path  string          true  "Property ID"
 // @Param       property  body  map[string]any  true  "Property resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /properties/{id} [put]
 func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request) {

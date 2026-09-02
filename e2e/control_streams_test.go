@@ -1091,6 +1091,42 @@ func TestCommandResult_RejectsMultipleVariants(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	var validation map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&validation))
+	require.NotEmpty(t, validation["details"])
+
+	list := doGet(t, "/commands/"+cmdID+"/result")
+	defer list.Body.Close()
+	var results map[string]any
+	require.NoError(t, json.NewDecoder(list.Body).Decode(&results))
+	require.Empty(t, results["items"])
+}
+
+func TestCommandStatus_RejectsInvalidStatusCode(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemForControlStreamTest(t)
+	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
+	cmdID := createCommandViaAPI(t, csID, baseCommandPayload())
+	body, err := json.Marshal(map[string]any{"statusCode": "NOT_A_STATUS"})
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/commands/"+cmdID+"/status", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	var validation map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&validation))
+	details := validation["details"].([]any)
+	require.Equal(t, "statusCode", details[0].(map[string]any)["path"])
+
+	list := doGet(t, "/commands/"+cmdID+"/status")
+	defer list.Body.Close()
+	var statuses map[string]any
+	require.NoError(t, json.NewDecoder(list.Body).Decode(&statuses))
+	require.Empty(t, statuses["items"])
 }
 
 // =============================================================================

@@ -133,7 +133,7 @@ func FakeSystemPlatform() domains.System {
 			Description:      fmt.Sprintf("Multi-sensor %s platform", platformType),
 		},
 		SystemType:           domains.SystemTypePlatform,
-		AssetType:            ptrString(domains.AssetTypePlatform),
+		AssetType:            ptrString(domains.AssetTypeEquipment),
 		ValidTime:            FakeValidTimeCurrent(),
 		Geometry:             FakeDeploymentPointGeometry(),
 		Lang:                 ptrString("en"),

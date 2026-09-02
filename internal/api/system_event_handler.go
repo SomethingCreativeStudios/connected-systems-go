@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
+	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
@@ -31,10 +33,11 @@ type SystemEventHandler struct {
 	repo            *repository.SystemEventRepository
 	systemRepo      *repository.SystemRepository
 	pubSubPublisher *pubsub.Publisher
+	validator       *contractvalidation.Validator
 }
 
-func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository, pubSubPublisher *pubsub.Publisher) *SystemEventHandler {
-	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, pubSubPublisher: pubSubPublisher}
+func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository, pubSubPublisher *pubsub.Publisher, validator *contractvalidation.Validator) *SystemEventHandler {
+	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, pubSubPublisher: pubSubPublisher, validator: validator}
 }
 
 // validateSystemEvent enforces the required root fields of the OGC CS Part 2
@@ -50,6 +53,18 @@ func validateSystemEvent(e *domains.SystemEvent) error {
 		return fmt.Errorf("time is required")
 	}
 	return nil
+}
+
+func decodeSystemEvent(value map[string]any) (*domains.SystemEvent, error) {
+	body, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	event, err := common_shared.DecodeWithFieldErrors[domains.SystemEvent](body)
+	if err != nil {
+		return nil, err
+	}
+	return &event, nil
 }
 
 // ListSystemEvents returns a paginated list of system events
@@ -161,7 +176,7 @@ func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.R
 // @Param       id     path  string  true  "System ID"
 // @Param       event  body  map[string]any  true  "System event or array of events"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     404  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/events [post]
@@ -178,82 +193,76 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 	}
 
 	// OpenAPI allows either a single event or an array.
+	body, err := validateRawRequestBody(r, h.validator, contractvalidation.SystemEvent)
+	if err != nil {
+		writeDeserializeError(w, r, err)
+		return
+	}
 	var raw any
-	if err := render.DecodeJSON(r.Body, &raw); err != nil {
+	if err := render.DecodeJSON(bytes.NewReader(body), &raw); err != nil {
 		writeDeserializeError(w, r, err)
 		return
 	}
 
-	createdIDs := make([]string, 0, 1)
-	createOne := func(e *domains.SystemEvent) error {
-		e.SystemID = systemID
-		if err := h.repo.Create(e); err != nil {
-			return err
+	// Decode and validate every item before any repository write. This keeps a
+	// rejected event array from partially persisting valid items that preceded
+	// an invalid one.
+	events := make([]*domains.SystemEvent, 0, 1)
+	decodeOne := func(value map[string]any) (*domains.SystemEvent, error) {
+		event, err := decodeSystemEvent(value)
+		if err != nil {
+			return nil, err
 		}
-		createdIDs = append(createdIDs, e.ID)
-		// The repository write has committed, so notify subscribers even if a
-		// later item in an array request fails independently.
-		h.publishSystemEventToMQTT(systemID, e)
-		h.publishSystemEventLifecycle(systemID, e, pubsub.OperationCreate)
-		return nil
+		if err := validateSystemEvent(event); err != nil {
+			return nil, err
+		}
+		return event, nil
 	}
-
 	switch v := raw.(type) {
 	case map[string]any:
-		var evt domains.SystemEvent
-		bytes, _ := json.Marshal(v)
-		if err := json.Unmarshal(bytes, &evt); err != nil {
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, map[string]string{"error": "Invalid system event payload"})
+		event, err := decodeOne(v)
+		if err != nil {
+			writeValidationError(w, r, err)
 			return
 		}
-		if err := validateSystemEvent(&evt); err != nil {
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, map[string]string{"error": err.Error()})
-			return
-		}
-		if err := createOne(&evt); err != nil {
-			h.logger.Error("Failed to create system event", zap.String("systemId", systemID), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to create system event"})
-			return
-		}
+		events = append(events, event)
 	case []any:
 		if len(v) == 0 {
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, map[string]string{"error": "At least one event is required"})
+			writeValidationError(w, r, fmt.Errorf("at least one event is required"))
 			return
 		}
 		for _, item := range v {
 			itemObj, ok := item.(map[string]any)
 			if !ok {
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, map[string]string{"error": "Invalid system event payload"})
+				writeValidationError(w, r, fmt.Errorf("system event must be a JSON object"))
 				return
 			}
-			var evt domains.SystemEvent
-			bytes, _ := json.Marshal(itemObj)
-			if err := json.Unmarshal(bytes, &evt); err != nil {
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, map[string]string{"error": "Invalid system event payload"})
+			event, err := decodeOne(itemObj)
+			if err != nil {
+				writeValidationError(w, r, err)
 				return
 			}
-			if err := validateSystemEvent(&evt); err != nil {
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, map[string]string{"error": err.Error()})
-				return
-			}
-			if err := createOne(&evt); err != nil {
-				h.logger.Error("Failed to create system event", zap.String("systemId", systemID), zap.Error(err))
-				render.Status(r, http.StatusInternalServerError)
-				render.JSON(w, r, map[string]string{"error": "Failed to create system event"})
-				return
-			}
+			events = append(events, event)
 		}
 	default:
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid system event payload"})
+		writeValidationError(w, r, fmt.Errorf("system event must be a JSON object or array of objects"))
 		return
+	}
+
+	createdIDs := make([]string, 0, len(events))
+	for _, event := range events {
+		event.SystemID = systemID
+		if err := h.repo.Create(event); err != nil {
+			h.logger.Error("Failed to create system event", zap.String("systemId", systemID), zap.Error(err))
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": "Failed to create system event"})
+			return
+		}
+		createdIDs = append(createdIDs, event.ID)
+	}
+	for _, event := range events {
+		h.publishSystemEventToMQTT(systemID, event)
+		h.publishSystemEventLifecycle(systemID, event, pubsub.OperationCreate)
 	}
 
 	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/systems/" + systemID + "/events/" + createdIDs[0]
@@ -301,7 +310,7 @@ func (h *SystemEventHandler) GetEventByID(w http.ResponseWriter, r *http.Request
 // @Param       eventId  path  string          true  "Event ID"
 // @Param       event    body  map[string]any  true  "System event resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     404  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/events/{eventId} [put]
@@ -319,15 +328,19 @@ func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var event domains.SystemEvent
-	if err := render.DecodeJSON(r.Body, &event); err != nil {
+	body, err := validateRawRequestBody(r, h.validator, contractvalidation.SystemEvent)
+	if err != nil {
+		writeDeserializeError(w, r, err)
+		return
+	}
+	event, err := decodeStrictJSON[domains.SystemEvent](body)
+	if err != nil {
 		writeDeserializeError(w, r, err)
 		return
 	}
 
 	if err := validateSystemEvent(&event); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
 		return
 	}
 

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
+	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
@@ -47,6 +50,7 @@ type CommandHandler struct {
 	controlStreamRepo *repository.ControlStreamRepository
 	pubSubPublisher   *pubsub.Publisher
 	fc                *formaters.MultiFormatFormatterCollection[*domains.Command]
+	validator         *contractvalidation.Validator
 }
 
 func NewCommandHandler(
@@ -56,6 +60,7 @@ func NewCommandHandler(
 	controlStreamRepo *repository.ControlStreamRepository,
 	pubSubPublisher *pubsub.Publisher,
 	fc *formaters.MultiFormatFormatterCollection[*domains.Command],
+	validator *contractvalidation.Validator,
 ) *CommandHandler {
 	return &CommandHandler{
 		cfg:               cfg,
@@ -64,6 +69,7 @@ func NewCommandHandler(
 		controlStreamRepo: controlStreamRepo,
 		pubSubPublisher:   pubSubPublisher,
 		fc:                fc,
+		validator:         validator,
 	}
 }
 
@@ -220,7 +226,7 @@ func (h *CommandHandler) GetCommand(w http.ResponseWriter, r *http.Request) {
 // @Param       controlStreamId  path  string          true  "Control Stream ID"
 // @Param       command          body  map[string]any  true  "Command resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     404  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /controlstreams/{controlStreamId}/commands [post]
@@ -268,7 +274,7 @@ func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *ht
 // @Param       cmdId    path  string          true  "Command ID"
 // @Param       command  body  map[string]any  true  "Command resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     404  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /commands/{cmdId} [put]
@@ -388,6 +394,18 @@ func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http
 }
 
 // CreateCommandStatusReport handles POST /commands/{id}/status
+//
+// @Summary     Create command status report
+// @Description Creates a status report for a command.
+// @Tags        Commands
+// @Accept      json
+// @Param       cmdId   path  string                       true  "Command ID"
+// @Param       status  body  map[string]any  true  "Command status report"
+// @Success     201
+// @Failure     400  {object}  ValidationErrorResponse
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /commands/{cmdId}/status [post]
 func (h *CommandHandler) CreateCommandStatusReport(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
 	_, err := h.repo.GetByID(commandID)
@@ -397,10 +415,14 @@ func (h *CommandHandler) CreateCommandStatusReport(w http.ResponseWriter, r *htt
 		return
 	}
 
-	status, err := decodeCommandStatusPayload(r)
+	body, err := validateRawRequestBody(r, h.validator, contractvalidation.CommandStatus)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
+		return
+	}
+	status, err := decodeCommandStatusPayload(bytes.NewReader(body))
+	if err != nil {
+		writeValidationError(w, r, err)
 		return
 	}
 
@@ -435,6 +457,19 @@ func (h *CommandHandler) GetCommandStatusReport(w http.ResponseWriter, r *http.R
 }
 
 // UpdateCommandStatusReport handles PUT /commands/{id}/status/{statusId}
+//
+// @Summary     Update command status report
+// @Description Replaces a command status report.
+// @Tags        Commands
+// @Accept      json
+// @Param       cmdId     path  string                       true  "Command ID"
+// @Param       statusId  path  string                       true  "Status report ID"
+// @Param       status    body  map[string]any  true  "Command status report"
+// @Success     204
+// @Failure     400  {object}  ValidationErrorResponse
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /commands/{cmdId}/status/{statusId} [put]
 func (h *CommandHandler) UpdateCommandStatusReport(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
 	statusID := chi.URLParam(r, "statusId")
@@ -446,10 +481,14 @@ func (h *CommandHandler) UpdateCommandStatusReport(w http.ResponseWriter, r *htt
 		return
 	}
 
-	status, err := decodeCommandStatusPayload(r)
+	body, err := validateRawRequestBody(r, h.validator, contractvalidation.CommandStatus)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
+		return
+	}
+	status, err := decodeCommandStatusPayload(bytes.NewReader(body))
+	if err != nil {
+		writeValidationError(w, r, err)
 		return
 	}
 
@@ -538,6 +577,18 @@ func (h *CommandHandler) ListCommandResults(w http.ResponseWriter, r *http.Reque
 }
 
 // CreateCommandResult handles POST /commands/{id}/result
+//
+// @Summary     Create command result
+// @Description Creates one result resource for a command.
+// @Tags        Commands
+// @Accept      json
+// @Param       cmdId   path  string                 true  "Command ID"
+// @Param       result  body  map[string]any  true  "Command result"
+// @Success     201
+// @Failure     400  {object}  ValidationErrorResponse
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /commands/{cmdId}/result [post]
 func (h *CommandHandler) CreateCommandResult(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
 	if _, err := h.repo.GetByID(commandID); err != nil {
@@ -546,10 +597,14 @@ func (h *CommandHandler) CreateCommandResult(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	result, err := decodeCommandResultPayload(r)
+	body, err := validateRawRequestBody(r, h.validator, contractvalidation.CommandResult)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
+		return
+	}
+	result, err := decodeCommandResultPayload(bytes.NewReader(body))
+	if err != nil {
+		writeValidationError(w, r, err)
 		return
 	}
 
@@ -583,6 +638,19 @@ func (h *CommandHandler) GetCommandResult(w http.ResponseWriter, r *http.Request
 }
 
 // UpdateCommandResult handles PUT /commands/{id}/result/{resultId}
+//
+// @Summary     Update command result
+// @Description Replaces a command result resource.
+// @Tags        Commands
+// @Accept      json
+// @Param       cmdId     path  string                 true  "Command ID"
+// @Param       resultId  path  string                 true  "Result ID"
+// @Param       result    body  map[string]any  true  "Command result"
+// @Success     204
+// @Failure     400  {object}  ValidationErrorResponse
+// @Failure     404  {object}  map[string]string
+// @Failure     500  {object}  map[string]string
+// @Router      /commands/{cmdId}/result/{resultId} [put]
 func (h *CommandHandler) UpdateCommandResult(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
 	resultID := chi.URLParam(r, "resultId")
@@ -594,10 +662,14 @@ func (h *CommandHandler) UpdateCommandResult(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	result, err := decodeCommandResultPayload(r)
+	body, err := validateRawRequestBody(r, h.validator, contractvalidation.CommandResult)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
+		return
+	}
+	result, err := decodeCommandResultPayload(bytes.NewReader(body))
+	if err != nil {
+		writeValidationError(w, r, err)
 		return
 	}
 
@@ -696,14 +768,21 @@ func decodeCommandPayload(r *http.Request) (*domains.Command, error) {
 	return cmd, nil
 }
 
-func decodeCommandStatusPayload(r *http.Request) (*domains.CommandStatusReport, error) {
-	return json_formatters.DecodeCommandStatusReport(r.Body, false)
+func decodeCommandStatusPayload(reader io.Reader) (*domains.CommandStatusReport, error) {
+	return json_formatters.DecodeCommandStatusReport(reader, false)
 }
 
-func decodeCommandResultPayload(r *http.Request) (*domains.CommandResult, error) {
+func decodeCommandResultPayload(reader io.Reader) (*domains.CommandResult, error) {
 	var raw map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+	if err := json.NewDecoder(reader).Decode(&raw); err != nil {
 		return nil, err
+	}
+	for key := range raw {
+		switch key {
+		case "data", "observation@link", "observationSet@link", "datastream@link", "external@link":
+		default:
+			return nil, &common_shared.UnknownFieldError{Field: key}
+		}
 	}
 
 	result := &domains.CommandResult{}

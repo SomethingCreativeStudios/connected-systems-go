@@ -2,10 +2,13 @@ package repository
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"gorm.io/gorm"
 )
+
+const observationHypertableChunkInterval = "7 days"
 
 // Repositories holds all repository instances
 type Repositories struct {
@@ -45,6 +48,9 @@ func NewRepositories(db *gorm.DB) *Repositories {
 
 // AutoMigrate runs database migrations for all models
 func AutoMigrate(db *gorm.DB) error {
+	if err := ensureDatabaseExtensions(db); err != nil {
+		return err
+	}
 	if err := migrateLegacyArrayColumnsToJSONB(db); err != nil {
 		return err
 	}
@@ -69,6 +75,9 @@ func AutoMigrate(db *gorm.DB) error {
 	); err != nil {
 		return err
 	}
+	if err := ensureObservationHypertable(db); err != nil {
+		return err
+	}
 	if err := ensureSpatialGeometryStorage(db); err != nil {
 		return err
 	}
@@ -81,6 +90,37 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
+	return nil
+}
+
+// ensureDatabaseExtensions makes the application's spatial and time-series
+// dependencies explicit instead of relying on a particular container image to
+// preload them. Both statements are idempotent.
+func ensureDatabaseExtensions(db *gorm.DB) error {
+	for _, extension := range []string{"timescaledb", "postgis"} {
+		if err := db.Exec("CREATE EXTENSION IF NOT EXISTS " + extension).Error; err != nil {
+			return fmt.Errorf("enable %s extension: %w", extension, err)
+		}
+	}
+	return nil
+}
+
+// ensureObservationHypertable partitions observations by result time. A fresh
+// database is required when upgrading the former id-only primary key because
+// TimescaleDB requires the partition key in every primary or unique key.
+func ensureObservationHypertable(db *gorm.DB) error {
+	statement := fmt.Sprintf(`SELECT create_hypertable(
+		'observations',
+		by_range('result_time', INTERVAL '%s'),
+		if_not_exists => TRUE
+	)`, observationHypertableChunkInterval)
+	if err := db.Exec(statement).Error; err != nil {
+		if strings.Contains(err.Error(), "cannot create a unique index without") ||
+			strings.Contains(err.Error(), "primary key") {
+			return fmt.Errorf("convert observations to a TimescaleDB hypertable: %w; recreate the fresh development database because the legacy primary key must include result_time", err)
+		}
+		return fmt.Errorf("convert observations to a TimescaleDB hypertable: %w", err)
+	}
 	return nil
 }
 

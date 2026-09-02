@@ -368,23 +368,6 @@ func TestProcedureCRUD_Create(t *testing.T) {
 				return b
 			},
 		},
-		{
-			name:        "geo+json",
-			contentType: "application/geo+json",
-			makePayload: func(suffix string) []byte {
-				feat := map[string]interface{}{
-					"type": "Feature",
-					"properties": map[string]interface{}{
-						"featureType": "http://www.w3.org/ns/sosa/Procedure",
-						"uid":         "urn:test:procedure:crud-" + suffix,
-						"name":        "CRUD Test Procedure (geo)",
-						"description": "Procedure for CRUD testing (geo)",
-					},
-				}
-				b, _ := json.Marshal(feat)
-				return b
-			},
-		},
 	}
 
 	for i, f := range formats {
@@ -450,36 +433,6 @@ func TestProcedureCRUD_Replace(t *testing.T) {
 				return b
 			},
 		},
-		{
-			name:        "geo+json",
-			contentType: "application/geo+json",
-			makeCreatePayload: func(suffix string) []byte {
-				feat := map[string]interface{}{
-					"type": "Feature",
-					"properties": map[string]interface{}{
-						"featureType": "http://www.w3.org/ns/sosa/Procedure",
-						"uid":         "urn:test:procedure:update-" + suffix,
-						"name":        "Procedure to Update (geo)",
-						"description": "Original description",
-					},
-				}
-				b, _ := json.Marshal(feat)
-				return b
-			},
-			makeUpdatePayload: func(suffix string) []byte {
-				feat := map[string]interface{}{
-					"type": "Feature",
-					"properties": map[string]interface{}{
-						"featureType": "http://www.w3.org/ns/sosa/Procedure",
-						"uid":         "urn:test:procedure:update-" + suffix,
-						"name":        "Updated Procedure (geo)",
-						"description": "Updated description",
-					},
-				}
-				b, _ := json.Marshal(feat)
-				return b
-			},
-		},
 	}
 
 	for i, f := range formats {
@@ -516,14 +469,7 @@ func TestProcedureCRUD_Replace(t *testing.T) {
 			var result map[string]interface{}
 			json.NewDecoder(resp.Body).Decode(&result)
 
-			// label field is named differently for GeoJSON properties
-			if f.contentType == "application/geo+json" {
-				props, ok := result["properties"].(map[string]interface{})
-				require.True(t, ok)
-				assert.Equal(t, "Updated Procedure (geo)", props["name"])
-			} else {
-				assert.Equal(t, "Updated Procedure", result["label"])
-			}
+			assert.Equal(t, "Updated Procedure", result["label"])
 
 			// cleanup
 			reqDel, _ := http.NewRequest(http.MethodDelete, testServer.URL+"/procedures/"+id, nil)

@@ -16,7 +16,10 @@ type Observation struct {
 	ProcedureLink     *common_shared.Link `gorm:"type:jsonb" json:"procedure@link,omitempty"`
 
 	PhenomenonTime *time.Time `json:"phenomenonTime,omitempty"`
-	ResultTime     time.Time  `gorm:"index;not null" json:"resultTime"`
+	// TimescaleDB requires every primary or unique key on a hypertable to
+	// include its partitioning column. Base.ID supplies the first key column;
+	// resultTime is the time partition and second key column.
+	ResultTime time.Time `gorm:"primaryKey;not null" json:"resultTime"`
 
 	Parameters common_shared.Properties `gorm:"type:jsonb" json:"parameters,omitempty"`
 	Result     json.RawMessage          `gorm:"type:jsonb" json:"result,omitempty"`

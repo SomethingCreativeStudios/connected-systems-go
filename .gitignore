@@ -9,6 +9,9 @@ __debug*
 ptz-test/
 cs-api-client/
 cs-api-viewer/
+scripts/*
+!scripts/seed-connected-systems/
+!scripts/seed-connected-systems/**
 
 # Test binary
 *.test

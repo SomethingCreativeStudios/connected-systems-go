@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/yourusername/connected-systems-go/internal/config"
+	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
@@ -24,10 +25,11 @@ type ControlStreamCollectionResponse struct {
 
 // ControlStreamHandler handles control stream endpoints.
 type ControlStreamHandler struct {
-	cfg    *config.Config
-	logger *zap.Logger
-	repo   *repository.ControlStreamRepository
-	fc     *formaters.MultiFormatFormatterCollection[*domains.ControlStream]
+	cfg       *config.Config
+	logger    *zap.Logger
+	repo      *repository.ControlStreamRepository
+	fc        *formaters.MultiFormatFormatterCollection[*domains.ControlStream]
+	validator *contractvalidation.Validator
 }
 
 func NewControlStreamHandler(
@@ -35,8 +37,9 @@ func NewControlStreamHandler(
 	logger *zap.Logger,
 	repo *repository.ControlStreamRepository,
 	fc *formaters.MultiFormatFormatterCollection[*domains.ControlStream],
+	validator *contractvalidation.Validator,
 ) *ControlStreamHandler {
-	return &ControlStreamHandler{cfg: cfg, logger: logger, repo: repo, fc: fc}
+	return &ControlStreamHandler{cfg: cfg, logger: logger, repo: repo, fc: fc, validator: validator}
 }
 
 // ListControlStreams handles GET /controlstreams
@@ -186,7 +189,7 @@ func (h *ControlStreamHandler) GetControlStream(w http.ResponseWriter, r *http.R
 // @Param       id             path  string          true  "System ID"
 // @Param       controlStream  body  map[string]any  true  "Control Stream resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/controlstreams [post]
 func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *http.Request) {
@@ -205,13 +208,11 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 
 	// schema is required on create per the OGC CS Part 2 controlStream create schema
 	if cs.Schema == nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "schema is required"})
+		writeValidationError(w, r, errors.New("schema is required"))
 		return
 	}
 	if err := validateControlStreamSchema(cs.Schema); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
 		return
 	}
 
@@ -240,7 +241,7 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 // @Param       controlStreamId  path  string          true  "Control Stream ID"
 // @Param       controlStream    body  map[string]any  true  "Control Stream resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     404  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /controlstreams/{controlStreamId} [put]
@@ -263,8 +264,7 @@ func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *htt
 	}
 
 	if err := validateControlStreamSchema(cs.Schema); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
 		return
 	}
 
@@ -369,22 +369,25 @@ func (h *ControlStreamHandler) GetControlStreamSchema(w http.ResponseWriter, r *
 // @Param       controlStreamId  path  string          true  "Control Stream ID"
 // @Param       schema           body  map[string]any  true  "Control Stream schema"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /controlstreams/{controlStreamId}/schema [put]
 func (h *ControlStreamHandler) UpdateControlStreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
 
-	var schema domains.ControlStreamSchema
-	if err := render.DecodeJSON(r.Body, &schema); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+	body, err := validateRawRequestBody(r, h.validator, contractvalidation.ControlStream)
+	if err != nil {
+		writeDeserializeError(w, r, err)
+		return
+	}
+	schema, err := decodeStrictJSON[domains.ControlStreamSchema](body)
+	if err != nil {
+		writeDeserializeError(w, r, err)
 		return
 	}
 
 	if err := validateControlStreamSchema(&schema); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeValidationError(w, r, err)
 		return
 	}
 

@@ -10,6 +10,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 	"github.com/yourusername/connected-systems-go/docs"
 	"github.com/yourusername/connected-systems-go/internal/config"
+	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	serializers "github.com/yourusername/connected-systems-go/internal/model/formaters"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters/geojson_formatters"
@@ -68,6 +69,16 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	controlStreamFormatterCollection := buildControlStreamFormatterCollection(repos)
 	commandFormatterCollection := buildCommandFormatterCollection(repos)
 	observationFormatterCollection := buildObservationFormatterCollection(repos)
+	requestValidator := contractvalidation.New()
+	systemFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.System))
+	deploymentFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.Deployment))
+	procedureFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.Procedure))
+	samplingFeatureFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.SamplingFeature))
+	propertyFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.Property))
+	datastreamFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.Datastream))
+	controlStreamFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.ControlStream))
+	commandFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.Command))
+	observationFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.Observation))
 
 	collectionHandler := NewCollectionHandler(cfg, logger, repos.Collection, collectionFormatterCollection)
 	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentFormatterCollection)
@@ -76,11 +87,11 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, repos.System, samplingFeatureFormatterCollection)
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertyFormatterCollection)
 	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureFormatterCollection)
-	datastreamHandler := NewDatastreamHandler(cfg, logger, repos.Datastream, datastreamFormatterCollection)
+	datastreamHandler := NewDatastreamHandler(cfg, logger, repos.Datastream, datastreamFormatterCollection, requestValidator)
 	observationHandler := NewObservationHandler(cfg, logger, repos.Observation, repos.Datastream, pubSubPublisher, observationFormatterCollection)
-	controlStreamHandler := NewControlStreamHandler(cfg, logger, repos.ControlStream, controlStreamFormatterCollection)
-	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream, pubSubPublisher, commandFormatterCollection)
-	systemEventHandler := NewSystemEventHandler(cfg, logger, repos.SystemEvent, repos.System, pubSubPublisher)
+	controlStreamHandler := NewControlStreamHandler(cfg, logger, repos.ControlStream, controlStreamFormatterCollection, requestValidator)
+	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream, pubSubPublisher, commandFormatterCollection, requestValidator)
+	systemEventHandler := NewSystemEventHandler(cfg, logger, repos.SystemEvent, repos.System, pubSubPublisher, requestValidator)
 
 	// Routes
 

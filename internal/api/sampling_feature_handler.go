@@ -133,7 +133,7 @@ func validateSamplingFeature(sf *domains.SamplingFeature) error {
 // @Param       id               path  string          true   "Parent system ID"
 // @Param       samplingFeature  body  map[string]any  true   "Sampling Feature resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     404  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/samplingFeatures [post]
@@ -188,7 +188,7 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 // @Param       id               path  string          true  "Sampling Feature ID"
 // @Param       samplingFeature  body  map[string]any  true  "Sampling Feature resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /samplingFeatures/{id} [put]
 func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r *http.Request) {

@@ -70,6 +70,15 @@ definitions:
           $ref: '#/definitions/common_shared.Link'
         type: array
     type: object
+  api.ValidationErrorResponse:
+    properties:
+      details:
+        items:
+          $ref: '#/definitions/contractvalidation.Violation'
+        type: array
+      error:
+        type: string
+    type: object
   common_shared.Link:
     properties:
       href:
@@ -81,6 +90,13 @@ definitions:
       type:
         type: string
       uid:
+        type: string
+    type: object
+  contractvalidation.Violation:
+    properties:
+      message:
+        type: string
+      path:
         type: string
     type: object
 host: localhost:8080
@@ -506,9 +522,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -569,6 +583,90 @@ paths:
       summary: List command results
       tags:
       - Commands
+    post:
+      consumes:
+      - application/json
+      description: Creates one result resource for a command.
+      parameters:
+      - description: Command ID
+        in: path
+        name: cmdId
+        required: true
+        type: string
+      - description: Command result
+        in: body
+        name: result
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ValidationErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create command result
+      tags:
+      - Commands
+  /commands/{cmdId}/result/{resultId}:
+    put:
+      consumes:
+      - application/json
+      description: Replaces a command result resource.
+      parameters:
+      - description: Command ID
+        in: path
+        name: cmdId
+        required: true
+        type: string
+      - description: Result ID
+        in: path
+        name: resultId
+        required: true
+        type: string
+      - description: Command result
+        in: body
+        name: result
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ValidationErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update command result
+      tags:
+      - Commands
   /commands/{cmdId}/status:
     get:
       description: Returns a paginated collection of status reports for a command
@@ -612,6 +710,90 @@ paths:
               type: string
             type: object
       summary: List command status reports
+      tags:
+      - Commands
+    post:
+      consumes:
+      - application/json
+      description: Creates a status report for a command.
+      parameters:
+      - description: Command ID
+        in: path
+        name: cmdId
+        required: true
+        type: string
+      - description: Command status report
+        in: body
+        name: status
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ValidationErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create command status report
+      tags:
+      - Commands
+  /commands/{cmdId}/status/{statusId}:
+    put:
+      consumes:
+      - application/json
+      description: Replaces a command status report.
+      parameters:
+      - description: Command ID
+        in: path
+        name: cmdId
+        required: true
+        type: string
+      - description: Status report ID
+        in: path
+        name: statusId
+        required: true
+        type: string
+      - description: Command status report
+        in: body
+        name: status
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ValidationErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update command status report
       tags:
       - Commands
   /conformance:
@@ -781,9 +963,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -891,9 +1071,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -969,9 +1147,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1134,9 +1310,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -1240,9 +1414,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -1318,9 +1490,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1427,9 +1597,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1530,9 +1698,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1641,9 +1807,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1800,9 +1964,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -1891,9 +2053,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1990,9 +2150,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2065,9 +2223,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2158,9 +2314,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2318,9 +2472,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2485,9 +2637,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2588,9 +2738,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2682,9 +2830,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2776,9 +2922,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2948,9 +3092,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -3056,9 +3198,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -3390,9 +3530,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -3511,9 +3649,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/api.ValidationErrorResponse'
         "500":
           description: Internal Server Error
           schema:

@@ -262,6 +262,20 @@ cp config.example.yaml config.yaml
 make run
 ```
 
+## Seed realistic demo data
+
+The HTTP-only seeder creates an additive, namespaced Part 1/2 resource graph
+against a running API. Copy and adjust
+[`scripts/seed-connected-systems/config.example.yaml`](scripts/seed-connected-systems/config.example.yaml),
+then run:
+
+```bash
+go run ./scripts/seed-connected-systems -config scripts/seed-connected-systems/config.example.yaml
+```
+
+Use `mode: observe` in that file to continuously post schema-correct random
+observations to existing compatible datastreams.
+
 Build and test:
 
 ```bash
@@ -269,6 +283,14 @@ make build
 make test
 make test-coverage
 ```
+
+## Local TimescaleDB database
+
+`docker-compose.yml` runs PostgreSQL 18 with TimescaleDB and PostGIS. On
+startup, the server enables both extensions and creates `observations` as a
+hypertable partitioned by `result_time` in seven-day chunks. The Compose
+database uses a new `timescale_data` volume; an existing `postgres_data`
+development volume is intentionally left untouched and is not migrated.
 
 Pull the published Docker image:
 

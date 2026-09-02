@@ -96,10 +96,10 @@ func (h *CollectionHandler) ListCollections(w http.ResponseWriter, r *http.Reque
 	// OGC API - Common requires /collections to return { "links": [...], "collections": [...] }
 	// not a GeoJSON FeatureCollection, so we bypass the formatter here.
 	type collectionsResponse struct {
-		Links          common_shared.Links  `json:"links"`
+		Links          common_shared.Links   `json:"links"`
 		Collections    []*domains.Collection `json:"collections"`
-		NumberMatched  int                  `json:"numberMatched"`
-		NumberReturned int                  `json:"numberReturned"`
+		NumberMatched  int                   `json:"numberMatched"`
+		NumberReturned int                   `json:"numberReturned"`
 	}
 
 	resp := collectionsResponse{

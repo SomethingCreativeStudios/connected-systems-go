@@ -1,0 +1,56 @@
+# Run with: go run ./scripts/seed-connected-systems -config scripts/seed-connected-systems/config.example.yaml
+endpoint: https://connected-systems.monogatari.dev/api
+mode: seed
+namespace: demo-connected-systems
+# Omit for a fresh UTC-based discriminator on every seed run. Set a value only
+# when a fixed fixture identity is needed; rerunning the same run_id will
+# collide with the existing resources rather than overwrite them.
+# run_id: local-fixture-01
+random_seed: 424242
+
+http:
+  timeout: 10s
+  # Applied to every request, for example for a protected deployment.
+  headers: {}
+  # Authorization: Bearer replace-me
+
+seed:
+  # Exact root-resource counts.
+  properties: 6
+  collections: 2
+  systems: 400
+  deployments: 20
+
+  # Relative selection weights for root systems and subsystems.
+  system_type_weights:
+    sensor: 4
+    actuator: 2
+    sampler: 1
+    platform: 1
+    system: 1
+
+  # Nested-resource counts use inclusive min/max ranges.
+  procedure_variants_per_system_type: { min: 1, max: 4 }
+  features_per_collection: { min: 3, max: 5 }
+  subsystems_per_system: { min: 0, max: 1 }
+  sampling_features_per_system: { min: 0, max: 4 }
+  datastreams_per_system: { min: 1, max: 5 }
+  initial_observations_per_datastream: { min: 200, max: 5000 }
+  # Created only on actuator, platform, and generic System resources.
+  control_streams_per_system: { min: 1, max: 2 }
+  commands_per_control_stream: { min: 1, max: 30}
+  status_reports_per_command: { min: 1, max: 3 }
+  command_results_per_completed: { min: 1, max: 1 }
+  completed_command_percent: 75
+  systems_per_deployment: { min: 1, max: 43 }
+  subdeployments_per_deployment: { min: 0, max: 2 }
+  system_events_per_system: { min: 1, max: 20 }
+  # Additional PUTs on root systems; creation itself already creates one snapshot.
+  history_updates_per_system: { min: 1, max: 2 }
+
+# Used only with mode: observe. Existing datastream schemas are fetched and
+# only streams with a generatable JSON-shaped value are sampled.
+observe:
+  frequency: 5s
+  batch_size: { min: 1, max: 3 }
+  stream_refresh_interval: 1m

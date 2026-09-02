@@ -673,10 +673,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -844,6 +841,141 @@
                         }
                     }
                 }
+            },
+            "post": {
+                "description": "Creates one result resource for a command.",
+                "tags": [
+                    "Commands"
+                ],
+                "summary": "Create command result",
+                "parameters": [
+                    {
+                        "description": "Command ID",
+                        "name": "cmdId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "$ref": "#/components/requestBodies/Result"
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/commands/{cmdId}/result/{resultId}": {
+            "put": {
+                "description": "Replaces a command result resource.",
+                "tags": [
+                    "Commands"
+                ],
+                "summary": "Update command result",
+                "parameters": [
+                    {
+                        "description": "Command ID",
+                        "name": "cmdId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Result ID",
+                        "name": "resultId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "$ref": "#/components/requestBodies/Result"
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/commands/{cmdId}/status": {
@@ -921,6 +1053,141 @@
                         "description": "Internal Server Error",
                         "content": {
                             "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a status report for a command.",
+                "tags": [
+                    "Commands"
+                ],
+                "summary": "Create command status report",
+                "parameters": [
+                    {
+                        "description": "Command ID",
+                        "name": "cmdId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "$ref": "#/components/requestBodies/Status"
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/commands/{cmdId}/status/{statusId}": {
+            "put": {
+                "description": "Replaces a command status report.",
+                "tags": [
+                    "Commands"
+                ],
+                "summary": "Update command status report",
+                "parameters": [
+                    {
+                        "description": "Command ID",
+                        "name": "cmdId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Status report ID",
+                        "name": "statusId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "$ref": "#/components/requestBodies/Status"
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
                                 "schema": {
                                     "type": "object",
                                     "additionalProperties": {
@@ -1163,10 +1430,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -1433,10 +1697,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -1561,10 +1822,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -1793,10 +2051,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -2055,10 +2310,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -2183,10 +2435,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -2378,10 +2627,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -2489,10 +2735,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -2758,10 +3001,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -2998,10 +3238,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -3207,10 +3444,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -3318,10 +3552,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -3506,10 +3737,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -3617,10 +3845,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -3907,10 +4132,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -4273,10 +4495,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -4384,10 +4603,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -4620,10 +4836,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -4786,10 +4999,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -5113,10 +5323,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -5251,10 +5458,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -5925,10 +6129,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -6145,10 +6346,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/api.ValidationErrorResponse"
                                 }
                             }
                         }
@@ -6211,6 +6409,30 @@
                     }
                 },
                 "description": "Feature resource",
+                "required": true
+            },
+            "Result": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "description": "Command result",
+                "required": true
+            },
+            "Status": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "description": "Command status report",
                 "required": true
             },
             "Controlstream": {
@@ -6404,6 +6626,20 @@
                     }
                 }
             },
+            "api.ValidationErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "details": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/contractvalidation.Violation"
+                        }
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                }
+            },
             "common_shared.Link": {
                 "type": "object",
                 "properties": {
@@ -6420,6 +6656,17 @@
                         "type": "string"
                     },
                     "uid": {
+                        "type": "string"
+                    }
+                }
+            },
+            "contractvalidation.Violation": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    },
+                    "path": {
                         "type": "string"
                     }
                 }

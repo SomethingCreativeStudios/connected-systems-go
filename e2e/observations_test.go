@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ func seedDatastreamForObservationTests(t *testing.T) *domains.Datastream {
 	t.Helper()
 
 	datastream := generators.FakeDatastreamJSONRecord()
-	systemID := "unknown"
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Observation Test System"))
 	datastream.SystemID = &systemID
 	require.NoError(t, testRepos.Datastream.Create(&datastream), "failed to seed datastream")
 
@@ -111,6 +112,106 @@ func TestObservationConformance_ResourcesEndpoint(t *testing.T) {
 	assert.True(t, found, "created observation must be discoverable via /observations")
 }
 
+func TestObservation_CursorPagination(t *testing.T) {
+	cleanupDB(t)
+
+	datastream := seedDatastreamForObservationTests(t)
+	for range 3 {
+		createObservationViaAPI(t, datastream.ID, map[string]interface{}{
+			// Equal times exercise the id tie-breaker used by the cursor.
+			"resultTime": "2026-03-13T10:00:00Z",
+			"result": map[string]interface{}{
+				"temperature": 21.4,
+				"humidity":    57.9,
+			},
+		})
+	}
+
+	for _, path := range []string{
+		"/observations?limit=1&dataStream=" + datastream.ID,
+		"/datastreams/" + datastream.ID + "/observations?limit=1",
+	} {
+		t.Run(path, func(t *testing.T) {
+			assertJSONCursorTraversal(t, path, 3)
+
+			resp := doGet(t, path+"&offset=1")
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			var body map[string]string
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+			require.Equal(t, "offset is no longer supported; use cursor", body["error"])
+		})
+	}
+}
+
+func TestObservation_TimescaleHypertable(t *testing.T) {
+	cleanupDB(t)
+
+	var extensions []string
+	require.NoError(t, testDB.Raw(`
+		SELECT extname
+		FROM pg_extension
+		WHERE extname IN ('timescaledb', 'postgis')
+		ORDER BY extname
+	`).Scan(&extensions).Error)
+	require.ElementsMatch(t, []string{"timescaledb", "postgis"}, extensions)
+
+	var primaryKeyColumns []string
+	require.NoError(t, testDB.Raw(`
+		SELECT attribute.attname
+		FROM pg_constraint primary_key
+		JOIN unnest(primary_key.conkey) WITH ORDINALITY AS key_column(attnum, ordinal) ON TRUE
+		JOIN pg_attribute attribute
+		  ON attribute.attrelid = primary_key.conrelid
+		 AND attribute.attnum = key_column.attnum
+		WHERE primary_key.conrelid = 'observations'::regclass
+		  AND primary_key.contype = 'p'
+		ORDER BY key_column.ordinal
+	`).Scan(&primaryKeyColumns).Error)
+	require.Equal(t, []string{"id", "result_time"}, primaryKeyColumns)
+
+	var hypertables int64
+	require.NoError(t, testDB.Raw(`
+		SELECT count(*)
+		FROM timescaledb_information.hypertables
+		WHERE hypertable_schema = current_schema()
+		  AND hypertable_name = 'observations'
+	`).Scan(&hypertables).Error)
+	require.EqualValues(t, 1, hypertables)
+
+	var cursorIndexExists bool
+	require.NoError(t, testDB.Raw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM pg_indexes
+			WHERE schemaname = current_schema()
+			  AND tablename = 'observations'
+			  AND indexname = 'idx_observations_datastream_result_cursor'
+		)
+	`).Scan(&cursorIndexExists).Error)
+	require.True(t, cursorIndexExists)
+
+	datastream := seedDatastreamForObservationTests(t)
+	for _, resultTime := range []time.Time{
+		time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, time.March, 9, 0, 0, 0, 0, time.UTC),
+	} {
+		require.NoError(t, testRepos.Observation.Create(&domains.Observation{
+			DatastreamID: datastream.ID,
+			ResultTime:   resultTime,
+		}))
+	}
+
+	var chunks int64
+	require.NoError(t, testDB.Raw(`
+		SELECT count(*)
+		FROM timescaledb_information.chunks
+		WHERE hypertable_schema = current_schema()
+		  AND hypertable_name = 'observations'
+	`).Scan(&chunks).Error)
+	require.GreaterOrEqual(t, chunks, int64(2))
+}
+
 // =============================================================================
 // Conformance Class: /conf/observation
 // Requirement: /req/observation/canonical-url
@@ -147,6 +248,42 @@ func TestObservationConformance_CanonicalURL(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, obsID, obs["id"])
 	assert.Equal(t, datastream.ID, obs["datastream@id"])
+}
+
+func TestObservation_UpdateChangesResultTime(t *testing.T) {
+	cleanupDB(t)
+
+	datastream := seedDatastreamForObservationTests(t)
+	observationID := createObservationViaAPI(t, datastream.ID, map[string]interface{}{
+		"resultTime": "2026-03-13T11:00:00Z",
+		"result": map[string]interface{}{
+			"temperature": 19.1,
+			"humidity":    44.2,
+		},
+	})
+
+	updatedResultTime := "2026-03-20T11:00:00Z"
+	body, err := json.Marshal(map[string]interface{}{
+		"resultTime": updatedResultTime,
+		"result": map[string]interface{}{
+			"temperature": 20.5,
+			"humidity":    44.2,
+		},
+	})
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPut, testServer.URL+"/observations/"+observationID, bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	var observations []domains.Observation
+	require.NoError(t, testDB.Where("id = ?", observationID).Find(&observations).Error)
+	require.Len(t, observations, 1)
+	require.Equal(t, updatedResultTime, observations[0].ResultTime.UTC().Format(time.RFC3339))
 }
 
 // =============================================================================

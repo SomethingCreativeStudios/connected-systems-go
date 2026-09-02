@@ -138,7 +138,7 @@ func (h *SystemHandler) GetSystem(w http.ResponseWriter, r *http.Request) {
 // @Accept      json
 // @Param       system  body  map[string]any  true  "System resource (GeoJSON or SensorML+JSON)"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /systems [post]
 func (h *SystemHandler) CreateSystem(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +175,7 @@ func (h *SystemHandler) CreateSystem(w http.ResponseWriter, r *http.Request) {
 // @Param       id      path  string          true  "System ID"
 // @Param       system  body  map[string]any  true  "System resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id} [put]
 func (h *SystemHandler) UpdateSystem(w http.ResponseWriter, r *http.Request) {
@@ -397,7 +397,7 @@ func (h *SystemHandler) GetProcedures(w http.ResponseWriter, r *http.Request) {
 // @Param       id      path  string          true  "Parent system ID"
 // @Param       system  body  map[string]any  true  "System resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/subsystems [post]
 func (h *SystemHandler) AddSubsystem(w http.ResponseWriter, r *http.Request) {

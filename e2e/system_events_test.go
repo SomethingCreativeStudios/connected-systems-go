@@ -333,6 +333,39 @@ func TestSystemEvent_CreateArrayPayload(t *testing.T) {
 	assert.True(t, labels["Batch Event 2"])
 }
 
+func TestSystemEvent_InvalidArrayLeavesNoRecords(t *testing.T) {
+	cleanupDB(t)
+
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Invalid Event Array Parent"))
+	payload := []map[string]interface{}{
+		baseSystemEventPayload("Would otherwise be persisted"),
+		{"label": "Missing required event fields"},
+	}
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/systems/"+systemID+"/events", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	var validation map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&validation))
+	details, ok := validation["details"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, details)
+	require.Equal(t, "definition", details[0].(map[string]any)["path"])
+
+	listResp := doGet(t, "/systems/"+systemID+"/events")
+	defer listResp.Body.Close()
+	require.Equal(t, http.StatusOK, listResp.StatusCode)
+	var collection map[string]interface{}
+	require.NoError(t, json.NewDecoder(listResp.Body).Decode(&collection))
+	require.Empty(t, collection["items"])
+}
+
 func TestSystemEvent_PaginationLinks(t *testing.T) {
 	cleanupDB(t)
 

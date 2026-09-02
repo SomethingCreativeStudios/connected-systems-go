@@ -21,8 +21,8 @@ func createProcedureViaAPI(t *testing.T, payload map[string]interface{}) string 
 
 	req, err := http.NewRequest(http.MethodPost, testServer.URL+"/procedures", bytes.NewReader(body))
 	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/geo+json")
-	req.Header.Set("Accept", "application/geo+json")
+	req.Header.Set("Content-Type", "application/sml+json")
+	req.Header.Set("Accept", "application/sml+json")
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -512,12 +512,10 @@ func TestSystem_AssociationLinks_Subsystems(t *testing.T) {
 	cleanupDB(t)
 
 	procedureID := createProcedureViaAPI(t, map[string]interface{}{
-		"type": "Feature",
-		"properties": map[string]interface{}{
-			"uid":         "urn:uuid:" + uuid.NewString(),
-			"name":        "Association Procedure",
-			"featureType": "http://www.w3.org/ns/sosa/Procedure",
-		},
+		"type":       "SimpleProcess",
+		"uniqueId":   "urn:uuid:" + uuid.NewString(),
+		"label":      "Association Procedure",
+		"definition": "http://www.w3.org/ns/sosa/Procedure",
 	})
 	require.NotEmpty(t, procedureID)
 

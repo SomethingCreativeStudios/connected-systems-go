@@ -114,7 +114,7 @@ func (h *ProcedureHandler) GetProcedure(w http.ResponseWriter, r *http.Request) 
 // @Accept      json
 // @Param       procedure  body  map[string]any  true  "Procedure resource"
 // @Success     201
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /procedures [post]
 func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +147,7 @@ func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Reques
 // @Param       id         path  string          true  "Procedure ID"
 // @Param       procedure  body  map[string]any  true  "Procedure resource"
 // @Success     204
-// @Failure     400  {object}  map[string]string
+// @Failure     400  {object}  ValidationErrorResponse
 // @Failure     500  {object}  map[string]string
 // @Router      /procedures/{id} [put]
 func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Request) {

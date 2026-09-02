@@ -42,14 +42,17 @@ func TestMain(m *testing.M) {
 	// Set up logger
 	logger, _ := zap.NewDevelopment()
 
-	// Start PostGIS container
+	// Start the same TimescaleDB/PostGIS image configured for Compose.
 	testContainer = testutil.StartPostGISContainer(ctx, &testing.T{})
 
-	// Open test database
+	// Open the test database, then run the production migration path so E2E
+	// requests exercise the observations hypertable rather than a plain table.
 	testDB = testutil.OpenTestDB(&testing.T{}, testContainer.DSN, testutil.OpenTestDBOptions{
 		EnableLogging: false,
-		Models:        testutil.AllModels(),
 	})
+	if err := repository.AutoMigrate(testDB); err != nil {
+		panic(fmt.Sprintf("migrate E2E database: %v", err))
+	}
 
 	// Initialize repositories
 	testRepos = repository.NewRepositories(testDB)

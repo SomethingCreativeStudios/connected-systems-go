@@ -23,12 +23,13 @@ type PostGISContainer struct {
 	DSN       string
 }
 
-// StartPostGISContainer starts a PostGIS container for tests and returns a container wrapper
+// StartPostGISContainer starts the same TimescaleDB/PostGIS PostgreSQL 18 image
+// used by Compose. The legacy name is retained for existing callers.
 func StartPostGISContainer(ctx context.Context, t *testing.T) *PostGISContainer {
 	t.Helper()
 
 	req := tc.ContainerRequest{
-		Image:        "imresamu/postgis:18-3.6.0-alpine3.22",
+		Image:        "timescale/timescaledb-ha:pg18",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_USER":     "test",
@@ -74,7 +75,8 @@ type OpenTestDBOptions struct {
 	Models []interface{}
 }
 
-// OpenTestDB opens a GORM database connection with PostGIS extension and auto-migration
+// OpenTestDB opens a GORM database connection with TimescaleDB and PostGIS
+// extensions, then optionally auto-migrates the requested models.
 func OpenTestDB(t *testing.T, dsn string, opts OpenTestDBOptions) *gorm.DB {
 	t.Helper()
 
@@ -93,9 +95,12 @@ func OpenTestDB(t *testing.T, dsn string, opts OpenTestDBOptions) *gorm.DB {
 	// Wait a short moment for postgres readiness
 	time.Sleep(250 * time.Millisecond)
 
-	// Create PostGIS extension if missing
-	err = db.Exec("CREATE EXTENSION IF NOT EXISTS postgis;").Error
-	require.NoError(t, err)
+	// Explicitly enable both extensions so tests follow the production startup
+	// contract rather than relying on image defaults.
+	for _, extension := range []string{"timescaledb", "postgis"} {
+		err = db.Exec("CREATE EXTENSION IF NOT EXISTS " + extension + ";").Error
+		require.NoError(t, err)
+	}
 
 	// Auto-migrate models in the order provided
 	if len(opts.Models) > 0 {
