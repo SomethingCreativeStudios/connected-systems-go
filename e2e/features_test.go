@@ -21,6 +21,10 @@ func TestFeaturesAPI_E2E(t *testing.T) {
 			"id":          "test-features-collection",
 			"title":       "Test Features Collection",
 			"description": "Collection to host feature E2E tests",
+			"queryables": map[string]interface{}{
+				"properties":           map[string]interface{}{},
+				"additionalProperties": false,
+			},
 		}
 
 		body, _ := json.Marshal(payload)

@@ -13,6 +13,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/yourusername/connected-systems-go/internal/queryables"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -41,18 +42,33 @@ func NewCollectionHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 // @Failure     500
 // @Router      /collections [post]
 func (h *CollectionHandler) CreateCollection(w http.ResponseWriter, r *http.Request) {
-	var collection domains.Collection
-	if err := json.NewDecoder(r.Body).Decode(&collection); err != nil {
+	// Catalog declarations are accepted on creation, but are exposed only by
+	// the queryables endpoint rather than collection representations.
+	var input struct {
+		domains.Collection
+		Queryables common_shared.Properties `json:"queryables"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Invalid request payload"))
 		return
 	}
+	collection := input.Collection
+	collection.Queryables = input.Queryables
 	if collection.ID == "" {
 		collection.ID = uuid.New().String()
 	}
 	if collection.ItemType == "" {
 		collection.ItemType = "feature"
 	}
+	if collection.ItemType == "feature" {
+		if err := queryables.ValidateCustomCatalog(collection.Queryables); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(err.Error()))
+			return
+		}
+	}
+	ensureCollectionQueryablesLink(&collection, h.cfg.API.BaseURL)
 	ctx := r.Context()
 	if err := h.Repo.CreateCollection(ctx, &collection); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -71,6 +87,48 @@ func (h *CollectionHandler) CreateCollection(w http.ResponseWriter, r *http.Requ
 	}
 
 	json.NewEncoder(w).Encode(serialized)
+}
+
+// GetQueryables returns the OGC API Features Part 3 JSON Schema catalog for a
+// canonical CS collection, nested resource catalog, or a generic collection.
+//
+// @Summary Get collection queryables
+// @Description Returns the declared CQL2 queryable properties as JSON Schema
+// @Tags Collections
+// @Produce application/schema+json
+// @Param collectionId path string true "Collection ID"
+// @Success 200 {object} map[string]any
+// @Failure 404 {object} map[string]string
+// @Router /collections/{collectionId}/queryables [get]
+func (h *CollectionHandler) GetQueryables(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "collectionId")
+	resource := queryables.Resource(id)
+	if _, ok := queryables.PropertiesFor(resource); !ok {
+		collection, err := h.Repo.GetCollectionByID(r.Context(), id)
+		if err != nil {
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, map[string]string{"error": "Collection not found"})
+			return
+		}
+		resource = queryables.Features
+		schema, err := queryables.SchemaWithCatalog(resource, h.cfg.API.BaseURL+r.URL.Path, queryables.CatalogOrDefault(collection.Queryables))
+		if err != nil {
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, map[string]string{"error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/schema+json")
+		writeNegotiated(w, schema)
+		return
+	}
+	schema, err := queryables.Schema(resource, h.cfg.API.BaseURL+r.URL.Path)
+	if err != nil {
+		render.Status(r, http.StatusNotFound)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/schema+json")
+	writeNegotiated(w, schema)
 }
 
 // ListCollections returns all collections
@@ -92,6 +150,9 @@ func (h *CollectionHandler) ListCollections(w http.ResponseWriter, r *http.Reque
 	}
 
 	collections = ensureCanonicalCollections(collections, h.cfg.API.BaseURL)
+	for _, collection := range collections {
+		ensureCollectionQueryablesLink(collection, h.cfg.API.BaseURL)
+	}
 
 	// OGC API - Common requires /collections to return { "links": [...], "collections": [...] }
 	// not a GeoJSON FeatureCollection, so we bypass the formatter here.
@@ -144,9 +205,27 @@ func (h *CollectionHandler) GetCollection(w http.ResponseWriter, r *http.Request
 		w.Write([]byte("Collection not found"))
 		return
 	}
+	ensureCollectionQueryablesLink(collection, h.cfg.API.BaseURL)
 
 	w.Header().Set("Content-Type", "application/json")
 	writeNegotiated(w, collection)
+}
+
+func ensureCollectionQueryablesLink(collection *domains.Collection, baseURL string) {
+	if collection == nil || collection.ID == "" {
+		return
+	}
+	for _, link := range collection.Links {
+		if link.Rel == "http://www.opengis.net/def/rel/ogc/1.0/queryables" {
+			return
+		}
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+	collection.Links = append(collection.Links, common_shared.Link{
+		Href: baseURL + "/collections/" + collection.ID + "/queryables",
+		Rel:  "http://www.opengis.net/def/rel/ogc/1.0/queryables",
+		Type: "application/schema+json",
+	})
 }
 
 func ensureCanonicalCollections(existing []*domains.Collection, baseURL string) []*domains.Collection {
@@ -159,16 +238,16 @@ func ensureCanonicalCollections(existing []*domains.Collection, baseURL string) 
 	}
 
 	defaults := []*domains.Collection{
-		newCanonicalCollection(baseURL, "systems", "Systems", "All system instances (sensors, actuators, platforms, etc.)", "feature", "application/geo+json"),
-		newCanonicalCollection(baseURL, "deployments", "Deployments", "System deployment descriptions", "feature", "application/geo+json"),
-		newCanonicalCollection(baseURL, "procedures", "Procedures", "System datasheets and methodologies", "feature", "application/geo+json"),
-		newCanonicalCollection(baseURL, "samplingFeatures", "Sampling Features", "Sampling strategies and geometries", "feature", "application/geo+json"),
-		newCanonicalCollection(baseURL, "properties", "Properties", "Observable and controllable property definitions", "feature", "application/json"),
-		newCanonicalCollection(baseURL, "datastreams", "Datastreams", "Observation datastream metadata resources", "feature", "application/json"),
-		newCanonicalCollection(baseURL, "observations", "Observations", "Observation resources across datastreams", "feature", "application/json"),
-		newCanonicalCollection(baseURL, "controlstreams", "Control Streams", "Tasking/control channel metadata resources", "feature", "application/json"),
-		newCanonicalCollection(baseURL, "commands", "Commands", "Command resources issued through control streams", "feature", "application/json"),
-		newCanonicalCollection(baseURL, "systemEvents", "System Events", "System event resources", "feature", "application/json"),
+		newCanonicalCollection(baseURL, "systems", "Systems", "All system instances (sensors, actuators, platforms, etc.)", "feature", "application/geo+json", "sosa:System"),
+		newCanonicalCollection(baseURL, "deployments", "Deployments", "System deployment descriptions", "feature", "application/geo+json", "sosa:Deployment"),
+		newCanonicalCollection(baseURL, "procedures", "Procedures", "System datasheets and methodologies", "feature", "application/sml+json", "sosa:Procedure"),
+		newCanonicalCollection(baseURL, "samplingFeatures", "Sampling Features", "Sampling strategies and geometries", "feature", "application/geo+json", "sosa:Sample"),
+		newCanonicalCollection(baseURL, "properties", "Properties", "Observable and controllable property definitions", "record", "application/sml+json", "sosa:Property"),
+		newCanonicalCollection(baseURL, "datastreams", "Datastreams", "Observation datastream metadata resources", "record", "application/json", ""),
+		newCanonicalCollection(baseURL, "observations", "Observations", "Observation resources across datastreams", "record", "application/json", ""),
+		newCanonicalCollection(baseURL, "controlstreams", "Control Streams", "Tasking/control channel metadata resources", "record", "application/json", ""),
+		newCanonicalCollection(baseURL, "commands", "Commands", "Command resources issued through control streams", "record", "application/json", ""),
+		newCanonicalCollection(baseURL, "systemEvents", "System Events", "System event resources", "record", "application/json", ""),
 	}
 
 	out := make([]*domains.Collection, 0, len(existing)+len(defaults))
@@ -183,7 +262,7 @@ func ensureCanonicalCollections(existing []*domains.Collection, baseURL string) 
 	return out
 }
 
-func newCanonicalCollection(baseURL, id, title, description, itemType, mediaType string) *domains.Collection {
+func newCanonicalCollection(baseURL, id, title, description, itemType, mediaType, featureType string) *domains.Collection {
 	trimmedBaseURL := strings.TrimRight(baseURL, "/")
 	if trimmedBaseURL == "" {
 		trimmedBaseURL = "/"
@@ -194,9 +273,11 @@ func newCanonicalCollection(baseURL, id, title, description, itemType, mediaType
 		Title:       title,
 		Description: description,
 		ItemType:    itemType,
+		FeatureType: featureType,
 		Links: []common_shared.Link{
 			{Href: trimmedBaseURL + "/collections/" + id, Rel: "self", Type: "application/json"},
-			{Href: trimmedBaseURL + "/" + id, Rel: "items", Type: mediaType},
+			{Href: trimmedBaseURL + "/collections/" + id + "/items", Rel: "items", Type: mediaType},
+			{Href: trimmedBaseURL + "/collections/" + id + "/queryables", Rel: "http://www.opengis.net/def/rel/ogc/1.0/queryables", Type: "application/schema+json"},
 		},
 	}
 }

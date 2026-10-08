@@ -17,7 +17,6 @@ const (
 	sosaSampler  = "http://www.w3.org/ns/sosa/Sampler"
 	sosaPlatform = "http://www.w3.org/ns/sosa/Platform"
 	sosaSystem   = "http://www.w3.org/ns/sosa/System"
-	ssnSystem    = "http://www.w3.org/ns/ssn/System"
 )
 
 type systemRole struct {
@@ -34,7 +33,7 @@ var systemRoles = []systemRole{
 	{Key: "actuator", SystemType: sosaActuator, ProcedureType: sosaActuator, ProcedureProcessType: "PhysicalComponent", AssetType: "Equipment", Controller: true},
 	{Key: "sampler", SystemType: sosaSampler, ProcedureType: sosaSampler, ProcedureProcessType: "PhysicalComponent", AssetType: "Equipment"},
 	{Key: "platform", SystemType: sosaPlatform, ProcedureType: sosaPlatform, ProcedureProcessType: "PhysicalSystem", AssetType: "Equipment", Controller: true},
-	{Key: "system", SystemType: ssnSystem, ProcedureType: sosaSystem, ProcedureProcessType: "PhysicalSystem", AssetType: "Equipment", Controller: true},
+	{Key: "system", SystemType: sosaSystem, ProcedureType: sosaSystem, ProcedureProcessType: "PhysicalSystem", AssetType: "Equipment", Controller: true},
 }
 
 type Seeder struct {
@@ -168,6 +167,10 @@ func (s *Seeder) seedCollectionsAndFeatures(ctx context.Context) ([]seededFeatur
 			"id":          collectionID,
 			"title":       s.name("Synthetic observation sites"),
 			"description": "Generic features created by the Connected Systems seeder",
+			"queryables": map[string]any{
+				"properties":           map[string]any{},
+				"additionalProperties": false,
+			},
 		}
 		response, err := s.client.PostJSON(ctx, "/collections", payload)
 		if err != nil {

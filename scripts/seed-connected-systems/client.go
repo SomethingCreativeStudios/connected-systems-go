@@ -20,9 +20,25 @@ type APIClient struct {
 }
 
 type APIResponse struct {
-	StatusCode int
-	Location   string
-	Body       []byte
+	StatusCode         int
+	Location           string
+	Body               []byte
+	RequestBody        []byte
+	RequestContentType string
+}
+
+type HTTPStatusError struct {
+	Method       string
+	ResourcePath string
+	Response     APIResponse
+}
+
+func (e *HTTPStatusError) Error() string {
+	body := strings.TrimSpace(string(e.Response.Body))
+	if body == "" {
+		body = "<empty response>"
+	}
+	return fmt.Sprintf("%s %s returned HTTP %d: %s", e.Method, e.ResourcePath, e.Response.StatusCode, body)
 }
 
 func NewAPIClient(cfg Config) (*APIClient, error) {
@@ -116,15 +132,17 @@ func (c *APIClient) do(ctx context.Context, method, resourcePath, contentType, a
 	if err != nil {
 		return APIResponse{}, fmt.Errorf("read %s %s response: %w", method, resourcePath, err)
 	}
-	return APIResponse{StatusCode: resp.StatusCode, Location: resp.Header.Get("Location"), Body: responseBody}, nil
+	return APIResponse{
+		StatusCode:         resp.StatusCode,
+		Location:           resp.Header.Get("Location"),
+		Body:               responseBody,
+		RequestBody:        body,
+		RequestContentType: contentType,
+	}, nil
 }
 
 func (c *APIClient) statusError(method, resourcePath string, response APIResponse) error {
-	body := strings.TrimSpace(string(response.Body))
-	if body == "" {
-		body = "<empty response>"
-	}
-	return fmt.Errorf("%s %s returned HTTP %d: %s", method, resourcePath, response.StatusCode, body)
+	return &HTTPStatusError{Method: method, ResourcePath: resourcePath, Response: response}
 }
 
 func expectCreated(c *APIClient, resourcePath, resourceName string, response APIResponse) (string, error) {

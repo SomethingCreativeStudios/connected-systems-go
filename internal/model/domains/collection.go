@@ -12,7 +12,12 @@ type Collection struct {
 	Links       common_shared.Links   `json:"links" gorm:"type:json"`
 	Extent      *common_shared.Extent `json:"extent,omitempty" gorm:"type:json"`
 	ItemType    string                `json:"itemType,omitempty" gorm:"default:feature"`
+	FeatureType string                `json:"featureType,omitempty"`
 	CRS         []string              `json:"crs,omitempty" gorm:"type:json"`
+	// Queryables is server-managed catalog metadata for generic Feature
+	// collections. It is intentionally not in collection representations; the
+	// public schema is served by /collections/{id}/queryables.
+	Queryables common_shared.Properties `json:"-" gorm:"type:jsonb"`
 }
 
 type CollectionGeoJSONFeature struct {

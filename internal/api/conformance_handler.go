@@ -44,6 +44,25 @@ func (h *ConformanceHandler) GetConformance(w http.ResponseWriter, r *http.Reque
 			"http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
 			"http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson",
 
+			// OGC API - Features Part 3 (Filtering and Queryables). CQL2
+			// custom functions are deliberately not advertised; the configured
+			// functions are only CQL2 standard conformance functions.
+			"http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/queryables",
+			"http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/queryables-query-parameters",
+			"http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/filter",
+			"http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/features-filter",
+			"http://www.opengis.net/spec/cql2/1.0/conf/basic-cql2",
+			"http://www.opengis.net/spec/cql2/1.0/conf/advanced-comparison-operators",
+			"http://www.opengis.net/spec/cql2/1.0/conf/case-insensitive-comparison",
+			"http://www.opengis.net/spec/cql2/1.0/conf/accent-insensitive-comparison",
+			"http://www.opengis.net/spec/cql2/1.0/conf/spatial-functions",
+			"http://www.opengis.net/spec/cql2/1.0/conf/temporal-functions",
+			"http://www.opengis.net/spec/cql2/1.0/conf/array-functions",
+			"http://www.opengis.net/spec/cql2/1.0/conf/property-property",
+			"http://www.opengis.net/spec/cql2/1.0/conf/arithmetic",
+			"http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
+			"http://www.opengis.net/spec/cql2/1.0/conf/cql2-json",
+
 			// OGC API - Connected Systems - Part 1
 			"http://www.opengis.net/spec/ogcapi-connectedsystems-1/1.0/conf/api-common",
 			"http://www.opengis.net/spec/ogcapi-connectedsystems-1/1.0/conf/system",

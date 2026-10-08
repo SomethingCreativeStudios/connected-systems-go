@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/yourusername/connected-systems-go/internal/queryables"
 )
 
 const (
@@ -175,6 +176,10 @@ type QueryParams struct {
 	Kind    CursorKind
 	Path    string
 	Anchors CursorAnchors
+
+	// CQL is compiled by the request middleware before any endpoint-specific
+	// query params are built. Repositories append it with AND to legacy filters.
+	CQL queryables.Compiled
 }
 
 // BuildFromRequest parses shared collection query parameters and validates a
@@ -203,7 +208,23 @@ func (QueryParams) BuildFromRequest(r *http.Request, defaultLimit int, kind Curs
 	if queries := r.URL.Query().Get("q"); queries != "" {
 		params.Q = strings.Split(queries, ",")
 	}
+	params.CQL = queryables.FromRequest(r)
 	return params, nil
+}
+
+// datetimeValues makes the OGC API Features spelling authoritative while
+// retaining the historic Connected Systems dateTime spelling as a compatibility
+// alias. Supplying both would make the effective filter ambiguous.
+func datetimeValues(r *http.Request) ([]string, error) {
+	canonical := r.URL.Query()["datetime"]
+	legacy := r.URL.Query()["dateTime"]
+	if len(canonical) > 0 && len(legacy) > 0 {
+		return nil, errors.New("use either datetime or dateTime, not both")
+	}
+	if len(canonical) > 0 {
+		return canonical, nil
+	}
+	return legacy, nil
 }
 
 // BuildPaginationLinks preserves request filters while replacing the opaque

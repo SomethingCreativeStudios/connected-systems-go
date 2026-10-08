@@ -291,7 +291,7 @@ func (r *ControlStreamRepository) applyFilters(query *gorm.DB, params *querypara
 		}
 	}
 
-	return query
+	return applyCQLFilter(query, &params.QueryParams)
 }
 
 func normalizeControlStreamRefs(cs *domains.ControlStream) {

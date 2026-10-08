@@ -177,8 +177,8 @@ paths:
       - Collections
   /collections/{collectionId}/items:
     get:
-      description: Returns features from a collection; canonical collection IDs redirect
-        to their resource endpoint
+      description: Returns a feature collection. Canonical Connected Systems collections
+        are served directly by the typed resource handler.
       parameters:
       - description: Collection ID
         in: path
@@ -193,6 +193,14 @@ paths:
         in: query
         name: cursor
         type: string
+      - description: CQL2 Text filter (default) or URL-encoded CQL2 JSON
+        in: query
+        name: filter
+        type: string
+      - description: 'CQL2 language: cql2-text or cql2-json'
+        in: query
+        name: filter-lang
+        type: string
       produces:
       - application/json
       responses:
@@ -201,8 +209,12 @@ paths:
           schema:
             additionalProperties: true
             type: object
-        "307":
-          description: Redirect to canonical resource endpoint
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "500":
           description: Internal Server Error
           schema:
@@ -210,6 +222,34 @@ paths:
               type: string
             type: object
       summary: List features
+      tags:
+      - Features
+    head:
+      description: Returns response headers for canonical or generic collection items
+      parameters:
+      - description: Collection ID
+        in: path
+        name: collectionId
+        required: true
+        type: string
+      - description: CQL2 Text filter (default) or URL-encoded CQL2 JSON
+        in: query
+        name: filter
+        type: string
+      - description: 'CQL2 language: cql2-text or cql2-json'
+        in: query
+        name: filter-lang
+        type: string
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Head collection items
       tags:
       - Features
     post:
@@ -375,6 +415,32 @@ paths:
       summary: Update feature
       tags:
       - Features
+  /collections/{collectionId}/queryables:
+    get:
+      description: Returns the declared CQL2 queryable properties as JSON Schema
+      parameters:
+      - description: Collection ID
+        in: path
+        name: collectionId
+        required: true
+        type: string
+      produces:
+      - application/schema+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get collection queryables
+      tags:
+      - Collections
   /commands:
     get:
       description: Returns a paginated collection of command resources
@@ -1524,9 +1590,21 @@ paths:
         in: query
         name: bbox
         type: string
-      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: datetime
+        type: string
+      - description: Compatibility alias for datetime
         in: query
         name: dateTime
+        type: string
+      - description: CQL2 Text filter (default) or URL-encoded CQL2 JSON
+        in: query
+        name: filter
+        type: string
+      - description: 'CQL2 language: cql2-text or cql2-json'
+        in: query
+        name: filter-lang
         type: string
       - description: WKT geometry for spatial intersection
         in: query
@@ -2564,9 +2642,21 @@ paths:
         in: query
         name: bbox
         type: string
-      - description: Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z
+      - description: Date-time or interval (RFC 3339)
+        in: query
+        name: datetime
+        type: string
+      - description: Compatibility alias for datetime
         in: query
         name: dateTime
+        type: string
+      - description: CQL2 Text filter (default) or URL-encoded CQL2 JSON
+        in: query
+        name: filter
+        type: string
+      - description: 'CQL2 language: cql2-text or cql2-json'
+        in: query
+        name: filter-lang
         type: string
       - description: WKT geometry for spatial intersection
         in: query

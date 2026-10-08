@@ -10,6 +10,7 @@ import (
 	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"github.com/yourusername/connected-systems-go/internal/model/formaters"
 	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/yourusername/connected-systems-go/internal/queryables"
 	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
@@ -39,33 +40,37 @@ func redirectToCanonical(w http.ResponseWriter, r *http.Request, target string) 
 
 // FeatureHandler handles Feature resource requests (OGC API Features Part 1)
 type FeatureHandler struct {
-	cfg    *config.Config
-	logger *zap.Logger
-	repo   *repository.FeatureRepository
-	fc     *formaters.MultiFormatFormatterCollection[*domains.Feature]
+	cfg         *config.Config
+	logger      *zap.Logger
+	repo        *repository.FeatureRepository
+	collections *repository.CollectionRepository
+	fc          *formaters.MultiFormatFormatterCollection[*domains.Feature]
 }
 
 // NewFeatureHandler creates a new FeatureHandler
-func NewFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.FeatureRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Feature]) *FeatureHandler {
+func NewFeatureHandler(cfg *config.Config, logger *zap.Logger, repo *repository.FeatureRepository, collections *repository.CollectionRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Feature]) *FeatureHandler {
 	return &FeatureHandler{
-		cfg:    cfg,
-		logger: logger,
-		repo:   repo,
-		fc:     fc,
+		cfg:         cfg,
+		logger:      logger,
+		repo:        repo,
+		collections: collections,
+		fc:          fc,
 	}
 }
 
 // ListFeatures retrieves features from a collection (OGC path: /collections/{collectionId}/items)
 //
 // @Summary     List features
-// @Description Returns features from a collection; canonical collection IDs redirect to their resource endpoint
+// @Description Returns a feature collection. Canonical Connected Systems collections are served directly by the typed resource handler.
 // @Tags        Features
 // @Produce     json
 // @Param       collectionId  path   string  true   "Collection ID"
 // @Param       limit         query  int     false  "Maximum number of results"
 // @Param       cursor        query  string  false  "Opaque pagination cursor"
+// @Param       filter        query  string  false  "CQL2 Text filter (default) or URL-encoded CQL2 JSON"
+// @Param       filter-lang   query  string  false  "CQL2 language: cql2-text or cql2-json"
 // @Success     200  {object}  map[string]any
-// @Success     307  {object}  nil  "Redirect to canonical resource endpoint"
+// @Failure     400  {object}  map[string]string
 // @Failure     500  {object}  map[string]string
 // @Router      /collections/{collectionId}/items [get]
 func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
@@ -179,6 +184,11 @@ func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 
 	// Set collection ID from path
 	feature.CollectionID = collectionID
+	if err := h.validateCollectionFeature(r, collectionID, feature); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	if err := h.repo.Create(feature); err != nil {
 		h.logger.Error("Failed to create feature", zap.Error(err))
@@ -234,6 +244,11 @@ func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 	// Preserve ID and collection
 	updated.ID = existing.ID
 	updated.CollectionID = collectionID
+	if err := h.validateCollectionFeature(r, collectionID, updated); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		render.JSON(w, r, map[string]string{"error": err.Error()})
+		return
+	}
 
 	if err := h.repo.Update(updated); err != nil {
 		h.logger.Error("Failed to update feature", zap.Error(err))
@@ -246,6 +261,14 @@ func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 	json, _ := h.fc.Serialize(acceptHeader, updated)
 	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
 	writeNegotiated(w, json)
+}
+
+func (h *FeatureHandler) validateCollectionFeature(r *http.Request, collectionID string, feature *domains.Feature) error {
+	collection, err := h.collections.GetCollectionByID(r.Context(), collectionID)
+	if err != nil {
+		return errors.New("collection not found")
+	}
+	return queryables.ValidateFeatureProperties(queryables.CatalogOrDefault(collection.Queryables), feature.Properties)
 }
 
 // DeleteFeature deletes a feature

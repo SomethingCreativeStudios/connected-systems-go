@@ -18,6 +18,10 @@ func TestCollectionsAPI_E2E(t *testing.T) {
 			"id":          "test-collection",
 			"title":       "Test Collection",
 			"description": "A collection for testing",
+			"queryables": map[string]interface{}{
+				"properties":           map[string]interface{}{},
+				"additionalProperties": false,
+			},
 		}
 
 		body, _ := json.Marshal(payload)

@@ -135,5 +135,5 @@ func (r *SamplingFeatureRepository) applyFilters(query *gorm.DB, params *querypa
 		query = query.Where("parent_system_id = ?", *systemID)
 	}
 
-	return query
+	return applyCQLFilter(query, &params.QueryParams)
 }

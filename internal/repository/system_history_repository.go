@@ -152,5 +152,5 @@ func (r *SystemHistoryRepository) applyFilters(query *gorm.DB, params *querypara
 		query = query.Where(strings.Join(clauses, " OR "), args...)
 	}
 
-	return query
+	return applyCQLFilter(query, &params.QueryParams)
 }

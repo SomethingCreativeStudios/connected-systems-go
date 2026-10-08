@@ -81,6 +81,21 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := ensureSpatialGeometryStorage(db); err != nil {
 		return err
 	}
+	if err := ensureCustomQueryableSupport(db); err != nil {
+		return err
+	}
+	var collections []*domains.Collection
+	if err := db.Find(&collections).Error; err != nil {
+		return err
+	}
+	for _, collection := range collections {
+		if collection == nil || collection.Queryables == nil {
+			continue
+		}
+		if err := ensureCollectionQueryableIndexes(db, collection.ID, collection.Queryables); err != nil {
+			return err
+		}
+	}
 
 	// Ensure generic closure support for deployments (creates triggers/functions)
 	if err := EnsureClosureSupport(db, "deployments", "id", "parent_deployment_id", "deployment_closures"); err != nil {
@@ -93,11 +108,21 @@ func AutoMigrate(db *gorm.DB) error {
 	return nil
 }
 
+func ensureCustomQueryableSupport(db *gorm.DB) error {
+	// This immutable helper makes scalar JSON arrays indexable and gives the
+	// CQL2 compiler a text[] operand for the standard array predicates.
+	return db.Exec(`CREATE OR REPLACE FUNCTION cql2_jsonb_text_array(value jsonb)
+		RETURNS text[] LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE AS $$
+			SELECT COALESCE(array_agg(item), ARRAY[]::text[])
+			FROM jsonb_array_elements_text(value) AS item
+		$$`).Error
+}
+
 // ensureDatabaseExtensions makes the application's spatial and time-series
 // dependencies explicit instead of relying on a particular container image to
 // preload them. Both statements are idempotent.
 func ensureDatabaseExtensions(db *gorm.DB) error {
-	for _, extension := range []string{"timescaledb", "postgis"} {
+	for _, extension := range []string{"timescaledb", "postgis", "unaccent", "pg_trgm"} {
 		if err := db.Exec("CREATE EXTENSION IF NOT EXISTS " + extension).Error; err != nil {
 			return fmt.Errorf("enable %s extension: %w", extension, err)
 		}
@@ -128,7 +153,7 @@ func ensureObservationHypertable(db *gorm.DB) error {
 // with SRID 0 and adds indexes used by bbox/geom intersection queries. GeoJSON
 // coordinates are CRS84, which PostGIS represents with SRID 4326.
 func ensureSpatialGeometryStorage(db *gorm.DB) error {
-	tables := []string{"systems", "sampling_features", "deployments"}
+	tables := []string{"systems", "sampling_features", "deployments", "features"}
 	for _, table := range tables {
 		statement := fmt.Sprintf(
 			`UPDATE "%s"

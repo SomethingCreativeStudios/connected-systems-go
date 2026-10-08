@@ -272,5 +272,5 @@ func (r *ObservationRepository) applyFilters(query *gorm.DB, params *queryparams
 		query = query.Where(strings.Join(clauses, " OR "), args...)
 	}
 
-	return query
+	return applyCQLFilter(query, &params.QueryParams)
 }

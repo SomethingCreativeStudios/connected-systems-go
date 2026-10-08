@@ -110,4 +110,3 @@ $$ LANGUAGE plpgsql;
 
 	return nil
 }
-

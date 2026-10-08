@@ -148,7 +148,7 @@ func (r *FeatureRepository) applyFilters(query *gorm.DB, params *queryparams.Fea
 		}
 	}
 
-	return query
+	return applyCQLFilter(query, &params.QueryParams)
 }
 
 // GetByIDs returns features keyed by ID (batch lookup)

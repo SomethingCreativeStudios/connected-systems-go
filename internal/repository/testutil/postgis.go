@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moby/moby/api/types/network"
 	"github.com/stretchr/testify/require"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -36,7 +37,12 @@ func StartPostGISContainer(ctx context.Context, t *testing.T) *PostGISContainer 
 			"POSTGRES_PASSWORD": "secret",
 			"POSTGRES_DB":       "testdb",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(2 * time.Minute),
+		WaitingFor: wait.ForAll(
+			wait.ForListeningPort("5432/tcp"),
+			wait.ForSQL("5432/tcp", "pgx", func(host string, port network.Port) string {
+				return fmt.Sprintf("postgres://test:secret@%s:%s/testdb?sslmode=disable", host, port.Port())
+			}),
+		).WithStartupTimeoutDefault(2 * time.Minute),
 	}
 
 	container, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
@@ -92,8 +98,17 @@ func OpenTestDB(t *testing.T, dsn string, opts OpenTestDBOptions) *gorm.DB {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 
-	// Wait a short moment for postgres readiness
-	time.Sleep(250 * time.Millisecond)
+	// A listening PostgreSQL port can precede TimescaleDB's final recovery
+	// phase. Retry a real database ping instead of assuming a fixed delay.
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		err = sqlDB.Ping()
+		if err == nil || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	require.NoError(t, err)
 
 	// Explicitly enable both extensions so tests follow the production startup
 	// contract rather than relying on image defaults.
@@ -110,7 +125,7 @@ func OpenTestDB(t *testing.T, dsn string, opts OpenTestDBOptions) *gorm.DB {
 		}
 	}
 
-	// Ping to ensure connectivity
+	// Ping to ensure connectivity after migration.
 	require.NoError(t, sqlDB.Ping())
 
 	return db

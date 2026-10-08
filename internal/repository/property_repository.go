@@ -105,7 +105,7 @@ func (r *PropertyRepository) applyFilters(query *gorm.DB, params *queryparams.Pr
 		query = query.Where("base_property IN ?", params.BaseProperty)
 	}
 
-	return query
+	return applyCQLFilter(query, &params.QueryParams)
 }
 
 // GetBySystemIDs returns properties grouped by system ID by inspecting JSON properties

@@ -34,10 +34,14 @@ func (ProceduresQueryParams) BuildFromRequest(r *http.Request, defaultLimit int)
 		params.ObservedProperty = strings.Split(observedProperties, ",")
 	}
 
-	if dateVals := r.URL.Query()["dateTime"]; len(dateVals) > 0 {
+	dateVals, err := datetimeValues(r)
+	if err != nil {
+		return nil, err
+	}
+	if len(dateVals) > 0 {
 		tr, err := common_shared.ParseTimeRangeStrict(dateVals)
 		if err != nil {
-			return nil, fmt.Errorf("invalid dateTime: %w", err)
+			return nil, fmt.Errorf("invalid datetime: %w", err)
 		}
 		params.DateTime = &tr
 	}

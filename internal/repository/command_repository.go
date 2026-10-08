@@ -228,6 +228,7 @@ func (r *CommandRepository) ListStatuses(commandID string, params *queryparams.C
 
 	query := r.db.Model(&domains.CommandStatusReport{}).Where("command_id = ?", commandID)
 	query = r.applyStatusFilters(query, params)
+	query = applyCQLFilter(query, &params.QueryParams)
 
 	if params.ReportTime != nil && params.ReportTime.Latest {
 		err := query.Order("report_time desc").Limit(1).Find(&statuses).Error
@@ -310,6 +311,7 @@ func (r *CommandRepository) ListResults(commandID string, params *queryparams.Co
 	if len(params.IDs) > 0 {
 		query = query.Where("id IN ?", params.IDs)
 	}
+	query = applyCQLFilter(query, &params.QueryParams)
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -412,7 +414,7 @@ func (r *CommandRepository) applyFilters(query *gorm.DB, params *queryparams.Com
 		query = query.Where(strings.Join(clauses, " OR "), args...)
 	}
 
-	return query
+	return applyCQLFilter(query, &params.QueryParams)
 }
 
 func (r *CommandRepository) applyStatusFilters(query *gorm.DB, params *queryparams.CommandStatusQueryParams) *gorm.DB {

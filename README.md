@@ -286,8 +286,41 @@ make test-coverage
 
 ## Local TimescaleDB database
 
+Start the API from the current checkout, database, and MQTT broker:
+
+```bash
+docker compose up --build -d
+```
+
+The API is at `http://localhost:8070` (Swagger UI: `/api/ui/index.html`).
+PostgreSQL is at `localhost:5433` with database `connected_systems` and
+username/password `postgres`. MQTT is at `localhost:1883`, with WebSockets
+at `ws://localhost:9001`. Published ports bind to `127.0.0.1`. The local
+broker allows anonymous connections and does not need a password file;
+`mosquitto.conf` remains the password-protected broker configuration.
+
+Set `API_PORT`, `DATABASE_PORT`, `MQTT_PORT`, `MQTT_WEBSOCKET_PORT`, or
+`VIEWER_PORT` in your shell or `.env` to change host ports. API links follow
+`API_PORT`; `API_BASE_URL` can override the advertised URL separately.
+
+The optional viewer uses the published image, which requires access to
+`docker.monogatari.dev` unless it is already cached. Enable it with:
+
+```bash
+docker compose --profile viewer up --build -d
+```
+
+Open `http://localhost:8081`; the viewer calls the localhost API directly.
+`VIEWER_IMAGE` can select a different or locally built viewer image.
+
+For a Go process running on the host, start only the dependencies with
+`docker compose up -d db mqtt`, then set `DATABASE_PORT=5433` and
+`API_BASE_URL` to match that process's listening port when running the server.
+Stop the stack with `docker compose --profile viewer down`; named volumes
+retain database and MQTT data.
+
 `docker-compose.yml` runs PostgreSQL 18 with TimescaleDB and PostGIS. On
-startup, the server enables both extensions and creates `observations` as a
+startup, the server enables TimescaleDB, PostGIS, unaccent, and pg_trgm and creates `observations` as a
 hypertable partitioned by `result_time` in seven-day chunks. The Compose
 database uses a new `timescale_data` volume; an existing `postgres_data`
 development volume is intentionally left untouched and is not migrated.

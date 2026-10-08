@@ -201,7 +201,7 @@ func (r *SystemRepository) ListSubsystems(parentID string, params *queryparams.S
 	} else {
 		query = query.Where("systems.parent_system_id = ?", parentID)
 	}
-	query = r.applyResourceFilters(query, params)
+	query = applyCQLFilter(r.applyResourceFilters(query, params), &params.QueryParams)
 
 	if params.Datetime != nil && params.Datetime.Latest {
 		err := query.Order("valid_time_start desc").Limit(1).Find(&systems).Error
@@ -509,7 +509,7 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 	if !params.Recursive {
 		query = query.Where("systems.parent_system_id IS NULL")
 	}
-	return r.applyResourceFilters(query, params)
+	return applyCQLFilter(r.applyResourceFilters(query, params), &params.QueryParams)
 }
 
 // applyResourceFilters applies filters that are common to canonical and

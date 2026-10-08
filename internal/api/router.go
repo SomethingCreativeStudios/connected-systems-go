@@ -86,12 +86,13 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureFormatterCollection)
 	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, repos.System, samplingFeatureFormatterCollection)
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertyFormatterCollection)
-	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, featureFormatterCollection)
+	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, repos.Collection, featureFormatterCollection)
 	datastreamHandler := NewDatastreamHandler(cfg, logger, repos.Datastream, datastreamFormatterCollection, requestValidator)
 	observationHandler := NewObservationHandler(cfg, logger, repos.Observation, repos.Datastream, pubSubPublisher, observationFormatterCollection)
 	controlStreamHandler := NewControlStreamHandler(cfg, logger, repos.ControlStream, controlStreamFormatterCollection, requestValidator)
 	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream, pubSubPublisher, commandFormatterCollection, requestValidator)
 	systemEventHandler := NewSystemEventHandler(cfg, logger, repos.SystemEvent, repos.System, pubSubPublisher, requestValidator)
+	r.Use(queryablesMiddleware(cfg.API.BaseURL, repos.Collection))
 
 	// Routes
 
@@ -108,10 +109,24 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	r.Post("/collections", collectionHandler.CreateCollection)
 	r.Get("/collections", collectionHandler.ListCollections)
 	r.Get("/collections/{collectionId}", collectionHandler.GetCollection)
+	r.Get("/collections/{collectionId}/queryables", collectionHandler.GetQueryables)
 
 	// OGC API Features endpoints (within collections)
 	r.Route("/collections/{collectionId}/items", func(r chi.Router) {
-		r.Get("/", featureHandler.ListFeatures)
+		collectionItemsHandler := NewCollectionItemsHandler(featureHandler, map[string]http.HandlerFunc{
+			"systems":          systemHandler.ListSystems,
+			"deployments":      deploymentHandler.ListDeployments,
+			"procedures":       procedureHandler.ListProcedures,
+			"samplingFeatures": samplingFeatureHandler.ListSamplingFeatures,
+			"properties":       propertyHandler.ListProperties,
+			"datastreams":      datastreamHandler.ListDatastreams,
+			"observations":     observationHandler.ListObservations,
+			"controlstreams":   controlStreamHandler.ListControlStreams,
+			"commands":         commandHandler.ListCommands,
+			"systemEvents":     systemEventHandler.ListSystemEvents,
+		})
+		r.Get("/", collectionItemsHandler.List)
+		r.Head("/", collectionItemsHandler.Head)
 		r.Post("/", featureHandler.CreateFeature)
 
 		r.Route("/{featureId}", func(r chi.Router) {

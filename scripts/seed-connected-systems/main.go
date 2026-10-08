@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -52,9 +53,24 @@ func main() {
 	}
 	if err != nil {
 		log.Printf("run failed: %v", err)
+		logFailedRequestPayload(err)
 	}
 	fmt.Println(report.JSON())
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+func logFailedRequestPayload(err error) {
+	var statusErr *HTTPStatusError
+	if !errors.As(err, &statusErr) || len(statusErr.Response.RequestBody) == 0 {
+		return
+	}
+	log.Printf(
+		"failed request payload method=%s path=%s content_type=%s payload=%s",
+		statusErr.Method,
+		statusErr.ResourcePath,
+		statusErr.Response.RequestContentType,
+		statusErr.Response.RequestBody,
+	)
 }

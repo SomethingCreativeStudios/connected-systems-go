@@ -32,7 +32,12 @@ func (r *CollectionRepository) GetCollectionByID(ctx context.Context, id string)
 }
 
 func (r *CollectionRepository) CreateCollection(ctx context.Context, collection *domains.Collection) error {
-	return r.DB.WithContext(ctx).Create(collection).Error
+	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(collection).Error; err != nil {
+			return err
+		}
+		return ensureCollectionQueryableIndexes(tx, collection.ID, collection.Queryables)
+	})
 }
 
 func (r *CollectionRepository) UpdateCollection(ctx context.Context, collection *domains.Collection) error {

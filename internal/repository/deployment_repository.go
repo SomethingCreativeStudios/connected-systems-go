@@ -290,7 +290,7 @@ func (r *DeploymentRepository) applyFilters(query *gorm.DB, params *queryparams.
 		}
 	}
 
-	return query
+	return applyCQLFilter(query, &params.QueryParams)
 }
 
 func (r *DeploymentRepository) findAssociations(deployment *domains.Deployment) *domains.Deployment {

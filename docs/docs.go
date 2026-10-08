@@ -121,7 +121,7 @@ const docTemplate = `{
         },
         "/collections/{collectionId}/items": {
             "get": {
-                "description": "Returns features from a collection; canonical collection IDs redirect to their resource endpoint",
+                "description": "Returns a feature collection. Canonical Connected Systems collections are served directly by the typed resource handler.",
                 "produces": [
                     "application/json"
                 ],
@@ -148,6 +148,18 @@ const docTemplate = `{
                         "description": "Opaque pagination cursor",
                         "name": "cursor",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "CQL2 Text filter (default) or URL-encoded CQL2 JSON",
+                        "name": "filter",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "CQL2 language: cql2-text or cql2-json",
+                        "name": "filter-lang",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -158,8 +170,14 @@ const docTemplate = `{
                             "additionalProperties": true
                         }
                     },
-                    "307": {
-                        "description": "Redirect to canonical resource endpoint"
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     },
                     "500": {
                         "description": "Internal Server Error",
@@ -222,6 +240,48 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "head": {
+                "description": "Returns response headers for canonical or generic collection items",
+                "tags": [
+                    "Features"
+                ],
+                "summary": "Head collection items",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection ID",
+                        "name": "collectionId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "CQL2 Text filter (default) or URL-encoded CQL2 JSON",
+                        "name": "filter",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "CQL2 language: cql2-text or cql2-json",
+                        "name": "filter-lang",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -404,6 +464,45 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/collections/{collectionId}/queryables": {
+            "get": {
+                "description": "Returns the declared CQL2 queryable properties as JSON Schema",
+                "produces": [
+                    "application/schema+json"
+                ],
+                "tags": [
+                    "Collections"
+                ],
+                "summary": "Get collection queryables",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection ID",
+                        "name": "collectionId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2123,8 +2222,26 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z",
+                        "description": "Date-time or interval (RFC 3339)",
+                        "name": "datetime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Compatibility alias for datetime",
                         "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "CQL2 Text filter (default) or URL-encoded CQL2 JSON",
+                        "name": "filter",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "CQL2 language: cql2-text or cql2-json",
+                        "name": "filter-lang",
                         "in": "query"
                     },
                     {
@@ -3684,8 +3801,26 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Date-time or interval (RFC 3339), e.g. 2023-01-01T00:00:00Z/2023-12-31T23:59:59Z",
+                        "description": "Date-time or interval (RFC 3339)",
+                        "name": "datetime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Compatibility alias for datetime",
                         "name": "dateTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "CQL2 Text filter (default) or URL-encoded CQL2 JSON",
+                        "name": "filter",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "CQL2 language: cql2-text or cql2-json",
+                        "name": "filter-lang",
                         "in": "query"
                     },
                     {

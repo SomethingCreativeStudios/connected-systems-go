@@ -140,7 +140,7 @@ func (r *ProcedureRepository) applyFilters(query *gorm.DB, params *queryparams.P
 			Where("procedure_observed_properties.property_id IN ?", params.ObservedProperty)
 	}
 
-	return query
+	return applyCQLFilter(query, &params.QueryParams)
 }
 
 // GetByIDs returns procedures keyed by ID or unique identifier

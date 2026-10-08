@@ -56,10 +56,10 @@ docker-push: validate-tag ## Build and push Docker image to Docker Hub; usage: m
 	docker push $(DOCKER_IMAGE):$(TAG)
 
 docker-run: ## Run Docker container
-	docker-compose up
+	docker compose up --build
 
 docker-stop: ## Stop Docker container
-	docker-compose down
+	docker compose --profile viewer down
 
 release-build: ## Build release binaries for multiple platforms
 	rm -rf $(RELEASE_DIR)

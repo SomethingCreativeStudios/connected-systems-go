@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -152,6 +156,21 @@ func TestCreateErrorIncludesServerBody(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "HTTP 400") || !strings.Contains(err.Error(), "schema is required") {
 		t.Fatalf("expected actionable POST error, got %v", err)
 	}
+
+	var logBuffer bytes.Buffer
+	previousFlags, previousPrefix := log.Flags(), log.Prefix()
+	log.SetFlags(0)
+	log.SetPrefix("")
+	log.SetOutput(&logBuffer)
+	defer func() {
+		log.SetFlags(previousFlags)
+		log.SetPrefix(previousPrefix)
+		log.SetOutput(os.Stderr)
+	}()
+	logFailedRequestPayload(fmt.Errorf("create datastream: %w", err))
+	if got := logBuffer.String(); !strings.Contains(got, "method=POST path=/systems/example/datastreams content_type=application/json payload={\"name\":\"bad\"}") {
+		t.Fatalf("expected failed payload log, got %q", got)
+	}
 }
 
 func TestSystemRolesUseMatchingDatasheetTypes(t *testing.T) {
@@ -165,7 +184,7 @@ func TestSystemRolesUseMatchingDatasheetTypes(t *testing.T) {
 		"actuator": {sosaActuator, sosaActuator, "PhysicalComponent", "Equipment"},
 		"sampler":  {sosaSampler, sosaSampler, "PhysicalComponent", "Equipment"},
 		"platform": {sosaPlatform, sosaPlatform, "PhysicalSystem", "Equipment"},
-		"system":   {ssnSystem, sosaSystem, "PhysicalSystem", "Equipment"},
+		"system":   {sosaSystem, sosaSystem, "PhysicalSystem", "Equipment"},
 	}
 	for _, role := range systemRoles {
 		want := expected[role.Key]
