@@ -5,35 +5,31 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // PropertyGeoJSONFormatter handles serialization and deserialization of Property objects in GeoJSON format
 type PropertyGeoJSONFormatter struct {
 	formaters.Formatter[domains.PropertyGeoJSONFeature, *domains.Property]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewPropertyGeoJSONFormatter constructs a formatter with required repository readers
-func NewPropertyGeoJSONFormatter(repos *repository.Repositories) *PropertyGeoJSONFormatter {
-	return &PropertyGeoJSONFormatter{repos: repos}
+func NewPropertyGeoJSONFormatter(links *formaters.LinkResolver) *PropertyGeoJSONFormatter {
+	return &PropertyGeoJSONFormatter{links: links}
 }
 
 func (f *PropertyGeoJSONFormatter) ContentType() string {
-	return GeoJSONContentType
+	return mediatype.GeoJSON
 }
 
 // --- Serialization ---
 
 func (f *PropertyGeoJSONFormatter) Serialize(ctx context.Context, property *domains.Property) (domains.PropertyGeoJSONFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.Property{property})
-	if err != nil {
-		return domains.PropertyGeoJSONFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, property, f.SerializeAll)
 }
 
 func (f *PropertyGeoJSONFormatter) SerializeAll(ctx context.Context, properties []*domains.Property) ([]domains.PropertyGeoJSONFeature, error) {
@@ -78,7 +74,7 @@ func (f *PropertyGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Re
 		Type       string                            `json:"type"`
 		ID         string                            `json:"id,omitempty"`
 		Properties domains.PropertyGeoJSONProperties `json:"properties"`
-		Geometry   interface{}                       `json:"geometry,omitempty"`
+		Geometry   any                               `json:"geometry,omitempty"`
 		Links      common_shared.Links               `json:"links,omitempty"`
 	}](body)
 	if err != nil {

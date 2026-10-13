@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/google/uuid"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
 func FakeObservationForDatastream(ds domains.Datastream) domains.Observation {
@@ -52,7 +53,7 @@ func FakeObservationWithResultLink(ds domains.Datastream) domains.Observation {
 		ResultLink: &common_shared.Link{
 			Href:  "https://example.org/results/" + linkID,
 			Title: "External Result",
-			Type:  "application/json",
+			Type:  mediatype.JSON,
 			Rel:   "alternate",
 		},
 	}
@@ -67,7 +68,7 @@ func FakeObservationListForDatastream(ds domains.Datastream, n int) []domains.Ob
 	}
 
 	out := make([]domains.Observation, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i%5 == 4 {
 			out = append(out, FakeObservationWithResultLink(ds))
 			continue
@@ -90,22 +91,22 @@ func fakeObservationResultAndParametersForSchema(schema *domains.DatastreamSchem
 	switch schema.ObsFormat {
 	case "application/x-protobuf":
 		// Stored as JSON object payload but shaped to the protobuf schema fields.
-		return mustMarshalResult(map[string]interface{}{
+		return mustMarshalResult(map[string]any{
 			"temperature": 21.5,
 			"humidity":    57.0,
 			"status":      "ok",
 		}), params
 
-	case "application/json", "application/swe+json", "application/swe+csv":
+	case mediatype.JSON, "application/swe+json", "application/swe+csv":
 		if schema.ResultSchema != nil && schema.ResultSchema.Type == "DataRecord" {
-			return mustMarshalResult(map[string]interface{}{
+			return mustMarshalResult(map[string]any{
 				"temperature": 20.7,
 				"humidity":    54.2,
 				"status":      "ok",
 			}), params
 		}
 		if schema.RecordSchema != nil && schema.RecordSchema.Type == "DataRecord" {
-			return mustMarshalResult(map[string]interface{}{
+			return mustMarshalResult(map[string]any{
 				"x": 102.3,
 				"y": 27.1,
 			}), params
@@ -113,14 +114,14 @@ func fakeObservationResultAndParametersForSchema(schema *domains.DatastreamSchem
 		return mustMarshalResult(22.4), params
 
 	default:
-		return mustMarshalResult(map[string]interface{}{
+		return mustMarshalResult(map[string]any{
 			"value":  99.9,
 			"format": schema.ObsFormat,
 		}), params
 	}
 }
 
-func mustMarshalResult(v interface{}) json.RawMessage {
+func mustMarshalResult(v any) json.RawMessage {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return json.RawMessage("null")

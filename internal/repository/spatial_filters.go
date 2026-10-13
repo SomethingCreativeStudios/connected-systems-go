@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"gorm.io/gorm"
 )
 

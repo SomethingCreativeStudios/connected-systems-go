@@ -6,37 +6,31 @@ import (
 	"io"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
-
-const GeoJSONContentType = "application/geo+json"
 
 // SystemGeoJSONFormatter handles serialization and deserialization of System objects in GeoJSON format
 type SystemGeoJSONFormatter struct {
 	formaters.Formatter[domains.SystemGeoJSONFeature, *domains.System]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewSystemGeoJSONFormatter constructs a formatter with required repository readers
-func NewSystemGeoJSONFormatter(repos *repository.Repositories) *SystemGeoJSONFormatter {
-	return &SystemGeoJSONFormatter{repos: repos}
+func NewSystemGeoJSONFormatter(links *formaters.LinkResolver) *SystemGeoJSONFormatter {
+	return &SystemGeoJSONFormatter{links: links}
 }
 
 func (f *SystemGeoJSONFormatter) ContentType() string {
-	return GeoJSONContentType
+	return mediatype.GeoJSON
 }
 
 // --- Serialization ---
 
 func (f *SystemGeoJSONFormatter) Serialize(ctx context.Context, system *domains.System) (domains.SystemGeoJSONFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.System{system})
-	if err != nil {
-		return domains.SystemGeoJSONFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, system, f.SerializeAll)
 }
 
 func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*domains.System) ([]domains.SystemGeoJSONFeature, error) {
@@ -44,33 +38,9 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 		return []domains.SystemGeoJSONFeature{}, nil
 	}
 
-	// Collect system kind IDs and parent system IDs for batch loading
-	kindIDs := make([]string, 0, len(systems))
-	parentIDs := make([]string, 0, len(systems))
-	for _, s := range systems {
-		if s.TypeOfID != nil && *s.TypeOfID != "" {
-			kindIDs = append(kindIDs, *s.TypeOfID)
-		}
-		if s.ParentSystemID != nil && strings.TrimSpace(*s.ParentSystemID) != "" {
-			parentIDs = append(parentIDs, strings.TrimSpace(*s.ParentSystemID))
-		}
-	}
-
-	// Build resource cache for enriching association links
-	cache := formaters.NewResourceCache()
-
-	// Batch-fetch procedures (system kinds)
-	if len(kindIDs) > 0 && f.repos != nil {
-		if err := cache.FetchProcedures(ctx, f.repos.Procedure, kindIDs); err != nil {
-			// Non-fatal: links will be emitted without enrichment
-		}
-	}
-
-	// Batch-fetch parent systems
-	if len(parentIDs) > 0 && f.repos != nil {
-		if err := cache.FetchParentSystems(ctx, f.repos.System, parentIDs); err != nil {
-			// Non-fatal: links will be emitted without enrichment
-		}
+	cache, err := f.links.Lookup(ctx, formaters.SystemReferences(systems))
+	if err != nil {
+		return nil, err
 	}
 
 	// Build a kindMap for systemKind@link (same data, different access pattern)
@@ -85,25 +55,25 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 			id := strings.TrimSpace(*system.TypeOfID)
 			if proc, ok := kindMap[id]; ok {
 				kindLink = &common_shared.Link{
-					Href:  formaters.ToFunctionalAssociationHref("/procedures/" + proc.ID),
+					Href:  f.links.Href("/procedures/" + proc.ID),
 					Rel:   common_shared.OGCRel("systemKind"),
-					Type:  GeoJSONContentType,
+					Type:  mediatype.GeoJSON,
 					Title: proc.Name,
 					UID:   (*string)(&proc.UniqueIdentifier),
 				}
 			} else {
 				kindLink = &common_shared.Link{
-					Href: formaters.ToFunctionalAssociationHref("/procedures/" + id),
+					Href: f.links.Href("/procedures/" + id),
 					Rel:  common_shared.OGCRel("systemKind"),
-					Type: formaters.SensorMLContentType,
+					Type: mediatype.SensorML,
 				}
 			}
 		} else if system.TypeOf != nil && system.TypeOf.Href != "" {
 			// TypeOf was stored before SystemKindID was introduced; surface it as systemKind@link
 			kindLink = &common_shared.Link{
-				Href:  formaters.ToFunctionalAssociationHref(system.TypeOf.Href),
+				Href:  f.links.Href(system.TypeOf.Href),
 				Rel:   common_shared.OGCRel("systemKind"),
-				Type:  formaters.SensorMLContentType,
+				Type:  mediatype.SensorML,
 				Title: system.TypeOf.Title,
 			}
 		}
@@ -138,7 +108,7 @@ func (f *SystemGeoJSONFormatter) SerializeAll(ctx context.Context, systems []*do
 				LocalTimeFrames:      system.LocalTimeFrames,
 				Position:             system.Position,
 			},
-			Links: formaters.AppendGeoJSONSystemAssociationLinks(system, cache),
+			Links: f.links.SystemLinks(system, cache, mediatype.GeoJSON),
 		}
 		features = append(features, feature)
 	}
@@ -164,8 +134,8 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 		return nil, err
 	}
 
-	associationLinks := formaters.GeoJSONSystemAssociationLinks(common_shared.StripAssociationLinks(geoJSON.Links))
-
+	// ogc-rel links are server-generated, so they are ignored on write; the
+	// parent system is only ever set through /systems/{id}/subsystems.
 	system := &domains.System{
 		Links: common_shared.StripAssociationLinks(geoJSON.Links),
 	}
@@ -215,8 +185,6 @@ func (f *SystemGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Read
 	system.LocalReferenceFrames = geoJSON.Properties.LocalReferenceFrames
 	system.LocalTimeFrames = geoJSON.Properties.LocalTimeFrames
 	system.Position = geoJSON.Properties.Position
-
-	formaters.ApplyGeoJSONSystemAssociationLinks(system, associationLinks)
 
 	return system, nil
 }

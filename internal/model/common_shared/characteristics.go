@@ -20,7 +20,7 @@ func (c CharacteristicGroups) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (c *CharacteristicGroups) Scan(value interface{}) error {
+func (c *CharacteristicGroups) Scan(value any) error {
 	if value == nil {
 		*c = nil
 		return nil
@@ -70,7 +70,7 @@ func (c ComponentWrappers) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (c *ComponentWrappers) Scan(value interface{}) error {
+func (c *ComponentWrappers) Scan(value any) error {
 	if value == nil {
 		*c = nil
 		return nil

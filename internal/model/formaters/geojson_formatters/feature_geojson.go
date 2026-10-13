@@ -2,38 +2,36 @@ package geojson_formatters
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // FeatureGeoJSONFormatter handles serialization and deserialization of Feature objects in GeoJSON format
 type FeatureGeoJSONFormatter struct {
 	formaters.Formatter[domains.FeatureGeoJSONFeature, *domains.Feature]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewFeatureGeoJSONFormatter constructs a formatter with required repository readers
-func NewFeatureGeoJSONFormatter(repos *repository.Repositories) *FeatureGeoJSONFormatter {
-	return &FeatureGeoJSONFormatter{repos: repos}
+func NewFeatureGeoJSONFormatter(links *formaters.LinkResolver) *FeatureGeoJSONFormatter {
+	return &FeatureGeoJSONFormatter{links: links}
 }
 
 func (f *FeatureGeoJSONFormatter) ContentType() string {
-	return GeoJSONContentType
+	return mediatype.GeoJSON
 }
 
 // --- Serialization ---
 
 func (f *FeatureGeoJSONFormatter) Serialize(ctx context.Context, feature *domains.Feature) (domains.FeatureGeoJSONFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.Feature{feature})
-	if err != nil {
-		return domains.FeatureGeoJSONFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, feature, f.SerializeAll)
 }
 
 func (f *FeatureGeoJSONFormatter) SerializeAll(ctx context.Context, features []*domains.Feature) ([]domains.FeatureGeoJSONFeature, error) {
@@ -57,11 +55,11 @@ func (f *FeatureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 		return nil, err
 	}
 	geoJSON, err := common_shared.DecodeWithFieldErrors[struct {
-		Type       string                 `json:"type"`
-		ID         string                 `json:"id,omitempty"`
-		Properties map[string]interface{} `json:"properties"`
-		Geometry   *common_shared.GoGeom  `json:"geometry,omitempty"`
-		Links      common_shared.Links    `json:"links,omitempty"`
+		Type       string                `json:"type"`
+		ID         string                `json:"id,omitempty"`
+		Properties map[string]any        `json:"properties"`
+		Geometry   *common_shared.GoGeom `json:"geometry,omitempty"`
+		Links      common_shared.Links   `json:"links,omitempty"`
 	}](body)
 	if err != nil {
 		return nil, err
@@ -103,16 +101,26 @@ func (f *FeatureGeoJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 		feature.CollectionID = collectionID
 	}
 
-	// Parse dateTime if present
-	if dtStr, ok := geoJSON.Properties["dateTime"].(string); ok {
-		if dt, err := time.Parse(time.RFC3339, dtStr); err == nil {
-			feature.DateTime = &dt
+	if raw, ok := geoJSON.Properties["dateTime"]; ok && raw != nil {
+		dtStr, isString := raw.(string)
+		dt, err := time.Parse(time.RFC3339, dtStr)
+		if !isString || err != nil {
+			return nil, fmt.Errorf("properties.dateTime must be an RFC 3339 date-time")
 		}
+		feature.DateTime = &dt
 	}
 
-	// Parse validTime — accepts both array ["start","end"] and object {"start":...,"end":...} forms.
+	// validTime goes through the same strict decoder as every other body time
+	// range (array, object or "start/end" string forms).
 	if vt, ok := geoJSON.Properties["validTime"]; ok && vt != nil {
-		tr := common_shared.ParseTimeRange(vt)
+		raw, err := json.Marshal(vt)
+		if err != nil {
+			return nil, err
+		}
+		var tr common_shared.TimeRange
+		if err := tr.UnmarshalJSON(raw); err != nil {
+			return nil, fmt.Errorf("properties.validTime: %w", err)
+		}
 		feature.ValidTime = common_shared.NonEmptyTimeRange(&tr)
 	}
 

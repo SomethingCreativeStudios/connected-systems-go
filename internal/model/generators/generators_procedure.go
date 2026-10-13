@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/rand"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/google/uuid"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
 // =============================================================================
@@ -46,7 +46,7 @@ func FakeProcedureObserving() domains.Procedure {
 		},
 		ProcedureType:   domains.ProcedureTypeObserving,
 		ProcessType:     "SimpleProcess",
-		Lang:            ptrString("en"),
+		Lang:            new("en"),
 		Keywords:        common_shared.StringArray{"observation", "method", "monitoring"},
 		Identifiers:     FakeIdentifiers(2),
 		Classifiers:     FakeClassifiers(1),
@@ -77,7 +77,7 @@ func FakeProcedureSampling() domains.Procedure {
 		},
 		ProcedureType:   domains.ProcedureTypeSampling,
 		ProcessType:     "SimpleProcess",
-		Lang:            ptrString("en"),
+		Lang:            new("en"),
 		Keywords:        common_shared.StringArray{"sampling", "collection", "analysis"},
 		Identifiers:     FakeIdentifiers(2),
 		Classifiers:     FakeClassifiers(1),
@@ -108,7 +108,7 @@ func FakeProcedureActuating() domains.Procedure {
 		},
 		ProcedureType:   domains.ProcedureTypeActuating,
 		ProcessType:     "SimpleProcess",
-		Lang:            ptrString("en"),
+		Lang:            new("en"),
 		Keywords:        common_shared.StringArray{"actuation", "control", "automation"},
 		Identifiers:     FakeIdentifiers(1),
 		Classifiers:     FakeClassifiers(1),
@@ -139,7 +139,7 @@ func FakeProcedureSensorDatasheet() domains.Procedure {
 		},
 		ProcedureType:       domains.ProcedureTypeSensor,
 		ProcessType:         "PhysicalComponent",
-		Lang:                ptrString("en"),
+		Lang:                new("en"),
 		Keywords:            common_shared.StringArray{"datasheet", "sensor", "specifications"},
 		Identifiers:         FakeIdentifiers(3),
 		Classifiers:         FakeClassifiers(2),
@@ -173,7 +173,7 @@ func FakeProcedureActuatorDatasheet() domains.Procedure {
 		},
 		ProcedureType:   domains.ProcedureTypeActuator,
 		ProcessType:     "PhysicalComponent",
-		Lang:            ptrString("en"),
+		Lang:            new("en"),
 		Keywords:        common_shared.StringArray{"datasheet", "actuator", "control"},
 		Identifiers:     FakeIdentifiers(2),
 		Classifiers:     FakeClassifiers(2),
@@ -202,7 +202,7 @@ func FakeProcedurePlatformDatasheet() domains.Procedure {
 		},
 		ProcedureType:        domains.ProcedureTypePlatform,
 		ProcessType:          "PhysicalSystem",
-		Lang:                 ptrString("en"),
+		Lang:                 new("en"),
 		Keywords:             common_shared.StringArray{"datasheet", "platform", "hosting"},
 		Identifiers:          FakeIdentifiers(2),
 		Classifiers:          FakeClassifiers(1),
@@ -222,7 +222,7 @@ func FakeProcedureAggregateProcess() domains.Procedure {
 	name := fmt.Sprintf("%s Processing Chain", f.Lorem().Word())
 	uid := fmt.Sprintf("urn:uuid:%s", uuid.New().String())
 
-	componentsJSON, _ := json.Marshal([]map[string]interface{}{
+	componentsJSON, _ := json.Marshal([]map[string]any{
 		{
 			"name": "preprocessor",
 			"href": fmt.Sprintf("http://example.org/api/procedures/%s", uuid.New().String()),
@@ -253,7 +253,7 @@ func FakeProcedureAggregateProcess() domains.Procedure {
 		},
 		ProcedureType:   domains.ProcedureTypeProcedure,
 		ProcessType:     "AggregateProcess",
-		Lang:            ptrString("en"),
+		Lang:            new("en"),
 		Keywords:        common_shared.StringArray{"processing", "chain", "aggregate"},
 		Identifiers:     FakeIdentifiers(2),
 		Classifiers:     FakeClassifiers(1),
@@ -287,7 +287,7 @@ func FakeProcedurePhysicalSystem() domains.Procedure {
 		},
 		ProcedureType:        domains.ProcedureTypeSystem,
 		ProcessType:          "PhysicalSystem",
-		Lang:                 ptrString("en"),
+		Lang:                 new("en"),
 		Keywords:             common_shared.StringArray{"system", "integrated", "datasheet"},
 		Identifiers:          FakeIdentifiers(3),
 		Classifiers:          FakeClassifiers(2),
@@ -318,13 +318,13 @@ func FakeProcedureFull() domains.Procedure {
 	uid := fmt.Sprintf("urn:uuid:%s", uuid.New().String())
 
 	configJSON, _ := json.Marshal(FakeConfigurationSettingsFull())
-	modesJSON, _ := json.Marshal(map[string]interface{}{
-		"modes": []map[string]interface{}{
+	modesJSON, _ := json.Marshal(map[string]any{
+		"modes": []map[string]any{
 			{
 				"id":    "standard",
 				"label": "Standard Mode",
-				"configuration": map[string]interface{}{
-					"setValues": []map[string]interface{}{
+				"configuration": map[string]any{
+					"setValues": []map[string]any{
 						{"ref": "parameters/precision", "value": "normal"},
 					},
 				},
@@ -332,8 +332,8 @@ func FakeProcedureFull() domains.Procedure {
 			{
 				"id":    "precision",
 				"label": "High Precision Mode",
-				"configuration": map[string]interface{}{
-					"setValues": []map[string]interface{}{
+				"configuration": map[string]any{
+					"setValues": []map[string]any{
 						{"ref": "parameters/precision", "value": "high"},
 					},
 				},
@@ -350,7 +350,7 @@ func FakeProcedureFull() domains.Procedure {
 		},
 		ProcedureType:        domains.ProcedureTypeProcedure,
 		ProcessType:          "SimpleProcess",
-		Lang:                 ptrString("en"),
+		Lang:                 new("en"),
 		Keywords:             common_shared.StringArray{f.Lorem().Word(), f.Lorem().Word(), f.Lorem().Word()},
 		Identifiers:          FakeIdentifiers(3),
 		Classifiers:          FakeClassifiers(2),

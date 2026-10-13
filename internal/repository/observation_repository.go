@@ -1,13 +1,15 @@
 package repository
 
 import (
+	"context"
 	"errors"
-	"strings"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/resourcevalidation"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ObservationRepository handles Observation data access.
@@ -19,19 +21,23 @@ func NewObservationRepository(db *gorm.DB) *ObservationRepository {
 	return &ObservationRepository{db: db}
 }
 
-func (r *ObservationRepository) Create(observation *domains.Observation) error {
+func (r *ObservationRepository) Create(ctx context.Context, observation *domains.Observation) error {
+	return r.CreateWithFormat(ctx, observation, "application/json")
+}
+
+func (r *ObservationRepository) CreateWithFormat(ctx context.Context, observation *domains.Observation, contentType string) error {
+	// Default resultTime first: phenomenonTime falls back to it.
+	if observation.ResultTime.IsZero() {
+		observation.ResultTime = time.Now().UTC()
+	}
 	if observation.PhenomenonTime == nil {
 		t := observation.ResultTime
 		observation.PhenomenonTime = &t
 	}
-	if observation.ResultTime.IsZero() {
-		now := time.Now().UTC()
-		observation.ResultTime = now
-		if observation.PhenomenonTime == nil {
-			observation.PhenomenonTime = &now
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := validateLockedObservation(tx, observation, contentType); err != nil {
+			return err
 		}
-	}
-	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(observation).Error; err != nil {
 			return err
 		}
@@ -72,19 +78,19 @@ func recomputeDatastreamTimeRanges(tx *gorm.DB, datastreamID string) error {
 		datastreamID, datastreamID).Error
 }
 
-func (r *ObservationRepository) GetByID(id string) (*domains.Observation, error) {
+func (r *ObservationRepository) GetByID(ctx context.Context, id string) (*domains.Observation, error) {
 	var observation domains.Observation
-	err := r.db.Where("id = ?", id).First(&observation).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&observation).Error
 	if err != nil {
 		return nil, err
 	}
 	return &observation, nil
 }
 
-func (r *ObservationRepository) List(params *queryparams.ObservationsQueryParams, datastreamID *string) ([]*domains.Observation, int64, error) {
+func (r *ObservationRepository) List(ctx context.Context, params *queryparams.ObservationsQueryParams, datastreamID *string) ([]*domains.Observation, int64, error) {
 	var observations []*domains.Observation
 
-	query := r.db.Model(&domains.Observation{})
+	query := r.db.WithContext(ctx).Model(&domains.Observation{})
 	if datastreamID != nil {
 		query = query.Where("datastream_id = ?", *datastreamID)
 	}
@@ -95,50 +101,51 @@ func (r *ObservationRepository) List(params *queryparams.ObservationsQueryParams
 	latestResultTime := params.ResultTime != nil && params.ResultTime.Latest
 	latestPhenomenonTime := params.PhenomenonTime != nil && params.PhenomenonTime.Latest
 	if latestResultTime || latestPhenomenonTime {
-		orderCol := "result_time"
+		orderCol := "observations.result_time"
 		if latestPhenomenonTime {
-			orderCol = "phenomenon_time"
+			orderCol = "observations.phenomenon_time"
 		}
 		err := query.Order(orderCol + " desc").Limit(1).Find(&observations).Error
 		return observations, int64(len(observations)), err
 	}
 
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
-		Columns:     []string{"result_time", "id"},
+	return listPage(query, &params.QueryParams, CursorOrder{
+		Columns:     []string{"observations.result_time", "observations.id"},
 		Descending:  true,
 		TimeColumns: map[int]bool{0: true},
-	})
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&observations).Error
-	observations = FinalizeCursorPage(observations, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(observations, func(observation *domains.Observation) []string {
+	}, func(observation *domains.Observation) []string {
 		return []string{queryparams.TimeCursorValue(observation.ResultTime), observation.ID}
 	})
-	return observations, total, err
 }
 
-func (r *ObservationRepository) ListByDatastream(datastreamID string, params *queryparams.ObservationsQueryParams) ([]*domains.Observation, int64, error) {
-	return r.List(params, &datastreamID)
+func (r *ObservationRepository) ListByDatastream(ctx context.Context, datastreamID string, params *queryparams.ObservationsQueryParams) ([]*domains.Observation, int64, error) {
+	return r.List(ctx, params, &datastreamID)
 }
 
-func (r *ObservationRepository) Update(observation *domains.Observation) error {
+func (r *ObservationRepository) Update(ctx context.Context, observation *domains.Observation) error {
+	return r.UpdateWithFormat(ctx, observation, "application/json")
+}
+
+func (r *ObservationRepository) UpdateWithFormat(ctx context.Context, observation *domains.Observation, contentType string) error {
 	if observation.PhenomenonTime == nil {
 		t := observation.ResultTime
 		observation.PhenomenonTime = &t
 	}
-	return r.db.Transaction(func(tx *gorm.DB) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing domains.Observation
 		if err := tx.Where("id = ?", observation.ID).First(&existing).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
+			return err
+		}
+
+		// Lock the parent before touching the child, matching schema writes.
+		observation.DatastreamID = existing.DatastreamID
+		if err := validateLockedObservation(tx, observation, contentType); err != nil {
+			return err
+		}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", observation.ID).First(&existing).Error; err != nil {
 			return err
 		}
 
@@ -187,8 +194,8 @@ func updateObservationRow(tx *gorm.DB, observation *domains.Observation) error {
 		Updates(updates).Error
 }
 
-func (r *ObservationRepository) Delete(id string) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+func (r *ObservationRepository) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var datastreamID string
 		err := tx.Model(&domains.Observation{}).Select("datastream_id").
 			Where("id = ?", id).First(&datastreamID).Error
@@ -196,6 +203,10 @@ func (r *ObservationRepository) Delete(id string) error {
 			return ErrNotFound
 		}
 		if err != nil {
+			return err
+		}
+		var parent domains.Datastream
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").Where("id = ?", datastreamID).First(&parent).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&domains.Observation{}, "id = ?", id).Error; err != nil {
@@ -206,71 +217,54 @@ func (r *ObservationRepository) Delete(id string) error {
 }
 
 func (r *ObservationRepository) applyFilters(query *gorm.DB, params *queryparams.ObservationsQueryParams, datastreamFixed bool) *gorm.DB {
-	joinedDatastreams := false
-	joinDatastreams := func(q *gorm.DB) *gorm.DB {
-		if !joinedDatastreams {
-			q = q.Joins("JOIN datastreams ON observations.datastream_id = datastreams.id")
-			joinedDatastreams = true
-		}
-		return q
-	}
-
 	if len(params.IDs) > 0 {
-		query = query.Where("id IN ?", params.IDs)
+		query = query.Where("observations.id IN ?", params.IDs)
 	}
 
 	if !datastreamFixed && len(params.DataStream) > 0 {
-		query = query.Where("datastream_id IN ?", params.DataStream)
+		query = query.Where("observations.datastream_id IN ?", params.DataStream)
 	}
 
+	// Datastream-level filters are semi-joins so they can use the
+	// observations.datastream_id index and never clash with datastream columns.
 	if len(params.System) > 0 {
-		query = joinDatastreams(query)
-		query = query.Where("datastreams.system_id IN ?", params.System)
+		query = query.Where("observations.datastream_id IN (SELECT id FROM datastreams WHERE system_id IN ?)", params.System)
 	}
 
-	if params.PhenomenonTime != nil && !params.PhenomenonTime.Latest {
-		if params.PhenomenonTime.Start != nil && params.PhenomenonTime.End != nil {
-			query = query.Where("phenomenon_time <= ? AND phenomenon_time >= ?", params.PhenomenonTime.End, params.PhenomenonTime.Start)
-		} else if params.PhenomenonTime.Start != nil {
-			query = query.Where("phenomenon_time >= ?", params.PhenomenonTime.Start)
-		} else if params.PhenomenonTime.End != nil {
-			query = query.Where("phenomenon_time <= ?", params.PhenomenonTime.End)
-		}
-	}
+	query = applyInstantFilter(query, "observations.phenomenon_time", params.PhenomenonTime)
 
-	if params.ResultTime != nil && !params.ResultTime.Latest {
-		if params.ResultTime.Start != nil && params.ResultTime.End != nil {
-			query = query.Where("result_time <= ? AND result_time >= ?", params.ResultTime.End, params.ResultTime.Start)
-		} else if params.ResultTime.Start != nil {
-			query = query.Where("result_time >= ?", params.ResultTime.Start)
-		} else if params.ResultTime.End != nil {
-			query = query.Where("result_time <= ?", params.ResultTime.End)
-		}
-	}
+	query = applyInstantFilter(query, "observations.result_time", params.ResultTime)
 
 	if len(params.FOI) > 0 {
-		query = query.Where("sampling_feature_id IN ?", params.FOI)
+		query = query.Where("observations.sampling_feature_id IN ?", params.FOI)
 	}
 
 	if len(params.ObservedProperty) > 0 {
-		query = joinDatastreams(query)
-		for _, observedProperty := range params.ObservedProperty {
-			query = query.Where("datastreams.observed_properties::text ILIKE ?", "%"+observedProperty+"%")
-		}
+		match, args := ilikeAll("observed_properties::text", params.ObservedProperty)
+		query = query.Where("observations.datastream_id IN (SELECT id FROM datastreams WHERE "+match+")", args...)
 	}
 
-	if len(params.Q) > 0 {
-		var clauses []string
-		var args []interface{}
-		for _, term := range params.Q {
-			like := "%" + term + "%"
-			clauses = append(clauses, "CAST(parameters AS text) ILIKE ?")
-			args = append(args, like)
-			clauses = append(clauses, "CAST(result AS text) ILIKE ?")
-			args = append(args, like)
-		}
-		query = query.Where(strings.Join(clauses, " OR "), args...)
-	}
+	query = applyKeywordFilter(query, params.Q, "CAST(observations.parameters AS text)", "CAST(observations.result AS text)")
 
 	return applyCQLFilter(query, &params.QueryParams)
+}
+
+func validateLockedObservation(tx *gorm.DB, observation *domains.Observation, contentType string) error {
+	var parent domains.Datastream
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", observation.DatastreamID).First(&parent).Error; err != nil {
+		return err
+	}
+	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(observation, &parent, contentType); err != nil {
+		return &ValidationError{Err: err}
+	}
+	return nil
+}
+
+func lockDatastream(tx *gorm.DB, id string) error {
+	var stream domains.Datastream
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").Where("id = ?", id).First(&stream).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrNotFound
+	}
+	return err
 }

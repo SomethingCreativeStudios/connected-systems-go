@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
 
 // validateSWEComponent structurally validates a SWE Common component definition

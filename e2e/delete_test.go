@@ -65,9 +65,9 @@ func TestDatastreamDelete_Returns409WhenObservationsExistNoCascade(t *testing.T)
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("DS Delete 409 System"))
 	datastreamID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", baseDatastreamPayload())
 
-	obsPayload := map[string]interface{}{
+	obsPayload := map[string]any{
 		"resultTime": time.Now().UTC().Format(time.RFC3339),
-		"result":     map[string]interface{}{"temperature": 22.5, "humidity": 55.0},
+		"result":     map[string]any{"temperature": 22.5, "humidity": 55.0},
 	}
 	createObservationViaAPI(t, datastreamID, obsPayload)
 
@@ -80,9 +80,9 @@ func TestDatastreamDelete_Returns204WithCascade(t *testing.T) {
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("DS Cascade Delete System"))
 	datastreamID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", baseDatastreamPayload())
 
-	obsPayload := map[string]interface{}{
+	obsPayload := map[string]any{
 		"resultTime": time.Now().UTC().Format(time.RFC3339),
-		"result":     map[string]interface{}{"temperature": 22.5, "humidity": 55.0},
+		"result":     map[string]any{"temperature": 22.5, "humidity": 55.0},
 	}
 	createObservationViaAPI(t, datastreamID, obsPayload)
 

@@ -3,12 +3,15 @@ package formaters
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
-	"mime"
 	"net/url"
+	"slices"
 	"strings"
 
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 )
 
 type Serializer[Output any, Input any] interface {
@@ -38,6 +41,23 @@ type Formatter[Output any, Domain any] interface {
 	ContentType() string
 }
 
+// SerializeOne formats a single resource exactly as it would appear in a
+// collection, so a resource and its collection entry never drift apart.
+func SerializeOne[Output any, T any](ctx context.Context, item *T, serializeAll func(context.Context, []*T) ([]Output, error)) (Output, error) {
+	var zero Output
+	if item == nil {
+		return zero, errors.New("cannot serialize a nil resource")
+	}
+	items, err := serializeAll(ctx, []*T{item})
+	if err != nil {
+		return zero, err
+	}
+	if len(items) != 1 {
+		return zero, fmt.Errorf("serializing one resource produced %d representations", len(items))
+	}
+	return items[0], nil
+}
+
 // AnyFormatter is a type-erased formatter interface
 // This allows different formatters to return different output types while
 // being stored in the same collection
@@ -54,16 +74,13 @@ type AnyFormatter[Domain any] interface {
 
 // FormatterAdapter wraps a typed Formatter to implement AnyFormatter
 type FormatterAdapter[Output any, Domain any] struct {
-	formatter   Formatter[Output, Domain]
-	contentType string
+	formatter Formatter[Output, Domain]
 }
 
-// NewFormatterAdapter creates a new adapter that wraps a typed formatter
-func NewFormatterAdapter[Output any, Domain any](formatter Formatter[Output, Domain], contentType string) *FormatterAdapter[Output, Domain] {
-	return &FormatterAdapter[Output, Domain]{
-		formatter:   formatter,
-		contentType: contentType,
-	}
+// Adapt erases a typed formatter's wire type so that formatters of one domain
+// type with different wire types can share a collection.
+func Adapt[Output any, Domain any](formatter Formatter[Output, Domain]) AnyFormatter[Domain] {
+	return &FormatterAdapter[Output, Domain]{formatter: formatter}
 }
 
 func (a *FormatterAdapter[Output, Domain]) SerializeAny(ctx context.Context, item Domain) (any, error) {
@@ -87,37 +104,29 @@ func (a *FormatterAdapter[Output, Domain]) Deserialize(ctx context.Context, read
 }
 
 func (a *FormatterAdapter[Output, Domain]) ContentType() string {
-	return a.contentType
+	return a.formatter.ContentType()
 }
 
 // MultiFormatFormatterCollection holds formatters that may return different output types
 // for the same domain type. Supports both serialization and deserialization.
 type MultiFormatFormatterCollection[Domain any] struct {
-	formatters     map[string]AnyFormatter[Domain]
-	defaultKey     string
-	defaultContent string
-	validateBody   func(contentType string, body []byte) error
+	formatters       map[string]AnyFormatter[Domain]
+	defaultFormatter AnyFormatter[Domain]
+	validateBody     func(contentType string, body []byte) error
 }
 
-// NewMultiFormatFormatterCollection creates a new multi-format formatter collection
-func NewMultiFormatFormatterCollection[Domain any](defaultContentType string) *MultiFormatFormatterCollection[Domain] {
-	return &MultiFormatFormatterCollection[Domain]{
-		formatters:     make(map[string]AnyFormatter[Domain]),
-		defaultKey:     "default",
-		defaultContent: defaultContentType,
+// NewFormatterCollection registers each formatter under its own content type.
+// The first one is the default representation, used when a request names no
+// supported media type.
+func NewFormatterCollection[Domain any](defaultFormatter AnyFormatter[Domain], others ...AnyFormatter[Domain]) *MultiFormatFormatterCollection[Domain] {
+	collection := &MultiFormatFormatterCollection[Domain]{
+		formatters:       make(map[string]AnyFormatter[Domain], 1+len(others)),
+		defaultFormatter: defaultFormatter,
 	}
-}
-
-// Register adds a formatter for a specific content type
-func (m *MultiFormatFormatterCollection[Domain]) Register(contentType string, formatter AnyFormatter[Domain]) *MultiFormatFormatterCollection[Domain] {
-	m.formatters[contentType] = formatter
-	return m
-}
-
-// RegisterDefault sets the default formatter (used when content type doesn't match)
-func (m *MultiFormatFormatterCollection[Domain]) RegisterDefault(formatter AnyFormatter[Domain]) *MultiFormatFormatterCollection[Domain] {
-	m.formatters[m.defaultKey] = formatter
-	return m
+	for _, formatter := range append([]AnyFormatter[Domain]{defaultFormatter}, others...) {
+		collection.formatters[formatter.ContentType()] = formatter
+	}
+	return collection
 }
 
 // SetRequestValidator attaches a raw-body validation hook. The hook runs
@@ -128,60 +137,98 @@ func (m *MultiFormatFormatterCollection[Domain]) SetRequestValidator(validator f
 	return m
 }
 
-// RegisterTyped is a convenience method to register a typed formatter
-func RegisterFormatterTyped[Output any, Domain any](m *MultiFormatFormatterCollection[Domain], contentType string, formatter Formatter[Output, Domain]) *MultiFormatFormatterCollection[Domain] {
-	adapter := NewFormatterAdapter(formatter, contentType)
-	return m.Register(contentType, adapter)
-}
-
-// RegisterTypedDefault is a convenience method to register a typed formatter as default
-func RegisterFormatterTypedDefault[Output any, Domain any](m *MultiFormatFormatterCollection[Domain], formatter Formatter[Output, Domain], contentType string) *MultiFormatFormatterCollection[Domain] {
-	adapter := NewFormatterAdapter(formatter, contentType)
-	return m.RegisterDefault(adapter)
-}
-
-// GetFormatter returns the formatter for the given content type
+// GetFormatter returns the formatter for the given content type, or the
+// default one when the content type is not supported.
 func (m *MultiFormatFormatterCollection[Domain]) GetFormatter(contentType string) AnyFormatter[Domain] {
-	contentType = normalizeContentType(contentType)
-	if formatter, exists := m.formatters[contentType]; exists {
+	if formatter, exists := m.formatters[mediatype.Normalize(contentType)]; exists {
 		return formatter
 	}
-	return m.formatters[m.defaultKey]
+	return m.defaultFormatter
 }
 
-// GetResponseContentType returns the content type that will be produced for the given accept header
-func (m *MultiFormatFormatterCollection[Domain]) GetResponseContentType(acceptHeader string) string {
-	if formatter := m.GetFormatter(acceptHeader); formatter != nil {
-		return formatter.ContentType()
+// Negotiate scores each representation using its most specific matching range.
+// A specific q=0 exclusion cannot be overridden by a wildcard or JSON alias.
+func (m *MultiFormatFormatterCollection[Domain]) Negotiate(accepted []mediatype.Range) (string, bool) {
+	if len(accepted) == 0 {
+		return m.defaultFormatter.ContentType(), true
 	}
-	return m.defaultContent
+	bestType, bestQ, bestSpecificity, bestOrder := "", 0.0, -2, len(accepted)
+	for _, contentType := range m.ContentTypes() {
+		q, specificity, order := 0.0, -2, len(accepted)
+		for i, r := range accepted {
+			match := -2
+			switch {
+			case r.Type == contentType:
+				match = 2
+			case r.Type == strings.SplitN(contentType, "/", 2)[0]+"/*":
+				match = 1
+			case r.Type == "*/*":
+				match = 0
+			case r.Type == mediatype.JSON && contentType == m.defaultFormatter.ContentType():
+				// Keep the existing plain-JSON alias below actual media ranges.
+				match = -1
+			}
+			if match > specificity {
+				q, specificity, order = r.Q, match, i
+			}
+		}
+		if q > bestQ || (q > 0 && q == bestQ && (specificity > bestSpecificity || (specificity == bestSpecificity && order < bestOrder))) {
+			bestType, bestQ, bestSpecificity, bestOrder = contentType, q, specificity, order
+		}
+	}
+	return bestType, bestQ > 0
+}
+
+// ContentTypes lists the representations the collection produces, the
+// default first.
+func (m *MultiFormatFormatterCollection[Domain]) ContentTypes() []string {
+	types := []string{m.defaultFormatter.ContentType()}
+	for contentType := range m.formatters {
+		if contentType != types[0] {
+			types = append(types, contentType)
+		}
+	}
+	slices.Sort(types[1:])
+	return types
 }
 
 // --- Serialization methods ---
 
 // Serialize serializes a single item using the appropriate formatter
 func (m *MultiFormatFormatterCollection[Domain]) Serialize(contentType string, item Domain) (any, error) {
+	return m.SerializeContext(context.Background(), contentType, item)
+}
+
+func (m *MultiFormatFormatterCollection[Domain]) SerializeContext(ctx context.Context, contentType string, item Domain) (any, error) {
 	formatter := m.GetFormatter(contentType)
-	return formatter.SerializeAny(context.Background(), item)
+	return formatter.SerializeAny(ctx, item)
 }
 
 // SerializeAll serializes multiple items using the appropriate formatter
 func (m *MultiFormatFormatterCollection[Domain]) SerializeAll(contentType string, items []Domain) ([]any, error) {
+	return m.SerializeAllContext(context.Background(), contentType, items)
+}
+
+func (m *MultiFormatFormatterCollection[Domain]) SerializeAllContext(ctx context.Context, contentType string, items []Domain) ([]any, error) {
 	formatter := m.GetFormatter(contentType)
-	return formatter.SerializeAllAny(context.Background(), items)
+	return formatter.SerializeAllAny(ctx, items)
 }
 
 // --- Deserialization methods ---
 
 // Deserialize deserializes from a reader using the appropriate formatter
 func (m *MultiFormatFormatterCollection[Domain]) Deserialize(contentType string, reader io.Reader) (Domain, error) {
+	return m.DeserializeContext(context.Background(), contentType, reader)
+}
+
+func (m *MultiFormatFormatterCollection[Domain]) DeserializeContext(ctx context.Context, contentType string, reader io.Reader) (Domain, error) {
 	var zero Domain
 	body, err := io.ReadAll(reader)
 	if err != nil {
 		return zero, err
 	}
 	formatter := m.GetFormatter(contentType)
-	validationContentType := normalizeContentType(contentType)
+	validationContentType := mediatype.Normalize(contentType)
 	if _, registered := m.formatters[validationContentType]; !registered {
 		// The formatter falls back to its default representation for a missing
 		// or unsupported Content-Type, so validate that resolved representation
@@ -194,23 +241,15 @@ func (m *MultiFormatFormatterCollection[Domain]) Deserialize(contentType string,
 			return zero, err
 		}
 	}
-	return formatter.Deserialize(context.Background(), bytes.NewReader(body))
-}
-
-func normalizeContentType(contentType string) string {
-	mediaType, _, err := mime.ParseMediaType(contentType)
-	if err == nil && mediaType != "" {
-		return strings.ToLower(mediaType)
-	}
-	return strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	return formatter.Deserialize(ctx, bytes.NewReader(body))
 }
 
 // --- Collection building ---
 
 // BuildCollection builds a collection response using the multi-format formatter.
 // The envelope shape follows the resolved formatter's content type: GeoJSON
-// formats produce a "FeatureCollection" with "features", while SensorML
-// (application/sml+json) produces a plain "items" collection per the OGC spec.
+// produces a "FeatureCollection" with "features"; SensorML and Part 2 JSON
+// produce a plain "items" collection per the OGC spec.
 func (m *MultiFormatFormatterCollection[Domain]) BuildCollection(
 	contentType string,
 	items []Domain,
@@ -218,29 +257,42 @@ func (m *MultiFormatFormatterCollection[Domain]) BuildCollection(
 	total int,
 	requestParams url.Values,
 	queryParams queryparams.QueryParams,
-) any {
+) (any, error) {
+	return m.BuildCollectionContext(context.Background(), contentType, items, basePath, total, requestParams, queryParams)
+}
+
+func (m *MultiFormatFormatterCollection[Domain]) BuildCollectionContext(
+	ctx context.Context,
+	contentType string,
+	items []Domain,
+	basePath string,
+	total int,
+	requestParams url.Values,
+	queryParams queryparams.QueryParams,
+) (any, error) {
 	formatter := m.GetFormatter(contentType)
 
-	elements, err := formatter.SerializeAllAny(context.Background(), items)
+	elements, err := formatter.SerializeAllAny(ctx, items)
 	if err != nil {
-		elements = []any{}
+		return nil, err
 	}
 
-	totalInt := int(total)
 	links := queryParams.BuildPaginationLinks(basePath, requestParams)
 
-	if formatter.ContentType() == "application/sml+json" {
+	// Only GeoJSON has a FeatureCollection; SensorML and Part 2 JSON use the
+	// plain items envelope.
+	if formatter.ContentType() != mediatype.GeoJSON {
 		return AnyItemCollection{
 			Items: elements,
 			Links: links,
-		}
+		}, nil
 	}
 
 	return AnyFeatureCollection{
 		Type:           "FeatureCollection",
 		Features:       elements,
-		NumberMatched:  &totalInt,
+		NumberMatched:  &total,
 		NumberReturned: len(items),
 		Links:          links,
-	}
+	}, nil
 }

@@ -1,17 +1,15 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -46,26 +44,19 @@ func NewPropertyHandler(cfg *config.Config, logger *zap.Logger, repo *repository
 func (h *PropertyHandler) ListProperties(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.PropertiesQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	properties, total, err := h.repo.List(params)
+	properties, total, err := h.repo.List(r.Context(), params)
 	if err != nil {
 		h.logger.Error("Failed to list properties", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Use Accept header for content negotiation (not Content-Type)
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, properties, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	// Set the response content type based on the serializer used
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, properties, total, params.QueryParams)
 }
 
 // GetProperty returns a single property by ID
@@ -82,26 +73,13 @@ func (h *PropertyHandler) ListProperties(w http.ResponseWriter, r *http.Request)
 func (h *PropertyHandler) GetProperty(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	property, err := h.repo.GetByID(id)
+	property, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get property", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Property not found"})
+		writeRepositoryError(w, r, h.logger, err, "Property", "Failed to load property")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, property)
-	if err != nil {
-		h.logger.Error("Failed to serialize property", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize property"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	writeNegotiated(w, serialized)
+	writeResource(w, r, h.logger, h.fc, property)
 }
 
 // CreateProperty creates a new property
@@ -117,17 +95,15 @@ func (h *PropertyHandler) GetProperty(w http.ResponseWriter, r *http.Request) {
 // @Router      /properties [post]
 func (h *PropertyHandler) CreateProperty(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
-	property, err := h.fc.Deserialize(contentType, r.Body)
+	property, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize property", zap.Error(err))
 		writeDeserializeError(w, r, err)
 		return
 	}
 
-	if err := h.repo.Create(property); err != nil {
-		h.logger.Error("Failed to create property", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create property"})
+	if err := h.repo.Create(r.Context(), property); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Property", "Failed to create property")
 		return
 	}
 	// Per conformance behavior, respond with 201 Created and a Location header
@@ -154,7 +130,7 @@ func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request)
 	id := chi.URLParam(r, "id")
 
 	contentType := r.Header.Get("Content-Type")
-	property, err := h.fc.Deserialize(contentType, r.Body)
+	property, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize property", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -162,10 +138,8 @@ func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request)
 	}
 
 	property.ID = id
-	if err := h.repo.Update(property); err != nil {
-		h.logger.Error("Failed to update property", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update property"})
+	if err := h.repo.Update(r.Context(), property); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Property", "Failed to update property")
 		return
 	}
 
@@ -185,16 +159,8 @@ func (h *PropertyHandler) UpdateProperty(w http.ResponseWriter, r *http.Request)
 func (h *PropertyHandler) DeleteProperty(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	if err := h.repo.Delete(id); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Property not found"})
-		default:
-			h.logger.Error("Failed to delete property", zap.String("id", id), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete property"})
-		}
+	if err := h.repo.Delete(r.Context(), id); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Property", "Failed to delete property")
 		return
 	}
 

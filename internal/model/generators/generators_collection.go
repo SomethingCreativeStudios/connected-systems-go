@@ -1,9 +1,9 @@
 package generators
 
 import (
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/google/uuid"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
 // FakeCollection returns a populated Collection

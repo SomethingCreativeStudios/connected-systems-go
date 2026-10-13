@@ -6,7 +6,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
 )
 
 const asyncAPIContentType = "application/vnd.aai.asyncapi+json;version=2.6.0"
@@ -159,7 +160,7 @@ func resourceDataChannel(summary string, serverPublishes, serverAccepts bool, pa
 	message := map[string]any{
 		"name":        "resourceData",
 		"title":       "Resource Data Message",
-		"contentType": "application/json",
+		"contentType": mediatype.JSON,
 		"payload": map[string]any{
 			"type":                 "object",
 			"description":          "A complete native representation of one supported Connected Systems resource.",
@@ -194,7 +195,7 @@ func resourceEventChannel(summary string, parameters map[string]string) map[stri
 					"id":              map[string]any{"type": "string", "minLength": 1},
 					"parentId":        map[string]any{"type": "string", "format": "uri"},
 					"time":            map[string]any{"type": "string", "format": "date-time"},
-					"datacontenttype": map[string]any{"type": "string", "const": "application/json"},
+					"datacontenttype": map[string]any{"type": "string", "const": mediatype.JSON},
 					"data": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
@@ -232,7 +233,7 @@ func batchResourceEventChannel(summary string, parameters map[string]string) map
 					"id":              map[string]any{"type": "string", "minLength": 1},
 					"parentId":        map[string]any{"type": "string", "format": "uri"},
 					"time":            map[string]any{"type": "string", "format": "date-time"},
-					"datacontenttype": map[string]any{"type": "string", "const": "application/json"},
+					"datacontenttype": map[string]any{"type": "string", "const": mediatype.JSON},
 					"data": map[string]any{
 						"type":     "object",
 						"required": []string{"timerange", "count"},

@@ -4,36 +4,30 @@ import (
 	"context"
 	"io"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // FeatureCollectionGeoJSONFormatter handles serialization and deserialization of Feature objects in GeoJSON format
 type FeatureCollectionGeoJSONFormatter struct {
 	formaters.Formatter[domains.CollectionGeoJSONFeature, *domains.Collection]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewFeatureCollectionGeoJSONFormatter constructs a formatter with required repository readers
-func NewFeatureCollectionGeoJSONFormatter(repos *repository.Repositories) *FeatureCollectionGeoJSONFormatter {
-	return &FeatureCollectionGeoJSONFormatter{repos: repos}
+func NewFeatureCollectionGeoJSONFormatter(links *formaters.LinkResolver) *FeatureCollectionGeoJSONFormatter {
+	return &FeatureCollectionGeoJSONFormatter{links: links}
 }
 
 func (f *FeatureCollectionGeoJSONFormatter) ContentType() string {
-	return GeoJSONContentType
+	return mediatype.GeoJSON
 }
 
 // --- Serialization ---
 
 func (f *FeatureCollectionGeoJSONFormatter) Serialize(ctx context.Context, collection *domains.Collection) (domains.CollectionGeoJSONFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.Collection{collection})
-
-	if err != nil {
-		return domains.CollectionGeoJSONFeature{}, err
-	}
-
-	return features[0], nil
+	return formaters.SerializeOne(ctx, collection, f.SerializeAll)
 }
 
 func (f *FeatureCollectionGeoJSONFormatter) SerializeAll(ctx context.Context, collections []*domains.Collection) ([]domains.CollectionGeoJSONFeature, error) {

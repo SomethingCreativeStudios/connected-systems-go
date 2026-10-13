@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -22,69 +22,22 @@ func NewSystemRepository(db *gorm.DB) *SystemRepository {
 }
 
 // Build all necessary associations for a system
-func (r *SystemRepository) BuildSystemAssociations(systemID string) common_shared.Links {
-
-	links := common_shared.Links{}
-
-	if has, err := r.HasSubsystems(systemID); err == nil && has {
-		links = append(links, common_shared.Link{
-			Rel:  common_shared.OGCRel("subsystems"),
-			Href: "/systems/" + systemID + "/subsystems",
-		})
-	}
-
-	if has, err := r.HasSamplingFeatures(systemID); err == nil && has {
-		links = append(links, common_shared.Link{
-			Rel:  common_shared.OGCRel("samplingFeatures"),
-			Href: "/systems/" + systemID + "/samplingFeatures",
-		})
-	}
-
-	if has, err := r.HasDatastreams(systemID); err == nil && has {
-		links = append(links, common_shared.Link{
-			Rel:  common_shared.OGCRel("datastreams"),
-			Href: "/systems/" + systemID + "/datastreams",
-		})
-	}
-
-	if has, err := r.HasControlStreams(systemID); err == nil && has {
-		links = append(links, common_shared.Link{
-			Rel:  common_shared.OGCRel("controlstreams"),
-			Href: "/systems/" + systemID + "/controlstreams",
-		})
-	}
-
-	if has, err := r.HasDeployments(systemID); err == nil && has {
-		links = append(links, common_shared.Link{
-			Rel:  common_shared.OGCRel("deployments"),
-			Href: "/systems/" + systemID + "/deployments",
-		})
-	}
-
-	if has, err := r.HasProcedures(systemID); err == nil && has {
-		links = append(links, common_shared.Link{
-			Rel:  common_shared.OGCRel("procedures"),
-			Href: "/systems/" + systemID + "/procedures",
-		})
-	}
-
-	return links
-}
-
 // Create creates a new system
-func (r *SystemRepository) Create(system *domains.System) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(system).Error; err != nil {
-			return err
+func (r *SystemRepository) Create(ctx context.Context, system *domains.System) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if system.ParentSystemID != nil {
+			if err := requireParent(tx, &domains.System{}, "system", *system.ParentSystemID); err != nil {
+				return err
+			}
 		}
-		return r.syncProcedures(tx, system)
+		return tx.Create(system).Error
 	})
 }
 
 // GetByID retrieves a system by ID
-func (r *SystemRepository) GetByID(id string) (*domains.System, error) {
+func (r *SystemRepository) GetByID(ctx context.Context, id string) (*domains.System, error) {
 	var system domains.System
-	err := r.db.Where("id = ?", id).First(&system).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&system).Error
 	if err != nil {
 		return nil, err
 	}
@@ -92,9 +45,9 @@ func (r *SystemRepository) GetByID(id string) (*domains.System, error) {
 }
 
 // GetByUID retrieves a system by unique identifier
-func (r *SystemRepository) GetByUID(uid string) (*domains.System, error) {
+func (r *SystemRepository) GetByUID(ctx context.Context, uid string) (*domains.System, error) {
 	var system domains.System
-	err := r.db.Where("unique_identifier = ?", uid).First(&system).Error
+	err := r.db.WithContext(ctx).Where("unique_identifier = ?", uid).First(&system).Error
 	if err != nil {
 		return nil, err
 	}
@@ -127,68 +80,27 @@ func (r *SystemRepository) GetByIDs(ctx context.Context, ids []string) (map[stri
 }
 
 // List retrieves systems with filtering
-func (r *SystemRepository) List(params *queryparams.SystemQueryParams) ([]*domains.System, int64, error) {
+func (r *SystemRepository) List(ctx context.Context, params *queryparams.SystemQueryParams) ([]*domains.System, int64, error) {
 	var systems []*domains.System
-	var total int64
 
-	query := r.db.Model(&domains.System{})
+	query := r.db.WithContext(ctx).Model(&domains.System{})
 	query = r.applyFilters(query, params)
 
 	if params.Datetime != nil && params.Datetime.Latest {
-		err := query.Order("valid_time_start desc").Limit(1).Find(&systems).Error
+		err := query.Order("systems.valid_time_start desc").Limit(1).Find(&systems).Error
 		return systems, int64(len(systems)), err
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&systems).Error
-	systems = FinalizeCursorPage(systems, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(systems, func(system *domains.System) []string { return []string{system.ID} })
-	return systems, total, err
-}
-
-// GetSubsystems retrieves subsystems of a parent system
-func (r *SystemRepository) GetSubsystems(parentID string, recursive bool) ([]*domains.System, error) {
-	var systems []*domains.System
-
-	query := r.db.Where("parent_system_id = ?", parentID)
-
-	if err := query.Find(&systems).Error; err != nil {
-		return nil, err
-	}
-
-	// If recursive, get subsystems of subsystems
-	if recursive {
-		var allSystems []*domains.System
-		allSystems = append(allSystems, systems...)
-
-		for _, sys := range systems {
-			children, err := r.GetSubsystems(sys.ID, true)
-			if err != nil {
-				return nil, err
-			}
-			allSystems = append(allSystems, children...)
-		}
-		return allSystems, nil
-	}
-
-	return systems, nil
+	return listPage(query, &params.QueryParams, idOrder("systems"), idAnchor[*domains.System])
 }
 
 // ListSubsystems retrieves direct or recursive subsystems through the database
 // so the route can use the same deterministic cursor pagination as all other
 // resource collections.
-func (r *SystemRepository) ListSubsystems(parentID string, params *queryparams.SystemQueryParams) ([]*domains.System, int64, error) {
+func (r *SystemRepository) ListSubsystems(ctx context.Context, parentID string, params *queryparams.SystemQueryParams) ([]*domains.System, int64, error) {
 	var systems []*domains.System
-	var total int64
 
-	query := r.db.Model(&domains.System{})
+	query := r.db.WithContext(ctx).Model(&domains.System{})
 	if params.Recursive {
 		query = query.Where(`systems.id IN (
 			WITH RECURSIVE subtree(id) AS (
@@ -204,101 +116,62 @@ func (r *SystemRepository) ListSubsystems(parentID string, params *queryparams.S
 	query = applyCQLFilter(r.applyResourceFilters(query, params), &params.QueryParams)
 
 	if params.Datetime != nil && params.Datetime.Latest {
-		err := query.Order("valid_time_start desc").Limit(1).Find(&systems).Error
+		err := query.Order("systems.valid_time_start desc").Limit(1).Find(&systems).Error
 		return systems, int64(len(systems)), err
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{Columns: []string{"systems.id"}})
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&systems).Error
-	systems = FinalizeCursorPage(systems, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(systems, func(system *domains.System) []string { return []string{system.ID} })
-	return systems, total, err
+	return listPage(query, &params.QueryParams, idOrder("systems"), idAnchor[*domains.System])
 }
 
-// Update updates a system
-func (r *SystemRepository) Update(systemId string, system *domains.System) error {
+// Update replaces an existing system. It returns ErrNotFound rather than
+// creating the system, and keeps the parent, which is only ever set through
+// /systems/{id}/subsystems.
+func (r *SystemRepository) Update(ctx context.Context, systemId string, system *domains.System) error {
 	system.ID = systemId
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(system).Error; err != nil {
-			return err
-		}
-		return r.syncProcedures(tx, system)
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceByID(tx, system, func(existing *domains.System) {
+			system.ParentSystemID = existing.ParentSystemID
+		})
 	})
 }
 
-// syncProcedures keeps system_procedures in sync with TypeOfID.
-func (r *SystemRepository) syncProcedures(tx *gorm.DB, system *domains.System) error {
-	if err := tx.Exec("DELETE FROM system_procedures WHERE system_id = ?", system.ID).Error; err != nil {
-		return err
-	}
-	if system.TypeOfID != nil && strings.TrimSpace(*system.TypeOfID) != "" {
-		return tx.Exec(
-			"INSERT INTO system_procedures (system_id, procedure_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
-			system.ID, *system.TypeOfID,
-		).Error
-	}
-	return nil
+// Delete deletes a system
+// systemChildren are the tables whose rows block a non-cascading system delete.
+var systemChildren = []struct {
+	model  any
+	column string
+}{
+	{&domains.System{}, "parent_system_id"},
+	{&domains.SamplingFeature{}, "parent_system_id"},
+	{&domains.Datastream{}, "system_id"},
+	{&domains.ControlStream{}, "system_id"},
 }
 
-// Delete deletes a system
-func (r *SystemRepository) Delete(id string, cascade bool) error {
-	if !cascade {
-		// Application-level child check (no DB FK constraints on these columns).
-		var childCount int64
-		if err := r.db.Model(&domains.System{}).Where("parent_system_id = ?", id).Count(&childCount).Error; err != nil {
+// Delete deletes a system. Without cascade it refuses while the system still
+// has children; the checks and the delete share one transaction.
+func (r *SystemRepository) Delete(ctx context.Context, id string, cascade bool) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		exists, err := hasRows(tx, &domains.System{}, "id = ?", id)
+		if err != nil {
 			return err
 		}
-		if childCount > 0 {
-			return ErrHasChildren
-		}
-		var sfCount int64
-		if err := r.db.Model(&domains.SamplingFeature{}).Where("parent_system_id = ?", id).Count(&sfCount).Error; err != nil {
-			return err
-		}
-		if sfCount > 0 {
-			return ErrHasChildren
-		}
-		var dsCount int64
-		if err := r.db.Model(&domains.Datastream{}).Where("system_id = ?", id).Count(&dsCount).Error; err != nil {
-			return err
-		}
-		if dsCount > 0 {
-			return ErrHasChildren
-		}
-		var csCount int64
-		if err := r.db.Model(&domains.ControlStream{}).Where("system_id = ?", id).Count(&csCount).Error; err != nil {
-			return err
-		}
-		if csCount > 0 {
-			return ErrHasChildren
-		}
-
-		result := r.db.Delete(&domains.System{}, "id = ?", id)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
+		if !exists {
 			return ErrNotFound
 		}
-		return nil
-	}
-
-	var count int64
-	if err := r.db.Model(&domains.System{}).Where("id = ?", id).Count(&count).Error; err != nil {
-		return err
-	}
-	if count == 0 {
-		return ErrNotFound
-	}
-
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		return r.deleteCascade(tx, id)
+		if cascade {
+			return r.deleteCascade(tx, id)
+		}
+		// Application-level child check (no DB FK constraints on these columns).
+		for _, child := range systemChildren {
+			has, err := hasRows(tx, child.model, child.column+" = ?", id)
+			if err != nil {
+				return err
+			}
+			if has {
+				return ErrHasChildren
+			}
+		}
+		return tx.Delete(&domains.System{}, "id = ?", id).Error
 	})
 }
 
@@ -341,9 +214,6 @@ func (r *SystemRepository) deleteCascade(tx *gorm.DB, systemID string) error {
 	if err := tx.Exec("DELETE FROM system_deployments WHERE system_id = ?", systemID).Error; err != nil {
 		return err
 	}
-	if err := tx.Exec("DELETE FROM system_procedures WHERE system_id = ?", systemID).Error; err != nil {
-		return err
-	}
 
 	return tx.Delete(&domains.System{}, "id = ?", systemID).Error
 }
@@ -355,9 +225,6 @@ func (r *SystemRepository) deleteSystemDatastreams(tx *gorm.DB, systemID string)
 	}
 
 	if len(datastreamIDs) > 0 {
-		if err := tx.Exec("DELETE FROM system_datastreams WHERE datastream_id IN ?", datastreamIDs).Error; err != nil {
-			return err
-		}
 		if err := tx.Where("datastream_id IN ?", datastreamIDs).Delete(&domains.Observation{}).Error; err != nil {
 			return err
 		}
@@ -373,10 +240,7 @@ func (r *SystemRepository) deleteSystemControlStreams(tx *gorm.DB, systemID stri
 	}
 
 	if len(controlStreamIDs) > 0 {
-		if err := tx.Exec("DELETE FROM system_controlstreams WHERE control_stream_id IN ?", controlStreamIDs).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("control_stream_id IN ?", controlStreamIDs).Delete(&domains.Command{}).Error; err != nil {
+		if err := deleteControlStreamCommands(tx, controlStreamIDs); err != nil {
 			return err
 		}
 	}
@@ -447,61 +311,9 @@ func (r *SystemRepository) removeSystemFromDeployments(tx *gorm.DB, systemID str
 	return nil
 }
 
-// Checks if a system has subsystems
-func (r *SystemRepository) HasSubsystems(systemID string) (bool, error) {
-	return r.hasAssociatedRecords(&domains.System{}, "parent_system_id = ?", systemID)
-}
-
-func (r *SystemRepository) HasSamplingFeatures(systemID string) (bool, error) {
-	return r.hasAssociatedRecords(&domains.SamplingFeature{}, "parent_system_id = ?", systemID)
-}
-
-func (r *SystemRepository) HasDatastreams(systemID string) (bool, error) {
-	return r.hasAssociatedRecords(&domains.Datastream{}, "system_id = ?", systemID)
-}
-
-func (r *SystemRepository) HasControlStreams(systemID string) (bool, error) {
-	return r.hasAssociatedRecords(&domains.ControlStream{}, "system_id = ?", systemID)
-}
-
-func (r *SystemRepository) HasDeployments(systemID string) (bool, error) {
-	var count int64
-	err := r.db.Model(&domains.Deployment{}).
-		Where("system_ids @> ?::jsonb", "[\""+systemID+"\"]").
-		Or("platform_id = ?", systemID).
-		Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
-func (r *SystemRepository) HasProcedures(systemID string) (bool, error) {
-	var count int64
-	err := r.db.Table("system_procedures").Where("system_id = ?", systemID).Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-	if count > 0 {
-		return true, nil
-	}
-
-	var system domains.System
-	err = r.db.Select("id", "type_of_id").Where("id = ?", systemID).First(&system).Error
-	if err != nil {
-		return false, err
-	}
-
-	return system.TypeOfID != nil && strings.TrimSpace(*system.TypeOfID) != "", nil
-}
-
-func (r *SystemRepository) hasAssociatedRecords(model interface{}, query string, args ...interface{}) (bool, error) {
-	var count int64
-	err := r.db.Model(model).Where(query, args...).Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
+// HasSubsystems reports whether a system has subsystems.
+func (r *SystemRepository) HasSubsystems(ctx context.Context, systemID string) (bool, error) {
+	return hasRows(r.db.WithContext(ctx), &domains.System{}, "parent_system_id = ?", systemID)
 }
 
 // applyFilters applies query filters
@@ -514,66 +326,55 @@ func (r *SystemRepository) applyFilters(query *gorm.DB, params *queryparams.Syst
 
 // applyResourceFilters applies filters that are common to canonical and
 // nested System collections. Hierarchy scoping is handled by the caller.
+// Columns are table qualified, and association filters are EXISTS subqueries
+// so a system matching several children is still returned once.
 func (r *SystemRepository) applyResourceFilters(query *gorm.DB, params *queryparams.SystemQueryParams) *gorm.DB {
 	if len(params.IDs) > 0 {
-		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
+		query = query.Where("systems.id IN ? OR systems.unique_identifier IN ?", params.IDs, params.IDs)
 	}
 
-	if len(params.Q) > 0 {
-		var clauses []string
-		var args []interface{}
-		for _, term := range params.Q {
-			clauses = append(clauses, "name ILIKE ?")
-			args = append(args, "%"+term+"%")
-			clauses = append(clauses, "description ILIKE ?")
-			args = append(args, "%"+term+"%")
-		}
-		query = query.Where(strings.Join(clauses, " OR "), args...)
-	}
+	query = applyKeywordFilter(query, params.Q, "systems.name", "systems.description")
 
 	if len(params.Parent) > 0 {
-		query = query.Where("parent_system_id IN ?", params.Parent)
+		query = query.Where("systems.parent_system_id IN ?", params.Parent)
 	}
 
-	if params.Datetime != nil && !params.Datetime.Latest {
-		// Only add conditions if start/end are not nil
-		if params.Datetime.Start != nil && params.Datetime.End != nil {
-			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.Datetime.End, params.Datetime.Start)
-		} else if params.Datetime.Start != nil {
-			query = query.Where("valid_time_end IS NULL OR valid_time_end >= ?", params.Datetime.Start)
-		} else if params.Datetime.End != nil {
-			query = query.Where("valid_time_start <= ?", params.Datetime.End)
-		}
-	}
+	query = applyValidTimeFilter(query, "systems", params.Datetime)
 
 	query = applySpatialIntersectionFilters(query, "systems.geometry", params.Bbox, params.Geom)
 
 	if len(params.Procedure) > 0 {
-		query = query.Joins("JOIN system_procedures ON systems.id = system_procedures.system_id").
-			Where("system_procedures.procedure_id IN ?", params.Procedure)
+		query = query.Where("systems.type_of_id IN ?", params.Procedure)
 	}
 
 	if len(params.FOI) > 0 {
-		query = query.Joins("JOIN sampling_features ON systems.id = sampling_features.parent_system_id").
-			Where("sampling_features.sampled_feature_id IN ? or sampling_features.id IN ?", params.FOI, params.FOI)
+		query = query.Where(`EXISTS (SELECT 1 FROM sampling_features sf
+			WHERE sf.parent_system_id = systems.id AND (sf.sampled_feature_id IN ? OR sf.id IN ?))`, params.FOI, params.FOI)
 	}
 
 	if len(params.ObservedProperty) > 0 {
-		query = query.
-			Joins("JOIN system_datastreams ON systems.id = system_datastreams.system_id").
-			Joins("JOIN datastreams ON system_datastreams.datastream_id = datastreams.id")
-		for _, op := range params.ObservedProperty {
-			query = query.Where("datastreams.observed_properties::text ILIKE ?", "%"+op+"%")
-		}
+		match, args := ilikeAll("ds.observed_properties::text", params.ObservedProperty)
+		query = query.Where(`EXISTS (SELECT 1 FROM datastreams ds
+			WHERE ds.system_id = systems.id AND `+match+`)`, args...)
 	}
 
 	if len(params.ControlledProperty) > 0 {
-		query = query.
-			Joins("JOIN system_controlstreams ON systems.id = system_controlstreams.system_id").
-			Joins("JOIN control_streams ON system_controlstreams.control_stream_id = control_streams.id")
-		for _, cp := range params.ControlledProperty {
-			query = query.Where("control_streams.controlled_properties::text ILIKE ?", "%"+cp+"%")
-		}
+		match, args := ilikeAll("cs.controlled_properties::text", params.ControlledProperty)
+		query = query.Where(`EXISTS (SELECT 1 FROM control_streams cs
+			WHERE cs.system_id = systems.id AND `+match+`)`, args...)
 	}
 	return query
+}
+
+// ilikeAll matches a single row that mentions every term, which keeps the
+// semantics the JOIN-based property filters had: one datastream (or control
+// stream) has to carry all requested properties.
+func ilikeAll(column string, terms []string) (string, []any) {
+	clauses := make([]string, len(terms))
+	args := make([]any, len(terms))
+	for i, term := range terms {
+		clauses[i] = column + " ILIKE ?"
+		args[i] = "%" + term + "%"
+	}
+	return strings.Join(clauses, " AND "), args
 }

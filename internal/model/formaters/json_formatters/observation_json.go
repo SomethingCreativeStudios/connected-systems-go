@@ -3,108 +3,122 @@ package json_formatters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
-// ObservationJSONFeature is the wire-format representation of an observation.
+// ObservationJSONFeature is the application/json representation of an
+// observation. Its fields are listed explicitly so the API shape does not
+// follow the database model.
 type ObservationJSONFeature struct {
-	domains.Observation
+	ID                string                   `json:"id"`
+	DatastreamID      string                   `json:"datastream@id"`
+	SamplingFeatureID *string                  `json:"samplingFeature@id,omitempty"`
+	ProcedureLink     *common_shared.Link      `json:"procedure@link,omitempty"`
+	PhenomenonTime    *time.Time               `json:"phenomenonTime,omitempty"`
+	ResultTime        time.Time                `json:"resultTime"`
+	Parameters        common_shared.Properties `json:"parameters,omitempty"`
+	Result            json.RawMessage          `json:"result,omitempty"`
+	ResultLink        *common_shared.Link      `json:"result@link,omitempty"`
+}
+
+// toDomain keeps the fields a client may write; id and datastream@id are
+// assigned by the server.
+func (w ObservationJSONFeature) toDomain() *domains.Observation {
+	return &domains.Observation{
+		SamplingFeatureID: w.SamplingFeatureID,
+		ProcedureLink:     w.ProcedureLink,
+		PhenomenonTime:    w.PhenomenonTime,
+		ResultTime:        w.ResultTime,
+		Parameters:        w.Parameters,
+		Result:            w.Result,
+		ResultLink:        w.ResultLink,
+	}
 }
 
 // ObservationJSONFormatter handles observation JSON serialization/deserialization.
 type ObservationJSONFormatter struct {
-	formaters.Formatter[ObservationJSONFeature, *domains.Observation]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
-func NewObservationJSONFormatter(repos *repository.Repositories) *ObservationJSONFormatter {
-	return &ObservationJSONFormatter{repos: repos}
+var _ formaters.Formatter[ObservationJSONFeature, *domains.Observation] = (*ObservationJSONFormatter)(nil)
+
+func NewObservationJSONFormatter(links *formaters.LinkResolver) *ObservationJSONFormatter {
+	return &ObservationJSONFormatter{links: links}
 }
 
 func (f *ObservationJSONFormatter) ContentType() string {
-	return JSONContentType
+	return mediatype.JSON
 }
 
 func (f *ObservationJSONFormatter) Serialize(ctx context.Context, obs *domains.Observation) (ObservationJSONFeature, error) {
-	if obs == nil {
-		return ObservationJSONFeature{}, fmt.Errorf("observation cannot be nil")
-	}
-	out := ObservationJSONFeature{Observation: *obs}
-	if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
-		out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
-		if out.ProcedureLink.Type == "" {
-			out.ProcedureLink.Type = formaters.SensorMLContentType
-		}
-	}
-	if out.ResultLink != nil && out.ResultLink.Href != "" {
-		out.ResultLink.Href = formaters.ToFunctionalAssociationHref(out.ResultLink.Href)
-	}
-	return out, nil
+	return formaters.SerializeOne(ctx, obs, f.SerializeAll)
 }
 
 func (f *ObservationJSONFormatter) SerializeAll(ctx context.Context, observations []*domains.Observation) ([]ObservationJSONFeature, error) {
-	if len(observations) == 0 {
-		return []ObservationJSONFeature{}, nil
-	}
+	observations = slices.DeleteFunc(slices.Clone(observations), func(obs *domains.Observation) bool { return obs == nil })
 
-	// Collect procedure IDs for batch enrichment
-	procedureIDs := make([]string, 0, len(observations))
+	var procedureIDs []string
 	for _, obs := range observations {
-		if obs == nil {
-			continue
-		}
-		if obs.ProcedureLink != nil && obs.ProcedureLink.Href != "" {
-			id := obs.ProcedureLink.GetId("procedures")
-			if id != nil && *id != "" {
-				procedureIDs = append(procedureIDs, *id)
-			}
+		if obs.ProcedureLink != nil {
+			procedureIDs = appendID(procedureIDs, obs.ProcedureLink.GetId("procedures"))
 		}
 	}
-
-	// Build resource cache for enriching inline links
-	cache := formaters.NewResourceCache()
-	if f.repos != nil && len(procedureIDs) > 0 {
-		_ = cache.FetchProcedures(ctx, f.repos.Procedure, procedureIDs)
+	cache, err := f.links.Lookup(ctx, formaters.References{Procedures: procedureIDs})
+	if err != nil {
+		return nil, err
 	}
 
 	items := make([]ObservationJSONFeature, 0, len(observations))
 	for _, obs := range observations {
-		if obs == nil {
-			continue
-		}
-		out := ObservationJSONFeature{Observation: *obs}
-		if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
-			out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
-			if out.ProcedureLink.Type == "" {
-				out.ProcedureLink.Type = formaters.SensorMLContentType
-			}
-			// Enrich procedure@link from cache
-			procID := out.ProcedureLink.GetId("procedures")
-			if procID != nil {
-				if proc, ok := cache.Procedures[*procID]; ok {
-					out.ProcedureLink.Title = proc.Name
-					uid := string(proc.UniqueIdentifier)
-					if uid != "" {
-						out.ProcedureLink.UID = &uid
-					}
-				}
-			}
-		}
-		if out.ResultLink != nil && out.ResultLink.Href != "" {
-			out.ResultLink.Href = formaters.ToFunctionalAssociationHref(out.ResultLink.Href)
-		}
-		items = append(items, out)
+		procedure := inlineLink(f.links, obs.ProcedureLink, mediatype.SensorML)
+		describeProcedure(procedure, cache)
+		items = append(items, ObservationJSONFeature{
+			ID:                obs.ID,
+			DatastreamID:      obs.DatastreamID,
+			SamplingFeatureID: obs.SamplingFeatureID,
+			ProcedureLink:     procedure,
+			PhenomenonTime:    obs.PhenomenonTime,
+			ResultTime:        obs.ResultTime,
+			Parameters:        obs.Parameters,
+			Result:            obs.Result,
+			ResultLink:        inlineLink(f.links, obs.ResultLink, ""),
+		})
 	}
 	return items, nil
 }
 
 func (f *ObservationJSONFormatter) Deserialize(ctx context.Context, reader io.Reader) (*domains.Observation, error) {
+	wire, err := decodeObservation(reader)
+	if err != nil {
+		return nil, err
+	}
+	return wire.toDomain(), nil
+}
+
+// DeserializeResourceData decodes an observation published as a complete
+// Pub/Sub Resource Data Message, which also carries the id and datastream@id
+// that a request body cannot set.
+func (f *ObservationJSONFormatter) DeserializeResourceData(ctx context.Context, reader io.Reader) (*domains.Observation, error) {
+	wire, err := decodeObservation(reader)
+	if err != nil {
+		return nil, err
+	}
+	observation := wire.toDomain()
+	observation.ID = wire.ID
+	observation.DatastreamID = wire.DatastreamID
+	return observation, nil
+}
+
+func decodeObservation(reader io.Reader) (*ObservationJSONFeature, error) {
 	raw, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
@@ -145,10 +159,10 @@ func (f *ObservationJSONFormatter) Deserialize(ctx context.Context, reader io.Re
 	_, hasResult := rawMap["result"]
 	_, hasResultLink := rawMap["result@link"]
 	if !hasResult && !hasResultLink {
-		return nil, fmt.Errorf("Either result or result@link is required")
+		return nil, errors.New("either result or result@link is required")
 	}
 
-	wire, err := common_shared.DecodeWithFieldErrors[domains.Observation](raw)
+	wire, err := common_shared.DecodeWithFieldErrors[ObservationJSONFeature](raw)
 	if err != nil {
 		return nil, err
 	}

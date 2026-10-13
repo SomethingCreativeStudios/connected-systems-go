@@ -1,21 +1,13 @@
 package sensorml_formatters
 
 import (
+	"context"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	formaters "github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 const testAssociationBaseURL = "http://example.test"
-
-func useTestAssociationBaseURL(t *testing.T) {
-	t.Helper()
-	formaters.SetAssociationLinksBaseURL(testAssociationBaseURL)
-	t.Cleanup(func() {
-		formaters.SetAssociationLinksBaseURL("")
-	})
-}
 
 func assertHasRel(t *testing.T, links common_shared.Links, rel string) {
 	t.Helper()
@@ -44,4 +36,12 @@ func assertHasHref(t *testing.T, links common_shared.Links, rel, href string) {
 		}
 	}
 	t.Fatalf("expected rel %q href %q in %+v", rel, href, links)
+}
+
+// stubChildren reports fixed nested collections with members, as a
+// repository's ChildCollections would.
+type stubChildren map[string][]string
+
+func (s stubChildren) ChildCollections(context.Context, []string) (map[string][]string, error) {
+	return s, nil
 }

@@ -7,14 +7,15 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/queryables"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/queryables"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -49,8 +50,7 @@ func (h *CollectionHandler) CreateCollection(w http.ResponseWriter, r *http.Requ
 		Queryables common_shared.Properties `json:"queryables"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Invalid request payload"))
+		writeValidationError(w, r, err)
 		return
 	}
 	collection := input.Collection
@@ -63,30 +63,22 @@ func (h *CollectionHandler) CreateCollection(w http.ResponseWriter, r *http.Requ
 	}
 	if collection.ItemType == "feature" {
 		if err := queryables.ValidateCustomCatalog(collection.Queryables); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+			writeError(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
 	ensureCollectionQueryablesLink(&collection, h.cfg.API.BaseURL)
+	response, ok := prepareResource(w, r, h.logger, h.fc, &collection)
+	if !ok {
+		return
+	}
 	ctx := r.Context()
 	if err := h.Repo.CreateCollection(ctx, &collection); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
+		writeRepositoryError(w, r, h.logger, err, "Collection", "Failed to create collection")
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, &collection)
-	if err != nil {
-		h.logger.Error("Failed to serialize collection", zap.String("id", collection.ID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize collection"})
-		return
-	}
-
-	json.NewEncoder(w).Encode(serialized)
+	w.Header().Set("Location", strings.TrimRight(h.cfg.API.BaseURL, "/")+"/collections/"+collection.ID)
+	response.write(w, http.StatusCreated)
 }
 
 // GetQueryables returns the OGC API Features Part 3 JSON Schema catalog for a
@@ -106,15 +98,13 @@ func (h *CollectionHandler) GetQueryables(w http.ResponseWriter, r *http.Request
 	if _, ok := queryables.PropertiesFor(resource); !ok {
 		collection, err := h.Repo.GetCollectionByID(r.Context(), id)
 		if err != nil {
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Collection not found"})
+			writeRepositoryError(w, r, h.logger, err, "Collection", "Failed to load collection")
 			return
 		}
 		resource = queryables.Features
 		schema, err := queryables.SchemaWithCatalog(resource, h.cfg.API.BaseURL+r.URL.Path, queryables.CatalogOrDefault(collection.Queryables))
 		if err != nil {
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": err.Error()})
+			writeError(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/schema+json")
@@ -123,8 +113,7 @@ func (h *CollectionHandler) GetQueryables(w http.ResponseWriter, r *http.Request
 	}
 	schema, err := queryables.Schema(resource, h.cfg.API.BaseURL+r.URL.Path)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusNotFound, err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "application/schema+json")
@@ -144,8 +133,7 @@ func (h *CollectionHandler) ListCollections(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	collections, err := h.Repo.ListCollections(ctx)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
+		writeRepositoryError(w, r, h.logger, err, "Collection", "Failed to list collections")
 		return
 	}
 
@@ -170,7 +158,7 @@ func (h *CollectionHandler) ListCollections(w http.ResponseWriter, r *http.Reque
 		NumberReturned: len(collections),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, resp)
 }
 
@@ -193,7 +181,7 @@ func (h *CollectionHandler) GetCollection(w http.ResponseWriter, r *http.Request
 	canonicals := ensureCanonicalCollections(nil, h.cfg.API.BaseURL)
 	for _, c := range canonicals {
 		if c.ID == id {
-			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Type", mediatype.JSON)
 			render.JSON(w, r, c)
 			return
 		}
@@ -201,13 +189,12 @@ func (h *CollectionHandler) GetCollection(w http.ResponseWriter, r *http.Request
 
 	collection, err := h.Repo.GetCollectionByID(ctx, id)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("Collection not found"))
+		writeRepositoryError(w, r, h.logger, err, "Collection", "Failed to load collection")
 		return
 	}
 	ensureCollectionQueryablesLink(collection, h.cfg.API.BaseURL)
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	writeNegotiated(w, collection)
 }
 
@@ -238,16 +225,16 @@ func ensureCanonicalCollections(existing []*domains.Collection, baseURL string) 
 	}
 
 	defaults := []*domains.Collection{
-		newCanonicalCollection(baseURL, "systems", "Systems", "All system instances (sensors, actuators, platforms, etc.)", "feature", "application/geo+json", "sosa:System"),
-		newCanonicalCollection(baseURL, "deployments", "Deployments", "System deployment descriptions", "feature", "application/geo+json", "sosa:Deployment"),
-		newCanonicalCollection(baseURL, "procedures", "Procedures", "System datasheets and methodologies", "feature", "application/sml+json", "sosa:Procedure"),
-		newCanonicalCollection(baseURL, "samplingFeatures", "Sampling Features", "Sampling strategies and geometries", "feature", "application/geo+json", "sosa:Sample"),
-		newCanonicalCollection(baseURL, "properties", "Properties", "Observable and controllable property definitions", "record", "application/sml+json", "sosa:Property"),
-		newCanonicalCollection(baseURL, "datastreams", "Datastreams", "Observation datastream metadata resources", "record", "application/json", ""),
-		newCanonicalCollection(baseURL, "observations", "Observations", "Observation resources across datastreams", "record", "application/json", ""),
-		newCanonicalCollection(baseURL, "controlstreams", "Control Streams", "Tasking/control channel metadata resources", "record", "application/json", ""),
-		newCanonicalCollection(baseURL, "commands", "Commands", "Command resources issued through control streams", "record", "application/json", ""),
-		newCanonicalCollection(baseURL, "systemEvents", "System Events", "System event resources", "record", "application/json", ""),
+		newCanonicalCollection(baseURL, "systems", "Systems", "All system instances (sensors, actuators, platforms, etc.)", "feature", mediatype.GeoJSON, "sosa:System"),
+		newCanonicalCollection(baseURL, "deployments", "Deployments", "System deployment descriptions", "feature", mediatype.GeoJSON, "sosa:Deployment"),
+		newCanonicalCollection(baseURL, "procedures", "Procedures", "System datasheets and methodologies", "feature", mediatype.SensorML, "sosa:Procedure"),
+		newCanonicalCollection(baseURL, "samplingFeatures", "Sampling Features", "Sampling strategies and geometries", "feature", mediatype.GeoJSON, "sosa:Sample"),
+		newCanonicalCollection(baseURL, "properties", "Properties", "Observable and controllable property definitions", "record", mediatype.SensorML, "sosa:Property"),
+		newCanonicalCollection(baseURL, "datastreams", "Datastreams", "Observation datastream metadata resources", "record", mediatype.JSON, ""),
+		newCanonicalCollection(baseURL, "observations", "Observations", "Observation resources across datastreams", "record", mediatype.JSON, ""),
+		newCanonicalCollection(baseURL, "controlstreams", "Control Streams", "Tasking/control channel metadata resources", "record", mediatype.JSON, ""),
+		newCanonicalCollection(baseURL, "commands", "Commands", "Command resources issued through control streams", "record", mediatype.JSON, ""),
+		newCanonicalCollection(baseURL, "systemEvents", "System Events", "System event resources", "record", mediatype.JSON, ""),
 	}
 
 	out := make([]*domains.Collection, 0, len(existing)+len(defaults))
@@ -275,7 +262,7 @@ func newCanonicalCollection(baseURL, id, title, description, itemType, mediaType
 		ItemType:    itemType,
 		FeatureType: featureType,
 		Links: []common_shared.Link{
-			{Href: trimmedBaseURL + "/collections/" + id, Rel: "self", Type: "application/json"},
+			{Href: trimmedBaseURL + "/collections/" + id, Rel: "self", Type: mediatype.JSON},
 			{Href: trimmedBaseURL + "/collections/" + id + "/items", Rel: "items", Type: mediaType},
 			{Href: trimmedBaseURL + "/collections/" + id + "/queryables", Rel: "http://www.opengis.net/def/rel/ogc/1.0/queryables", Type: "application/schema+json"},
 		},

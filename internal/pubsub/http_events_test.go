@@ -1,13 +1,14 @@
 package pubsub
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"go.uber.org/zap"
 )
 
@@ -16,7 +17,7 @@ type fixedResolver struct {
 	paths  []string
 }
 
-func (r *fixedResolver) Resolve(path string, operation Operation) (Change, error) {
+func (r *fixedResolver) Resolve(_ context.Context, path string, operation Operation) (Change, error) {
 	r.paths = append(r.paths, path)
 	change := r.change
 	change.Operation = operation

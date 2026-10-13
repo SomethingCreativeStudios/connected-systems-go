@@ -3,9 +3,9 @@ package generators
 import (
 	"fmt"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/google/uuid"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
 // FakeProperty returns a populated domains.Property
@@ -23,9 +23,9 @@ func FakeProperty() domains.Property {
 		},
 		Definition:        f.Internet().URL(),
 		PropertyType:      domains.PropertyTypeObservable,
-		ObjectType:        ptrString("Sensor"),
-		BaseProperty:      ptrString("baseProp"),
-		Statistic:         ptrString("statistic"),
+		ObjectType:        new("Sensor"),
+		BaseProperty:      new("baseProp"),
+		Statistic:         new("statistic"),
 		Qualifiers:        common_shared.ComponentWrappers{FakeComponentWrapper()},
 		UnitOfMeasurement: &uom,
 		Links:             FakeLinks(),

@@ -14,12 +14,12 @@ func TestCollectionsAPI_E2E(t *testing.T) {
 	cleanupDB(t)
 
 	t.Run("POST /collections - create collection", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"id":          "test-collection",
 			"title":       "Test Collection",
 			"description": "A collection for testing",
-			"queryables": map[string]interface{}{
-				"properties":           map[string]interface{}{},
+			"queryables": map[string]any{
+				"properties":           map[string]any{},
 				"additionalProperties": false,
 			},
 		}
@@ -31,7 +31,7 @@ func TestCollectionsAPI_E2E(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 		assert.Equal(t, "test-collection", result["id"])
@@ -44,15 +44,15 @@ func TestCollectionsAPI_E2E(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		cols, ok := result["collections"].([]interface{})
+		cols, ok := result["collections"].([]any)
 		require.True(t, ok, "response must contain 'collections' array")
 		require.GreaterOrEqual(t, len(cols), 1)
 
-		links, ok := result["links"].([]interface{})
+		links, ok := result["links"].([]any)
 		require.True(t, ok, "response must contain 'links' array")
 		require.NotNil(t, links)
 		require.NotContains(t, result, "features", "/collections is not a GeoJSON FeatureCollection")
@@ -65,7 +65,7 @@ func TestCollectionsAPI_E2E(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 		assert.Equal(t, "test-collection", result["id"])

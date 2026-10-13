@@ -7,12 +7,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/api"
+	serverconfig "github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/api"
-	serverconfig "github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/repository"
-	"github.com/yourusername/connected-systems-go/internal/repository/testutil"
 	"go.uber.org/zap"
 )
 
@@ -25,7 +25,7 @@ func TestSeederE2EPostGIS(t *testing.T) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
-	require.NoError(t, repository.AutoMigrate(db))
+	require.NoError(t, repository.Migrate(t.Context(), db))
 	repos := repository.NewRepositories(db)
 
 	apiCfg := &serverconfig.Config{API: serverconfig.APIConfig{BaseURL: "http://placeholder"}}

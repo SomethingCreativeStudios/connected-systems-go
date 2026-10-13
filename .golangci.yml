@@ -1,0 +1,16 @@
+version: "2"
+
+linters:
+  # The standard set: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # Tests and seed scripts may ignore cleanup errors.
+      - path: (_test\.go|scripts/)
+        linters: [errcheck]
+
+formatters:
+  enable:
+    - gofmt

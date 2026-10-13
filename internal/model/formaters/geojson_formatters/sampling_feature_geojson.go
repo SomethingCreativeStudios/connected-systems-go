@@ -5,35 +5,31 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // SamplingFeatureGeoJSONFormatter handles serialization and deserialization of SamplingFeature objects in GeoJSON format
 type SamplingFeatureGeoJSONFormatter struct {
 	formaters.Formatter[domains.SamplingFeatureGeoJSONFeature, *domains.SamplingFeature]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewSamplingFeatureGeoJSONFormatter constructs a formatter with required repository readers
-func NewSamplingFeatureGeoJSONFormatter(repos *repository.Repositories) *SamplingFeatureGeoJSONFormatter {
-	return &SamplingFeatureGeoJSONFormatter{repos: repos}
+func NewSamplingFeatureGeoJSONFormatter(links *formaters.LinkResolver) *SamplingFeatureGeoJSONFormatter {
+	return &SamplingFeatureGeoJSONFormatter{links: links}
 }
 
 func (f *SamplingFeatureGeoJSONFormatter) ContentType() string {
-	return GeoJSONContentType
+	return mediatype.GeoJSON
 }
 
 // --- Serialization ---
 
 func (f *SamplingFeatureGeoJSONFormatter) Serialize(ctx context.Context, sf *domains.SamplingFeature) (domains.SamplingFeatureGeoJSONFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.SamplingFeature{sf})
-	if err != nil {
-		return domains.SamplingFeatureGeoJSONFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, sf, f.SerializeAll)
 }
 
 func (f *SamplingFeatureGeoJSONFormatter) SerializeAll(ctx context.Context, samplingFeatures []*domains.SamplingFeature) ([]domains.SamplingFeatureGeoJSONFeature, error) {
@@ -53,9 +49,9 @@ func (f *SamplingFeatureGeoJSONFormatter) SerializeAll(ctx context.Context, samp
 				Description:        sf.Description,
 				FeatureType:        sf.FeatureType,
 				ValidTime:          common_shared.NonEmptyTimeRange(sf.ValidTime),
-				SampledFeatureLink: absolutizeLink(sf.SampledFeatureLink),
+				SampledFeatureLink: absolutizeLink(f.links, sf.SampledFeatureLink),
 			},
-			Links: formaters.AppendSamplingFeatureGeoJSONAssociationLinks(sf),
+			Links: f.links.SamplingFeatureLinks(sf),
 		}
 
 		features = append(features, feature)
@@ -81,8 +77,9 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 		return nil, err
 	}
 
-	associationLinks := formaters.SamplingFeatureGeoJSONAssociationLinks(geoJSON.Links)
-
+	// ogc-rel links (parentSystem, sampleOf, ...) are server-generated, so they
+	// are ignored on write; the parent system is only ever set through
+	// /systems/{id}/samplingFeatures.
 	sf := &domains.SamplingFeature{
 		Links: common_shared.StripAssociationLinks(geoJSON.Links),
 	}
@@ -123,20 +120,18 @@ func (f *SamplingFeatureGeoJSONFormatter) Deserialize(ctx context.Context, reade
 		sf.SampledFeatureID = link.GetId("items")
 	}
 
-	formaters.ApplySamplingFeatureGeoJSONAssociationLinks(sf, associationLinks)
-
 	return sf, nil
 }
 
 // absolutizeLink returns a copy of the link with an absolute href and GeoJSON type.
-func absolutizeLink(link *common_shared.Link) *common_shared.Link {
+func absolutizeLink(links *formaters.LinkResolver, link *common_shared.Link) *common_shared.Link {
 	if link == nil {
 		return nil
 	}
 	cp := *link
-	cp.Href = formaters.ToFunctionalAssociationHref(cp.Href)
+	cp.Href = links.Href(cp.Href)
 	if cp.Type == "" {
-		cp.Type = formaters.GeoJSONContentType
+		cp.Type = mediatype.GeoJSON
 	}
 	return &cp
 }

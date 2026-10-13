@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"regexp"
 	"strings"
@@ -168,7 +169,7 @@ func PropertiesFor(resource Resource) ([]cql2sql.Property, bool) {
 	switch resource {
 	case Systems:
 		add("parent", api.PropertyTypeString, "parent_system_id")
-		addRaw("procedures", api.PropertyTypeArray, `ARRAY(SELECT sp.procedure_id FROM system_procedures AS sp WHERE sp.system_id = "systems"."id")`)
+		addRaw("procedures", api.PropertyTypeArray, `ARRAY_REMOVE(ARRAY["systems"."type_of_id"]::text[], NULL)`)
 		add("geometry", api.PropertyTypeGeometry, "geometry")
 		add("validTimeStart", api.PropertyTypeTimestamp, "valid_time_start")
 		add("validTimeEnd", api.PropertyTypeTimestamp, "valid_time_end")
@@ -350,9 +351,7 @@ func SchemaWithCatalog(resource Resource, id string, catalog map[string]any) (ma
 		return nil, err
 	}
 	properties := schema["properties"].(map[string]any)
-	for name, value := range catalogProperties(catalog) {
-		properties[name] = value
-	}
+	maps.Copy(properties, catalogProperties(catalog))
 	return schema, nil
 }
 

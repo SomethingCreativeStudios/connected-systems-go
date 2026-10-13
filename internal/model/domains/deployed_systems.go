@@ -25,7 +25,7 @@ func (d DeployedSystemItems) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (d *DeployedSystemItems) Scan(value interface{}) error {
+func (d *DeployedSystemItems) Scan(value any) error {
 	if value == nil {
 		*d = nil
 		return nil
@@ -52,7 +52,7 @@ func (d DeployedSystemItem) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for a single DeployedSystemItem
-func (d *DeployedSystemItem) Scan(value interface{}) error {
+func (d *DeployedSystemItem) Scan(value any) error {
 	if value == nil {
 		*d = DeployedSystemItem{}
 		return nil

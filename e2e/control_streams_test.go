@@ -23,25 +23,25 @@ const (
 // Helper: base payloads
 // ---------------------------------------------------------------------------
 
-func baseControlStreamPayload() map[string]interface{} {
+func baseControlStreamPayload() map[string]any {
 	uniqueID := uuid.NewString()
-	return map[string]interface{}{
+	return map[string]any{
 		"uid":       "urn:uuid:" + uniqueID,
 		"name":      "ControlStream " + uniqueID[:8],
 		"inputName": "thermostat-set-point",
 		"async":     false,
 		"formats":   []string{"application/json"},
-		"schema": map[string]interface{}{
+		"schema": map[string]any{
 			"commandFormat": "application/json",
-			"parametersSchema": map[string]interface{}{
+			"parametersSchema": map[string]any{
 				"type": "DataRecord",
-				"fields": []map[string]interface{}{
+				"fields": []map[string]any{
 					{
 						"name":       "setPoint",
 						"type":       "Quantity",
 						"definition": "http://sensorml.com/ont/swe/property/Temperature",
 						"label":      "Set Point",
-						"uom":        map[string]interface{}{"code": "Cel"},
+						"uom":        map[string]any{"code": "Cel"},
 					},
 				},
 			},
@@ -49,15 +49,15 @@ func baseControlStreamPayload() map[string]interface{} {
 	}
 }
 
-func baseCommandPayload() map[string]interface{} {
-	return map[string]interface{}{
-		"parameters": map[string]interface{}{
+func baseCommandPayload() map[string]any {
+	return map[string]any{
+		"parameters": map[string]any{
 			"setPoint": 22.5,
 		},
 	}
 }
 
-func createCommandViaAPI(t *testing.T, controlStreamID string, payload map[string]interface{}) string {
+func createCommandViaAPI(t *testing.T, controlStreamID string, payload map[string]any) string {
 	t.Helper()
 
 	body, err := json.Marshal(payload)
@@ -79,7 +79,7 @@ func createCommandViaAPI(t *testing.T, controlStreamID string, payload map[strin
 }
 
 // createControlStreamViaAPI creates a control stream under a given system and returns the new ID.
-func createControlStreamViaAPI(t *testing.T, systemID string, payload map[string]interface{}) string {
+func createControlStreamViaAPI(t *testing.T, systemID string, payload map[string]any) string {
 	t.Helper()
 
 	body, err := json.Marshal(payload)
@@ -105,9 +105,9 @@ func createControlStreamViaAPI(t *testing.T, systemID string, payload map[string
 // createSystemForControlStreamTest is a thin helper that returns a bare system ID.
 func createSystemForControlStreamTest(t *testing.T) string {
 	t.Helper()
-	sys := map[string]interface{}{
+	sys := map[string]any{
 		"type": "Feature",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"uid":         "urn:uuid:" + uuid.NewString(),
 			"name":        "Test System " + uuid.NewString()[:8],
 			"featureType": "http://www.w3.org/ns/sosa/Sensor",
@@ -126,12 +126,9 @@ func createSystemForControlStreamTest(t *testing.T) string {
 	return id
 }
 
-func requireControlStreamSchemaOrSkip(t *testing.T, body []byte, schema string) {
+func requireControlStreamSchema(t *testing.T, body []byte, schema string) {
 	t.Helper()
 	err := validateAgainstSchema(t, body, schema)
-	if err != nil && strings.Contains(err.Error(), "failed to compile schema") {
-		t.Skipf("skipping schema assertion due invalid bundled schema refs: %v", err)
-	}
 	require.NoError(t, err)
 }
 
@@ -161,19 +158,19 @@ func TestControlStream_ResourcesEndpoint(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.Unmarshal(body, &collection))
 
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok, "response must contain 'items' array")
 	require.GreaterOrEqual(t, len(items), 1)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
-		if obj, ok := item.(map[string]interface{}); ok {
+		if obj, ok := item.(map[string]any); ok {
 			if id, _ := obj["id"].(string); id == csID {
 				found = true
 				break
@@ -205,7 +202,7 @@ func TestControlStream_CanonicalURL(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var cs map[string]interface{}
+	var cs map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&cs))
 	assert.Equal(t, csID, cs["id"])
 	assert.Equal(t, payload["name"], cs["name"])
@@ -232,20 +229,20 @@ func TestControlStream_SystemLink(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var cs map[string]interface{}
+	var cs map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&cs))
 
-	systemLink, ok := cs["system@link"].(map[string]interface{})
+	systemLink, ok := cs["system@link"].(map[string]any)
 	require.True(t, ok, "control stream must have a 'system@link' object")
 	href, _ := systemLink["href"].(string)
 	assert.Contains(t, href, systemID, "system@link href must reference the parent system ID")
 
-	links, ok := cs["links"].([]interface{})
+	links, ok := cs["links"].([]any)
 	require.True(t, ok, "control stream must expose a links array")
 
 	foundCommandsLink := false
 	for _, rawLink := range links {
-		link, ok := rawLink.(map[string]interface{})
+		link, ok := rawLink.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -280,18 +277,18 @@ func TestControlStream_SystemSubCollection(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
 
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
-		if obj, ok := item.(map[string]interface{}); ok {
+		if obj, ok := item.(map[string]any); ok {
 			if id, _ := obj["id"].(string); id == csID {
 				found = true
 				break
@@ -324,7 +321,7 @@ func TestControlStreamSchema_JSON(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	requireControlStreamSchemaOrSkip(t, body, ControlStreamJSONSchema)
+	requireControlStreamSchema(t, body, ControlStreamJSONSchema)
 }
 
 // =============================================================================
@@ -350,7 +347,7 @@ func TestControlStreamCRUD(t *testing.T) {
 	defer getResp.Body.Close()
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 
-	var fetched map[string]interface{}
+	var fetched map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&fetched))
 	assert.Equal(t, payload["name"], fetched["name"])
 
@@ -371,7 +368,7 @@ func TestControlStreamCRUD(t *testing.T) {
 	getResp2, err := http.DefaultClient.Do(getReq2)
 	require.NoError(t, err)
 	defer getResp2.Body.Close()
-	var refetched map[string]interface{}
+	var refetched map[string]any
 	require.NoError(t, json.NewDecoder(getResp2.Body).Decode(&refetched))
 	assert.Equal(t, "Updated Control Stream Name", refetched["name"])
 
@@ -451,12 +448,12 @@ func TestControlStream_SchemaSubResource(t *testing.T) {
 	require.Equal(t, http.StatusOK, schemaResp.StatusCode)
 
 	// Update schema
-	newSchema := map[string]interface{}{
+	newSchema := map[string]any{
 		"commandFormat": "application/json",
-		"parametersSchema": map[string]interface{}{
+		"parametersSchema": map[string]any{
 			"type": "DataRecord",
-			"fields": []map[string]interface{}{
-				{"name": "targetTemperature", "type": "Quantity", "definition": "http://sensorml.com/ont/swe/property/Temperature", "label": "Target Temperature", "uom": map[string]interface{}{"code": "Cel"}},
+			"fields": []map[string]any{
+				{"name": "targetTemperature", "type": "Quantity", "definition": "http://sensorml.com/ont/swe/property/Temperature", "label": "Target Temperature", "uom": map[string]any{"code": "Cel"}},
 				{"name": "mode", "type": "Text", "definition": "http://sensorml.com/ont/swe/property/OperatingMode", "label": "Mode"},
 			},
 		},
@@ -477,7 +474,7 @@ func TestControlStream_SchemaSubResource(t *testing.T) {
 	defer getSchemaResp.Body.Close()
 	require.Equal(t, http.StatusOK, getSchemaResp.StatusCode)
 
-	var returnedSchema map[string]interface{}
+	var returnedSchema map[string]any
 	require.NoError(t, json.NewDecoder(getSchemaResp.Body).Decode(&returnedSchema))
 	assert.Equal(t, "application/json", returnedSchema["commandFormat"])
 }
@@ -515,19 +512,19 @@ func TestCommand_ResourcesEndpoint(t *testing.T) {
 	defer listResp.Body.Close()
 	assert.Equal(t, http.StatusOK, listResp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(listResp.Body).Decode(&collection))
 
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok, "response must contain 'items' array")
 	require.GreaterOrEqual(t, len(items), 1)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
-		if obj, ok := item.(map[string]interface{}); ok {
+		if obj, ok := item.(map[string]any); ok {
 			if id, _ := obj["id"].(string); id == cmdID {
 				found = true
 				break
@@ -566,7 +563,7 @@ func TestCommand_CanonicalURL(t *testing.T) {
 	defer getResp.Body.Close()
 	assert.Equal(t, http.StatusOK, getResp.StatusCode)
 
-	var cmd map[string]interface{}
+	var cmd map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&cmd))
 	assert.Equal(t, cmdID, cmd["id"])
 	assert.Equal(t, csID, cmd["controlstream@id"])
@@ -600,12 +597,12 @@ func TestCommand_ControlStreamSubCollection(t *testing.T) {
 	defer listResp.Body.Close()
 	assert.Equal(t, http.StatusOK, listResp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(listResp.Body).Decode(&collection))
 
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 	assert.GreaterOrEqual(t, len(items), 2, "expected at least 2 commands for this control stream")
@@ -624,8 +621,8 @@ func TestCommand_IssueTimeSetByServer(t *testing.T) {
 	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
 
 	// Payload intentionally omits issueTime
-	payload := map[string]interface{}{
-		"parameters": map[string]interface{}{"setPoint": 21.0},
+	payload := map[string]any{
+		"parameters": map[string]any{"setPoint": 21.0},
 	}
 	body, _ := json.Marshal(payload)
 	postReq, _ := http.NewRequest(http.MethodPost, testServer.URL+"/controlstreams/"+csID+"/commands", bytes.NewReader(body))
@@ -642,7 +639,7 @@ func TestCommand_IssueTimeSetByServer(t *testing.T) {
 	require.NoError(t, err)
 	defer getResp.Body.Close()
 
-	var cmd map[string]interface{}
+	var cmd map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&cmd))
 	assert.NotEmpty(t, cmd["issueTime"], "server must set issueTime on command creation")
 }
@@ -673,7 +670,7 @@ func TestCommand_InitialStatusIsPending(t *testing.T) {
 	require.NoError(t, err)
 	defer getResp.Body.Close()
 
-	var cmd map[string]interface{}
+	var cmd map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&cmd))
 	assert.Equal(t, "PENDING", cmd["currentStatus"], "newly created command must have PENDING status")
 }
@@ -708,9 +705,6 @@ func TestCommandSchema_JSON(t *testing.T) {
 	require.NoError(t, err)
 
 	err = validateAgainstSchema(t, responseBody, CommandJSONSchema)
-	if err != nil && strings.Contains(err.Error(), "failed to compile schema") {
-		t.Skipf("skipping command schema validation due invalid bundled schema refs: %v", err)
-	}
 	require.NoError(t, err, "GET /commands/{id} response must validate against command JSON schema")
 }
 
@@ -741,15 +735,15 @@ func TestCommandCRUD(t *testing.T) {
 	defer getResp.Body.Close()
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 
-	var cmd map[string]interface{}
+	var cmd map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&cmd))
 	assert.Equal(t, csID, cmd["controlstream@id"])
 
 	// UPDATE: parameters are writable; client-supplied currentStatus is
 	// read-only and must be ignored (only status reports change it).
-	updated := map[string]interface{}{
+	updated := map[string]any{
 		"currentStatus": "ACCEPTED",
-		"parameters":    map[string]interface{}{"setPoint": 25.0},
+		"parameters":    map[string]any{"setPoint": 25.0},
 	}
 	updBody, _ := json.Marshal(updated)
 	putReq, _ := http.NewRequest(http.MethodPut, testServer.URL+"/commands/"+cmdID, bytes.NewReader(updBody))
@@ -762,10 +756,10 @@ func TestCommandCRUD(t *testing.T) {
 	// Verify update: parameters changed, currentStatus untouched (read-only).
 	getResp2 := doGet(t, "/commands/"+cmdID)
 	defer getResp2.Body.Close()
-	var refetched map[string]interface{}
+	var refetched map[string]any
 	require.NoError(t, json.NewDecoder(getResp2.Body).Decode(&refetched))
 	assert.Equal(t, "PENDING", refetched["currentStatus"], "currentStatus is read-only; only status reports may change it")
-	params, ok := refetched["parameters"].(map[string]interface{})
+	params, ok := refetched["parameters"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, 25.0, params["setPoint"])
 
@@ -789,7 +783,7 @@ func TestCommandStatusReports_CRUDAndEnvelope(t *testing.T) {
 	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
 	cmdID := createCommandViaAPI(t, csID, baseCommandPayload())
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"reportTime":        "2026-04-01T12:00:00Z",
 		"statusCode":        "EXECUTING",
 		"percentCompletion": 50.0,
@@ -814,7 +808,7 @@ func TestCommandStatusReports_CRUDAndEnvelope(t *testing.T) {
 	defer getResp.Body.Close()
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 
-	var status map[string]interface{}
+	var status map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&status))
 	assert.Equal(t, statusID, status["id"])
 	assert.Equal(t, cmdID, status["command@id"])
@@ -823,7 +817,7 @@ func TestCommandStatusReports_CRUDAndEnvelope(t *testing.T) {
 
 	cmdResp := doGet(t, "/commands/"+cmdID)
 	defer cmdResp.Body.Close()
-	var cmd map[string]interface{}
+	var cmd map[string]any
 	require.NoError(t, json.NewDecoder(cmdResp.Body).Decode(&cmd))
 	assert.Equal(t, "EXECUTING", cmd["currentStatus"], "status report must update command currentStatus")
 
@@ -838,7 +832,7 @@ func TestCommandStatusReports_CRUDAndEnvelope(t *testing.T) {
 	items := getJSONItems(t, listBody)
 	require.Len(t, items, 1)
 
-	update := map[string]interface{}{
+	update := map[string]any{
 		"statusCode":        "COMPLETED",
 		"percentCompletion": 100.0,
 		"message":           "Command finished",
@@ -853,13 +847,13 @@ func TestCommandStatusReports_CRUDAndEnvelope(t *testing.T) {
 
 	refetch := doGet(t, "/commands/"+cmdID+"/status/"+statusID)
 	defer refetch.Body.Close()
-	var updatedStatus map[string]interface{}
+	var updatedStatus map[string]any
 	require.NoError(t, json.NewDecoder(refetch.Body).Decode(&updatedStatus))
 	assert.Equal(t, "COMPLETED", updatedStatus["statusCode"])
 
 	cmdResp2 := doGet(t, "/commands/"+cmdID)
 	defer cmdResp2.Body.Close()
-	var updatedCmd map[string]interface{}
+	var updatedCmd map[string]any
 	require.NoError(t, json.NewDecoder(cmdResp2.Body).Decode(&updatedCmd))
 	assert.Equal(t, "COMPLETED", updatedCmd["currentStatus"])
 
@@ -881,8 +875,8 @@ func TestCommandResults_CRUDAndEnvelope(t *testing.T) {
 	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
 	cmdID := createCommandViaAPI(t, csID, baseCommandPayload())
 
-	payload := map[string]interface{}{
-		"data": map[string]interface{}{
+	payload := map[string]any{
+		"data": map[string]any{
 			"accepted": true,
 			"value":    22.5,
 		},
@@ -903,11 +897,11 @@ func TestCommandResults_CRUDAndEnvelope(t *testing.T) {
 	defer getResp.Body.Close()
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 
-	var result map[string]interface{}
+	var result map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&result))
 	assert.Equal(t, resultID, result["id"])
 	assert.Equal(t, cmdID, result["command@id"])
-	data, ok := result["data"].(map[string]interface{})
+	data, ok := result["data"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, true, data["accepted"])
 
@@ -919,8 +913,8 @@ func TestCommandResults_CRUDAndEnvelope(t *testing.T) {
 	items := getJSONItems(t, listBody)
 	require.Len(t, items, 1)
 
-	update := map[string]interface{}{
-		"external@link": map[string]interface{}{
+	update := map[string]any{
+		"external@link": map[string]any{
 			"href":  "https://example.org/results/command-output.json",
 			"type":  "application/json",
 			"title": "External result",
@@ -936,10 +930,10 @@ func TestCommandResults_CRUDAndEnvelope(t *testing.T) {
 
 	refetch := doGet(t, "/commands/"+cmdID+"/result/"+resultID)
 	defer refetch.Body.Close()
-	var updatedResult map[string]interface{}
+	var updatedResult map[string]any
 	require.NoError(t, json.NewDecoder(refetch.Body).Decode(&updatedResult))
 	require.NotContains(t, updatedResult, "data")
-	externalLink, ok := updatedResult["external@link"].(map[string]interface{})
+	externalLink, ok := updatedResult["external@link"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "https://example.org/results/command-output.json", externalLink["href"])
 
@@ -962,7 +956,7 @@ func TestCommandStatusAndResults_CursorPagination(t *testing.T) {
 	commandID := createCommandViaAPI(t, controlStreamID, baseCommandPayload())
 
 	for range 3 {
-		createCommandStatusReportViaAPI(t, commandID, map[string]interface{}{
+		createCommandStatusReportViaAPI(t, commandID, map[string]any{
 			"reportTime": "2026-04-01T12:00:00Z", // equal timestamps exercise the ID tie-breaker
 			"statusCode": "EXECUTING",
 		})
@@ -970,14 +964,14 @@ func TestCommandStatusAndResults_CursorPagination(t *testing.T) {
 	assertJSONCursorTraversal(t, "/commands/"+commandID+"/status?limit=1&statusCode=EXECUTING", 3)
 
 	for range 3 {
-		createCommandResultViaAPI(t, commandID, map[string]interface{}{
-			"data": map[string]interface{}{"accepted": true},
+		createCommandResultViaAPI(t, commandID, map[string]any{
+			"data": map[string]any{"accepted": true},
 		})
 	}
 	assertJSONCursorTraversal(t, "/commands/"+commandID+"/result?limit=1", 3)
 }
 
-func createCommandStatusReportViaAPI(t *testing.T, commandID string, payload map[string]interface{}) string {
+func createCommandStatusReportViaAPI(t *testing.T, commandID string, payload map[string]any) string {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -992,7 +986,7 @@ func createCommandStatusReportViaAPI(t *testing.T, commandID string, payload map
 	return parseID(resp.Header.Get("Location"), "/status/")
 }
 
-func createCommandResultViaAPI(t *testing.T, commandID string, payload map[string]interface{}) string {
+func createCommandResultViaAPI(t *testing.T, commandID string, payload map[string]any) string {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -1020,18 +1014,18 @@ func assertJSONCursorTraversal(t *testing.T, path string, expectedCount int) {
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var collection map[string]interface{}
+		var collection map[string]any
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
-		items, ok := collection["items"].([]interface{})
+		items, ok := collection["items"].([]any)
 		require.True(t, ok)
 		ids := make([]string, 0, len(items))
 		for _, item := range items {
-			ids = append(ids, item.(map[string]interface{})["id"].(string))
+			ids = append(ids, item.(map[string]any)["id"].(string))
 		}
 
 		links := map[string]string{}
-		for _, raw := range collection["links"].([]interface{}) {
-			link := raw.(map[string]interface{})
+		for _, raw := range collection["links"].([]any) {
+			link := raw.(map[string]any)
 			links[link["rel"].(string)] = link["href"].(string)
 		}
 		return ids, links
@@ -1046,8 +1040,8 @@ func assertJSONCursorTraversal(t *testing.T, path string, expectedCount int) {
 		nextURL := links["next"]
 		assert.Contains(t, nextURL, "cursor=")
 		assert.NotContains(t, nextURL, "offset=")
-		if queryStart := strings.Index(path, "?"); queryStart >= 0 {
-			for _, parameter := range strings.Split(path[queryStart+1:], "&") {
+		if _, after, ok := strings.Cut(path, "?"); ok {
+			for parameter := range strings.SplitSeq(after, "&") {
 				if !strings.HasPrefix(parameter, "limit=") {
 					assert.Contains(t, nextURL, parameter, "next links must preserve active filters")
 				}
@@ -1077,9 +1071,9 @@ func TestCommandResult_RejectsMultipleVariants(t *testing.T) {
 	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
 	cmdID := createCommandViaAPI(t, csID, baseCommandPayload())
 
-	payload := map[string]interface{}{
-		"data": map[string]interface{}{"value": 1},
-		"external@link": map[string]interface{}{
+	payload := map[string]any{
+		"data": map[string]any{"value": 1},
+		"external@link": map[string]any{
 			"href": "https://example.org/results/result.json",
 		},
 	}
@@ -1183,17 +1177,17 @@ func TestCommand_FilterByControlStream(t *testing.T) {
 	defer listResp.Body.Close()
 	assert.Equal(t, http.StatusOK, listResp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(listResp.Body).Decode(&collection))
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 	assert.Equal(t, 2, len(items), "filter by controlStream should return exactly 2 commands")
 
 	for _, item := range items {
-		obj, _ := item.(map[string]interface{})
+		obj, _ := item.(map[string]any)
 		assert.Equal(t, csID1, obj["controlstream@id"], "all returned commands must belong to csID1")
 	}
 }
@@ -1234,8 +1228,8 @@ func TestControlStream_List_LatestIssueTime_ReturnsMostRecent(t *testing.T) {
 	// control stream with one command carrying the desired issue time.
 	csWithIssueTime := func(issueTime string) string {
 		csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
-		createCommandViaAPI(t, csID, map[string]interface{}{
-			"parameters": map[string]interface{}{"setPoint": 21.0},
+		createCommandViaAPI(t, csID, map[string]any{
+			"parameters": map[string]any{"setPoint": 21.0},
 			"issueTime":  issueTime,
 		})
 		return csID
@@ -1261,7 +1255,7 @@ func TestControlStream_List_LatestIssueTime_ReturnsMostRecent(t *testing.T) {
 	items := getJSONItems(t, body)
 	require.Equal(t, 1, len(items), "expected exactly one control stream for ?issueTime=latest")
 
-	cs, ok := items[0].(map[string]interface{})
+	cs, ok := items[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, newestID, cs["id"], "expected the control stream with the most-recent issueTime start")
 }
@@ -1279,8 +1273,8 @@ func TestCommand_List_LatestIssueTime_ReturnsMostRecent(t *testing.T) {
 
 	postCommand := func(issueTime string) string {
 		t.Helper()
-		payload := map[string]interface{}{
-			"parameters": map[string]interface{}{"setPoint": 21.0},
+		payload := map[string]any{
+			"parameters": map[string]any{"setPoint": 21.0},
 			"issueTime":  issueTime,
 		}
 		body, _ := json.Marshal(payload)
@@ -1313,7 +1307,7 @@ func TestCommand_List_LatestIssueTime_ReturnsMostRecent(t *testing.T) {
 	items := getJSONItems(t, body)
 	require.Equal(t, 1, len(items), "expected exactly one command for ?issueTime=latest")
 
-	cmd, ok := items[0].(map[string]interface{})
+	cmd, ok := items[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, newestID, cmd["id"], "expected the command with the most-recent issueTime")
 }

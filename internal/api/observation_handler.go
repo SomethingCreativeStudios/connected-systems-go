@@ -1,22 +1,21 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mqtt"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/resourcevalidation"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/mqtt"
-	"github.com/yourusername/connected-systems-go/internal/pubsub"
-	"github.com/yourusername/connected-systems-go/internal/repository"
-	"github.com/yourusername/connected-systems-go/internal/resourcevalidation"
 	"go.uber.org/zap"
 )
 
@@ -70,32 +69,18 @@ func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *reposit
 func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	observations, _, err := h.repo.List(params, nil)
+	observations, _, err := h.repo.List(r.Context(), params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list observations", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	items, err := h.fc.SerializeAll(acceptHeader, observations)
-	if err != nil {
-		h.logger.Error("Failed to serialize observations", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize observations"})
-		return
-	}
-
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, ObservationCollectionResponse{Items: items, Links: links})
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, observations, 0, params.QueryParams)
 }
 
 // ListDatastreamObservations returns observations for a datastream
@@ -119,40 +104,25 @@ func (h *ObservationHandler) ListObservations(w http.ResponseWriter, r *http.Req
 // @Router      /datastreams/{dataStreamId}/observations [get]
 func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r *http.Request) {
 	datastreamID := chi.URLParam(r, "dataStreamId")
-	if _, err := h.datastreamRepo.GetByID(datastreamID); err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Datastream not found"})
+	if _, err := h.datastreamRepo.GetByID(r.Context(), datastreamID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to load datastream")
 		return
 	}
 
 	params, err := queryparams.ObservationsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	observations, _, err := h.repo.ListByDatastream(datastreamID, params)
+	observations, _, err := h.repo.ListByDatastream(r.Context(), datastreamID, params)
 	if err != nil {
 		h.logger.Error("Failed to list observations", zap.String("dataStreamId", datastreamID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	items, err := h.fc.SerializeAll(acceptHeader, observations)
-	if err != nil {
-		h.logger.Error("Failed to serialize observations", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize observations"})
-		return
-	}
-
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, ObservationCollectionResponse{Items: items, Links: links})
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, observations, 0, params.QueryParams)
 }
 
 // GetObservation returns a single observation by ID
@@ -169,25 +139,13 @@ func (h *ObservationHandler) ListDatastreamObservations(w http.ResponseWriter, r
 func (h *ObservationHandler) GetObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
-	obs, err := h.repo.GetByID(id)
+	obs, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get observation", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Observation not found"})
+		writeRepositoryError(w, r, h.logger, err, "Observation", "Failed to load observation")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, obs)
-	if err != nil {
-		h.logger.Error("Failed to serialize observation", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize observation"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, serialized)
+	writeResource(w, r, h.logger, h.fc, obs)
 }
 
 // UpdateObservation replaces an observation by ID
@@ -206,38 +164,33 @@ func (h *ObservationHandler) GetObservation(w http.ResponseWriter, r *http.Reque
 func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
-	existing, err := h.repo.GetByID(id)
+	existing, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Observation not found", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Observation not found"})
+		writeRepositoryError(w, r, h.logger, err, "Observation", "Failed to load observation")
 		return
 	}
 
-	obs, err := h.fc.Deserialize(r.Header.Get("Content-Type"), r.Body)
+	obs, err := h.fc.DeserializeContext(r.Context(), r.Header.Get("Content-Type"), r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize observation", zap.Error(err))
 		writeDeserializeError(w, r, err)
 		return
 	}
 
-	datastream, err := h.datastreamRepo.GetByID(existing.DatastreamID)
+	datastream, err := h.datastreamRepo.GetByID(r.Context(), existing.DatastreamID)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Parent datastream not found"})
+		writeRepositoryError(w, r, h.logger, err, "Parent datastream", "Failed to load parent datastream")
 		return
 	}
 	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(obs, datastream, r.Header.Get("Content-Type")); err != nil {
-		writeValidationError(w, r, fmt.Errorf("Observation does not match parent datastream schema: %w", err))
+		writeValidationError(w, r, fmt.Errorf("observation does not match parent datastream schema: %w", err))
 		return
 	}
 
 	obs.ID = id
 	obs.DatastreamID = existing.DatastreamID
-	if err := h.repo.Update(obs); err != nil {
-		h.logger.Error("Failed to update observation", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update observation"})
+	if err := h.repo.Update(r.Context(), obs); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Observation", "Failed to update observation")
 		return
 	}
 
@@ -258,16 +211,8 @@ func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Re
 func (h *ObservationHandler) DeleteObservation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "obsId")
 
-	if err := h.repo.Delete(id); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Observation not found"})
-		default:
-			h.logger.Error("Failed to delete observation", zap.String("id", id), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete observation"})
-		}
+	if err := h.repo.Delete(r.Context(), id); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Observation", "Failed to delete observation")
 		return
 	}
 
@@ -289,14 +234,13 @@ func (h *ObservationHandler) DeleteObservation(w http.ResponseWriter, r *http.Re
 // @Router      /datastreams/{dataStreamId}/observations [post]
 func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, r *http.Request) {
 	datastreamID := chi.URLParam(r, "dataStreamId")
-	datastream, err := h.datastreamRepo.GetByID(datastreamID)
+	datastream, err := h.datastreamRepo.GetByID(r.Context(), datastreamID)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Datastream not found"})
+		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to load datastream")
 		return
 	}
 
-	obs, err := h.fc.Deserialize(r.Header.Get("Content-Type"), r.Body)
+	obs, err := h.fc.DeserializeContext(r.Context(), r.Header.Get("Content-Type"), r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize observation", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -304,15 +248,13 @@ func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, 
 	}
 
 	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(obs, datastream, r.Header.Get("Content-Type")); err != nil {
-		writeValidationError(w, r, fmt.Errorf("Observation does not match parent datastream schema: %w", err))
+		writeValidationError(w, r, fmt.Errorf("observation does not match parent datastream schema: %w", err))
 		return
 	}
 
 	obs.DatastreamID = datastreamID
-	if err := h.repo.Create(obs); err != nil {
-		h.logger.Error("Failed to create observation", zap.String("dataStreamId", datastreamID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create observation"})
+	if err := h.repo.Create(r.Context(), obs); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Observation", "Failed to create observation")
 		return
 	}
 
@@ -326,7 +268,7 @@ func (h *ObservationHandler) publishObservationToMQTT(datastreamID string, obser
 	if h.pubSubPublisher == nil || !h.pubSubPublisher.ResourceDataEnabled() {
 		return
 	}
-	serialized, err := h.fc.Serialize("application/json", observation)
+	serialized, err := h.fc.Serialize(mediatype.JSON, observation)
 	if err != nil {
 		h.logger.Error("Failed to serialize observation Resource Data Message", zap.Error(err))
 		return

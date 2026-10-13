@@ -1,31 +1,28 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.27-alpine3.24 AS builder
 
 WORKDIR /app
 
-# Install dependencies
-RUN apk add --no-cache git
-
-# Copy go mod files
+# Download modules in their own layer so code changes reuse the cache.
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server cmd/server/main.go
+# Alpine rather than distroless so container healthchecks can use wget.
+FROM alpine:3.24
 
-# Final stage
-FROM alpine:latest
+RUN apk --no-cache add ca-certificates tzdata \
+    && addgroup -S app \
+    && adduser -S -G app app
 
-RUN apk --no-cache add ca-certificates
+WORKDIR /app
+COPY --from=builder /out/server /app/server
 
-WORKDIR /root/
-
-# Copy binary from builder
-COPY --from=builder /app/server .
-COPY --from=builder /app/config.example.yaml ./config.yaml
-
+USER app
 EXPOSE 8080
 
-CMD ["./server"]
+# Configure with environment variables (DATABASE_HOST, API_BASE_URL, ...) or a
+# config.yaml mounted at /app/config.yaml. `docker run <image> migrate` applies
+# pending database migrations and exits.
+ENTRYPOINT ["/app/server"]

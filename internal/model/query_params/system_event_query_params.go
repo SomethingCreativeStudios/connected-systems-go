@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // SystemEventsQueryParams defines filtering options for system event endpoints.

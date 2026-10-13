@@ -4,21 +4,20 @@ import (
 	"context"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 func TestSystemGeoJSONSerialize_AssociationLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewSystemGeoJSONFormatter(nil)
+	formatter := NewSystemGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL, SystemChildren: stubChildren{"sys-1": {"subsystems", "samplingFeatures", "datastreams", "controlstreams"}}})
 	parentID := "sys-parent"
 	system := &domains.System{
 		Base:           domains.Base{ID: "sys-1"},
 		ParentSystemID: &parentID,
 		Deployments:    []domains.Deployment{{Base: domains.Base{ID: "dep-1"}}},
-		Procedures:     []domains.Procedure{{Base: domains.Base{ID: "proc-1"}}},
 		Links: common_shared.Links{
 			{Href: "/docs/spec", Rel: "alternate"},
 			{Href: "/systems/sys-1/subsystems", Rel: common_shared.OGCRel("subsystems")},
@@ -51,9 +50,8 @@ func TestSystemGeoJSONSerialize_AssociationLinks(t *testing.T) {
 
 // Phase 1: inline @link Type enrichment
 func TestSystemGeoJSONSerialize_SetsTypeOnSystemKindLink(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewSystemGeoJSONFormatter(nil)
+	formatter := NewSystemGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL})
 	kindID := "proc-kind"
 	system := &domains.System{
 		Base:     domains.Base{ID: "sys-1"},
@@ -68,16 +66,15 @@ func TestSystemGeoJSONSerialize_SetsTypeOnSystemKindLink(t *testing.T) {
 	if feature.Properties.SystemKind == nil {
 		t.Fatal("expected SystemKind to be non-nil")
 	}
-	if feature.Properties.SystemKind.Type != formaters.SensorMLContentType {
-		t.Errorf("expected SystemKind.Type %q, got %q", formaters.SensorMLContentType, feature.Properties.SystemKind.Type)
+	if feature.Properties.SystemKind.Type != mediatype.SensorML {
+		t.Errorf("expected SystemKind.Type %q, got %q", mediatype.SensorML, feature.Properties.SystemKind.Type)
 	}
 }
 
 // Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
 func TestSystemGeoJSONSerializeAll_EnrichesInlineLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewSystemGeoJSONFormatter(nil)
+	formatter := NewSystemGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL})
 	kindID := "proc-kind"
 	systems := []*domains.System{
 		{
@@ -99,8 +96,8 @@ func TestSystemGeoJSONSerializeAll_EnrichesInlineLinks(t *testing.T) {
 	if features[0].Properties.SystemKind == nil {
 		t.Fatal("expected SystemKind to be non-nil")
 	}
-	if features[0].Properties.SystemKind.Type != formaters.SensorMLContentType {
-		t.Errorf("expected SystemKind.Type %q, got %q", formaters.SensorMLContentType, features[0].Properties.SystemKind.Type)
+	if features[0].Properties.SystemKind.Type != mediatype.SensorML {
+		t.Errorf("expected SystemKind.Type %q, got %q", mediatype.SensorML, features[0].Properties.SystemKind.Type)
 	}
 
 	// Title/UID are empty with nil repos (no cache population)

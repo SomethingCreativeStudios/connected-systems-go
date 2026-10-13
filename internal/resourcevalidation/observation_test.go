@@ -4,15 +4,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
-
-func boolPtr(b bool) *bool { return &b }
 
 func quantityComponent(optional bool, nilValues ...domains.DatastreamNilValue) *domains.DatastreamDataComponent {
 	return &domains.DatastreamDataComponent{
 		Type:      "Quantity",
-		Optional:  boolPtr(optional),
+		Optional:  new(optional),
 		NilValues: nilValues,
 	}
 }
@@ -31,7 +29,7 @@ func namedField(name string, c domains.DatastreamDataComponent) domains.Datastre
 
 func TestValidateDataComponent_OptionalFieldNull(t *testing.T) {
 	comp := recordComponent(
-		namedField("temp", domains.DatastreamDataComponent{Type: "Quantity", Optional: boolPtr(true)}),
+		namedField("temp", domains.DatastreamDataComponent{Type: "Quantity", Optional: new(true)}),
 	)
 	value := map[string]any{"temp": nil}
 	if err := validateDataComponentValue(comp, value, "result"); err != nil {
@@ -41,7 +39,7 @@ func TestValidateDataComponent_OptionalFieldNull(t *testing.T) {
 
 func TestValidateDataComponent_OptionalFieldMissing(t *testing.T) {
 	comp := recordComponent(
-		namedField("temp", domains.DatastreamDataComponent{Type: "Quantity", Optional: boolPtr(true)}),
+		namedField("temp", domains.DatastreamDataComponent{Type: "Quantity", Optional: new(true)}),
 	)
 	value := map[string]any{}
 	if err := validateDataComponentValue(comp, value, "result"); err != nil {
@@ -51,7 +49,7 @@ func TestValidateDataComponent_OptionalFieldMissing(t *testing.T) {
 
 func TestValidateDataComponent_RequiredFieldNull(t *testing.T) {
 	comp := recordComponent(
-		namedField("temp", domains.DatastreamDataComponent{Type: "Quantity", Optional: boolPtr(false)}),
+		namedField("temp", domains.DatastreamDataComponent{Type: "Quantity", Optional: new(false)}),
 	)
 	value := map[string]any{"temp": nil}
 	if err := validateDataComponentValue(comp, value, "result"); err == nil {
@@ -61,7 +59,7 @@ func TestValidateDataComponent_RequiredFieldNull(t *testing.T) {
 
 func TestValidateDataComponent_RequiredFieldPresent(t *testing.T) {
 	comp := recordComponent(
-		namedField("temp", domains.DatastreamDataComponent{Type: "Quantity", Optional: boolPtr(false)}),
+		namedField("temp", domains.DatastreamDataComponent{Type: "Quantity", Optional: new(false)}),
 	)
 	value := map[string]any{"temp": float64(21.5)}
 	if err := validateDataComponentValue(comp, value, "result"); err != nil {
@@ -95,7 +93,7 @@ func TestValidateDataComponent_NilValueNoMatch(t *testing.T) {
 func TestValidateDataComponent_NilValueMatchInRecord(t *testing.T) {
 	nv := nilValue("NaN")
 	comp := recordComponent(
-		namedField("altitude", domains.DatastreamDataComponent{Type: "Quantity", Optional: boolPtr(false), NilValues: []domains.DatastreamNilValue{nv}}),
+		namedField("altitude", domains.DatastreamDataComponent{Type: "Quantity", Optional: new(false), NilValues: []domains.DatastreamNilValue{nv}}),
 	)
 	value := map[string]any{"altitude": "NaN"}
 	if err := validateDataComponentValue(comp, value, "result"); err != nil {
@@ -104,8 +102,6 @@ func TestValidateDataComponent_NilValueMatchInRecord(t *testing.T) {
 }
 
 // ── Constraint validation (Issue #8) ─────────────────────────────────────────
-
-func intPtr(n int) *int { return &n }
 
 func constraintComponent(compType string, c *domains.DatastreamConstraint) *domains.DatastreamDataComponent {
 	return &domains.DatastreamDataComponent{
@@ -192,14 +188,14 @@ func TestValidateDataComponent_Constraint_BooleanWithConstraint(t *testing.T) {
 }
 
 func TestValidateDataComponent_Constraint_SignificantFigures(t *testing.T) {
-	comp := constraintComponent("Quantity", &domains.DatastreamConstraint{SignificantFigures: intPtr(3)})
+	comp := constraintComponent("Quantity", &domains.DatastreamConstraint{SignificantFigures: new(3)})
 	if err := validateDataComponentValue(comp, float64(12.3), "result"); err != nil {
 		t.Fatalf("expected nil for value within sig figs, got: %v", err)
 	}
 }
 
 func TestValidateDataComponent_Constraint_SignificantFiguresViolated(t *testing.T) {
-	comp := constraintComponent("Quantity", &domains.DatastreamConstraint{SignificantFigures: intPtr(3)})
+	comp := constraintComponent("Quantity", &domains.DatastreamConstraint{SignificantFigures: new(3)})
 	if err := validateDataComponentValue(comp, float64(12.345), "result"); err == nil {
 		t.Fatal("expected error for too many sig figs, got nil")
 	}

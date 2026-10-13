@@ -250,8 +250,8 @@ Examples of resource-specific filters currently implemented:
 
 Prerequisites:
 
-- Go 1.24+
-- PostgreSQL with PostGIS
+- Go 1.26.3+ (the `toolchain` line in `go.mod` downloads Go 1.27.2 if needed)
+- PostgreSQL with PostGIS and TimescaleDB
 - Docker (recommended for local database/test workflows)
 
 Run locally:
@@ -261,6 +261,11 @@ go mod download
 cp config.example.yaml config.yaml
 make run
 ```
+
+Database migrations (goose, embedded in the binary) run at startup while
+`database.auto_migrate` is true, the default. To run them as a separate step,
+set it to false and run `make migrate` (or `server migrate`, or
+`docker run <image> migrate`) before starting the server.
 
 ## Seed realistic demo data
 
@@ -282,6 +287,8 @@ Build and test:
 make build
 make test
 make test-coverage
+make lint   # golangci-lint, pinned in the Makefile
+make vuln   # govulncheck
 ```
 
 ## Local TimescaleDB database

@@ -19,7 +19,7 @@ import (
 // accepts a format query parameter to select a specific schema.
 // =============================================================================
 
-func postObservationExpectStatus(t *testing.T, datastreamID string, payload map[string]interface{}, want int) {
+func postObservationExpectStatus(t *testing.T, datastreamID string, payload map[string]any, want int) {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -39,14 +39,14 @@ func TestDatastream_MultiFormatSchemas(t *testing.T) {
 	dsID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", baseDatastreamPayload())
 
 	// Register a second schema in a new format.
-	putJSONResource(t, "/datastreams/"+dsID+"/schema", map[string]interface{}{
+	putJSONResource(t, "/datastreams/"+dsID+"/schema", map[string]any{
 		"obsFormat":     "application/x-protobuf",
 		"messageSchema": "syntax = \"proto3\"; message ObservationResult { double value = 1; }",
 	})
 
 	// formats now advertises both registered formats.
 	ds := getJSONResource(t, "/datastreams/"+dsID, "application/json")
-	assert.ElementsMatch(t, []interface{}{"application/json", "application/x-protobuf"}, ds["formats"],
+	assert.ElementsMatch(t, []any{"application/json", "application/x-protobuf"}, ds["formats"],
 		"formats must list all registered schema formats")
 
 	// schema is writeOnly: never present in responses. live is required and
@@ -80,36 +80,29 @@ func TestDatastream_MultiFormatSchemas(t *testing.T) {
 
 	// JSON observations still validate against the JSON schema even though the
 	// current schema is protobuf: valid result is accepted, invalid rejected.
-	postObservationExpectStatus(t, dsID, map[string]interface{}{
+	postObservationExpectStatus(t, dsID, map[string]any{
 		"resultTime": "2026-07-01T00:00:00Z",
-		"result":     map[string]interface{}{"temperature": 21.0, "humidity": 40.0},
+		"result":     map[string]any{"temperature": 21.0, "humidity": 40.0},
 	}, http.StatusCreated)
-	postObservationExpectStatus(t, dsID, map[string]interface{}{
+	postObservationExpectStatus(t, dsID, map[string]any{
 		"resultTime": "2026-07-01T00:00:00Z",
-		"result":     map[string]interface{}{"humidity": 40.0},
+		"result":     map[string]any{"humidity": 40.0},
 	}, http.StatusBadRequest)
 
-	// PUT with an existing format replaces that schema instead of adding one.
-	putJSONResource(t, "/datastreams/"+dsID+"/schema", map[string]interface{}{
-		"obsFormat": "application/json",
-		"resultSchema": map[string]interface{}{
-			"type": "DataRecord",
-			"fields": []map[string]interface{}{
-				{"name": "pressure", "type": "Quantity", "definition": "http://sensorml.com/ont/swe/property/Pressure", "label": "Pressure", "uom": map[string]interface{}{"code": "hPa"}},
-			},
-		},
-	})
-
-	ds = getJSONResource(t, "/datastreams/"+dsID, "application/json")
-	assert.ElementsMatch(t, []interface{}{"application/json", "application/x-protobuf"}, ds["formats"],
-		"replacing a schema must not add a format")
-
+	changed := map[string]any{"obsFormat": "application/json", "resultSchema": map[string]any{
+		"type": "Quantity", "definition": "http://sensorml.com/ont/swe/property/Pressure", "label": "Pressure", "uom": map[string]any{"code": "hPa"},
+	}}
+	response := putJSONExpect(t, "/datastreams/"+dsID+"/schema", changed, http.StatusConflict)
+	response.Body.Close()
 	schema = getJSONResource(t, "/datastreams/"+dsID+"/schema?obsFormat=application/json", "application/json")
-	resultSchema, ok := schema["resultSchema"].(map[string]interface{})
+	resultSchema, ok := schema["resultSchema"].(map[string]any)
 	require.True(t, ok)
-	fields, ok := resultSchema["fields"].([]interface{})
+	fields, ok := resultSchema["fields"].([]any)
 	require.True(t, ok)
-	require.Len(t, fields, 1, "JSON schema must have been replaced")
+	require.Len(t, fields, 2, "rejected mutation must retain the schema used by existing observations")
+	// An unchanged schema remains a valid PUT after children exist.
+	putJSONResource(t, "/datastreams/"+dsID+"/schema", schema)
+
 }
 
 func TestControlStream_MultiFormatSchemas(t *testing.T) {
@@ -119,18 +112,18 @@ func TestControlStream_MultiFormatSchemas(t *testing.T) {
 	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
 
 	// Register a second schema in a new format.
-	putJSONResource(t, "/controlstreams/"+csID+"/schema", map[string]interface{}{
+	putJSONResource(t, "/controlstreams/"+csID+"/schema", map[string]any{
 		"commandFormat": "application/swe+json",
-		"recordSchema": map[string]interface{}{
+		"recordSchema": map[string]any{
 			"type": "DataRecord",
-			"fields": []map[string]interface{}{
-				{"name": "setPoint", "type": "Quantity", "definition": "http://sensorml.com/ont/swe/property/Temperature", "label": "Set Point", "uom": map[string]interface{}{"code": "Cel"}},
+			"fields": []map[string]any{
+				{"name": "setPoint", "type": "Quantity", "definition": "http://sensorml.com/ont/swe/property/Temperature", "label": "Set Point", "uom": map[string]any{"code": "Cel"}},
 			},
 		},
 	})
 
 	cs := getJSONResource(t, "/controlstreams/"+csID, "application/json")
-	assert.ElementsMatch(t, []interface{}{"application/json", "application/swe+json"}, cs["formats"],
+	assert.ElementsMatch(t, []any{"application/json", "application/swe+json"}, cs["formats"],
 		"formats must list all registered schema formats")
 
 	// schema is writeOnly: never present in responses. live and async are
@@ -158,8 +151,8 @@ func TestControlStream_MultiFormatSchemas(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	// Commands still post fine with the JSON format.
-	createCommandViaAPI(t, csID, map[string]interface{}{
-		"parameters": map[string]interface{}{"setPoint": 21.0},
+	createCommandViaAPI(t, csID, map[string]any{
+		"parameters": map[string]any{"setPoint": 21.0},
 	})
 }
 
@@ -175,58 +168,58 @@ func TestStream_SemanticProperties_DerivedFromSchemas(t *testing.T) {
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Semantic Props System"))
 
 	dsPayload := baseDatastreamPayload()
-	dsPayload["schema"] = map[string]interface{}{
+	dsPayload["schema"] = map[string]any{
 		"obsFormat": "application/json",
-		"resultSchema": map[string]interface{}{
+		"resultSchema": map[string]any{
 			"type": "DataRecord",
-			"fields": []map[string]interface{}{
+			"fields": []map[string]any{
 				{"name": "temperature", "type": "Quantity",
 					"definition": "https://qudt.org/vocab/quantitykind/Temperature", "label": "Air Temperature",
-					"uom": map[string]interface{}{"code": "Cel"}},
+					"uom": map[string]any{"code": "Cel"}},
 				{"name": "humidity", "type": "Quantity",
 					"definition": "https://qudt.org/vocab/quantitykind/RelativeHumidity", "label": "Relative Humidity",
-					"uom": map[string]interface{}{"code": "%"}},
+					"uom": map[string]any{"code": "%"}},
 			},
 		},
 	}
 	// Client-supplied observedProperties must be ignored (readOnly).
-	dsPayload["observedProperties"] = []map[string]interface{}{
+	dsPayload["observedProperties"] = []map[string]any{
 		{"definition": "https://example.org/bogus", "label": "Bogus"},
 	}
 	dsID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", dsPayload)
 
 	ds := getJSONResource(t, "/datastreams/"+dsID, "application/json")
-	obsProps, ok := ds["observedProperties"].([]interface{})
+	obsProps, ok := ds["observedProperties"].([]any)
 	require.True(t, ok, "expected derived observedProperties array, got %v", ds["observedProperties"])
 	require.Len(t, obsProps, 2)
-	first, ok := obsProps[0].(map[string]interface{})
+	first, ok := obsProps[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "https://qudt.org/vocab/quantitykind/Temperature", first["definition"])
 	assert.Equal(t, "Air Temperature", first["label"])
-	second, ok := obsProps[1].(map[string]interface{})
+	second, ok := obsProps[1].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "https://qudt.org/vocab/quantitykind/RelativeHumidity", second["definition"])
 	assert.Equal(t, "Relative Humidity", second["label"])
 
 	csPayload := baseControlStreamPayload()
-	csPayload["schema"] = map[string]interface{}{
+	csPayload["schema"] = map[string]any{
 		"commandFormat": "application/json",
-		"parametersSchema": map[string]interface{}{
+		"parametersSchema": map[string]any{
 			"type": "DataRecord",
-			"fields": []map[string]interface{}{
+			"fields": []map[string]any{
 				{"name": "setPoint", "type": "Quantity",
 					"definition": "https://qudt.org/vocab/quantitykind/Temperature", "label": "Set Point",
-					"uom": map[string]interface{}{"code": "Cel"}},
+					"uom": map[string]any{"code": "Cel"}},
 			},
 		},
 	}
 	csID := createControlStreamViaAPI(t, systemID, csPayload)
 
 	cs := getJSONResource(t, "/controlstreams/"+csID, "application/json")
-	ctlProps, ok := cs["controlledProperties"].([]interface{})
+	ctlProps, ok := cs["controlledProperties"].([]any)
 	require.True(t, ok, "expected derived controlledProperties array, got %v", cs["controlledProperties"])
 	require.Len(t, ctlProps, 1)
-	ctl, ok := ctlProps[0].(map[string]interface{})
+	ctl, ok := ctlProps[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "https://qudt.org/vocab/quantitykind/Temperature", ctl["definition"])
 	assert.Equal(t, "Set Point", ctl["label"])

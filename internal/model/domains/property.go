@@ -1,7 +1,7 @@
 package domains
 
 import (
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // Property represents a sosa:ObservableProperty or sosa:ActuableProperty
@@ -63,7 +63,7 @@ type PropertySensorMLFeature struct {
 type PropertyGeoJSONFeature struct {
 	Type       string                    `json:"type"`
 	ID         string                    `json:"id"`
-	Geometry   interface{}               `json:"geometry"` // null for properties (no spatial component)
+	Geometry   any                       `json:"geometry"` // null for properties (no spatial component)
 	Properties PropertyGeoJSONProperties `json:"properties"`
 	Links      common_shared.Links       `json:"links,omitempty"`
 }

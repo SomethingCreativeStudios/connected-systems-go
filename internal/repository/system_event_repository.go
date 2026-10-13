@@ -1,11 +1,11 @@
 package repository
 
 import (
-	"strings"
+	"context"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -18,25 +18,24 @@ func NewSystemEventRepository(db *gorm.DB) *SystemEventRepository {
 	return &SystemEventRepository{db: db}
 }
 
-func (r *SystemEventRepository) Create(event *domains.SystemEvent) error {
+func (r *SystemEventRepository) Create(ctx context.Context, event *domains.SystemEvent) error {
 	normalizeSystemEventTime(event)
-	return r.db.Create(event).Error
+	return r.db.WithContext(ctx).Create(event).Error
 }
 
-func (r *SystemEventRepository) GetByID(systemID, eventID string) (*domains.SystemEvent, error) {
+func (r *SystemEventRepository) GetByID(ctx context.Context, systemID, eventID string) (*domains.SystemEvent, error) {
 	var event domains.SystemEvent
-	err := r.db.Where("id = ? AND system_id = ?", eventID, systemID).First(&event).Error
+	err := r.db.WithContext(ctx).Where("id = ? AND system_id = ?", eventID, systemID).First(&event).Error
 	if err != nil {
 		return nil, err
 	}
 	return &event, nil
 }
 
-func (r *SystemEventRepository) List(params *queryparams.SystemEventsQueryParams, fixedSystemID *string) ([]*domains.SystemEvent, int64, error) {
+func (r *SystemEventRepository) List(ctx context.Context, params *queryparams.SystemEventsQueryParams, fixedSystemID *string) ([]*domains.SystemEvent, int64, error) {
 	var events []*domains.SystemEvent
-	var total int64
 
-	query := r.db.Model(&domains.SystemEvent{})
+	query := r.db.WithContext(ctx).Model(&domains.SystemEvent{})
 	query = r.applyFilters(query, params, fixedSystemID)
 
 	if params.EventTime != nil && params.EventTime.Latest {
@@ -44,33 +43,26 @@ func (r *SystemEventRepository) List(params *queryparams.SystemEventsQueryParams
 		return events, int64(len(events)), err
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+	return listPage(query, &params.QueryParams, CursorOrder{
 		Columns:     []string{"time_start", "created_at", "id"},
 		Descending:  true,
 		TimeColumns: map[int]bool{0: true, 1: true},
-	})
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&events).Error
-	events = FinalizeCursorPage(events, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(events, func(event *domains.SystemEvent) []string {
+	}, func(event *domains.SystemEvent) []string {
 		return []string{cursorTimeValue(event.TimeStart), queryparams.TimeCursorValue(event.CreatedAt), event.ID}
 	})
-	return events, total, err
 }
 
-func (r *SystemEventRepository) Update(event *domains.SystemEvent) error {
+func (r *SystemEventRepository) Update(ctx context.Context, event *domains.SystemEvent) error {
 	normalizeSystemEventTime(event)
-	return r.db.Save(event).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceByID(tx, event, func(existing *domains.SystemEvent) {
+			event.SystemID = existing.SystemID
+		})
+	})
 }
 
-func (r *SystemEventRepository) Delete(systemID, eventID string) error {
-	return r.db.Where("id = ? AND system_id = ?", eventID, systemID).Delete(&domains.SystemEvent{}).Error
+func (r *SystemEventRepository) Delete(ctx context.Context, systemID, eventID string) error {
+	return r.db.WithContext(ctx).Where("id = ? AND system_id = ?", eventID, systemID).Delete(&domains.SystemEvent{}).Error
 }
 
 func (r *SystemEventRepository) applyFilters(query *gorm.DB, params *queryparams.SystemEventsQueryParams, fixedSystemID *string) *gorm.DB {
@@ -88,34 +80,9 @@ func (r *SystemEventRepository) applyFilters(query *gorm.DB, params *queryparams
 		query = query.Where("definition IN ?", params.EventType)
 	}
 
-	if params.EventTime != nil && !params.EventTime.Latest {
-		if params.EventTime.Start != nil && params.EventTime.End != nil {
-			query = query.Where("time_start <= ? AND (time_end IS NULL OR time_end >= ?)", params.EventTime.End, params.EventTime.Start)
-		} else if params.EventTime.Start != nil {
-			query = query.Where("time_end IS NULL OR time_end >= ?", params.EventTime.Start)
-		} else if params.EventTime.End != nil {
-			query = query.Where("time_start <= ?", params.EventTime.End)
-		}
-	}
+	query = applyRangeFilter(query, "system_events.time_start", "system_events.time_end", params.EventTime)
 
-	if len(params.Keyword) > 0 || len(params.Q) > 0 {
-		terms := append([]string{}, params.Keyword...)
-		terms = append(terms, params.Q...)
-		var clauses []string
-		var args []interface{}
-		for _, term := range terms {
-			like := "%" + term + "%"
-			clauses = append(clauses, "label ILIKE ?")
-			args = append(args, like)
-			clauses = append(clauses, "description ILIKE ?")
-			args = append(args, like)
-			clauses = append(clauses, "definition ILIKE ?")
-			args = append(args, like)
-			clauses = append(clauses, "CAST(properties AS text) ILIKE ?")
-			args = append(args, like)
-		}
-		query = query.Where(strings.Join(clauses, " OR "), args...)
-	}
+	query = applyKeywordFilter(query, append(append([]string{}, params.Keyword...), params.Q...), "label", "description", "definition", "CAST(properties AS text)")
 
 	return applyCQLFilter(query, &params.QueryParams)
 }

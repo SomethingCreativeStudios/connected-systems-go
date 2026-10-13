@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +18,7 @@ func TestProcedureSensorMLValidationReportsProcessType(t *testing.T) {
         "definition":"http://www.w3.org/ns/sosa/Procedure"
     }`)
 
-	err := validator.Validate(Procedure, sensorMLContentType, body)
+	err := validator.Validate(Procedure, mediatype.SensorML, body)
 	var validationErr *Error
 	require.ErrorAs(t, err, &validationErr)
 	require.Equal(t, []Violation{{
@@ -38,7 +39,7 @@ func TestSystemAssetTypeValidationUsesRepresentationPath(t *testing.T) {
         }
     }`)
 
-	err := validator.Validate(System, geoJSONContentType, geoJSONBody)
+	err := validator.Validate(System, mediatype.GeoJSON, geoJSONBody)
 	var validationErr *Error
 	require.ErrorAs(t, err, &validationErr)
 	require.Equal(t, "properties.assetType", validationErr.Details[0].Path)
@@ -51,14 +52,14 @@ func TestSystemAssetTypeValidationUsesRepresentationPath(t *testing.T) {
         "definition":"http://www.w3.org/ns/sosa/Platform",
         "classifiers":[{"definition":"cs:AssetType","value":"Platform"}]
     }`)
-	err = validator.Validate(System, sensorMLContentType, sensorMLBody)
+	err = validator.Validate(System, mediatype.SensorML, sensorMLBody)
 	require.ErrorAs(t, err, &validationErr)
 	require.Equal(t, "classifiers[0].value", validationErr.Details[0].Path)
 }
 
 func TestProcedureGeoJSONWritesAreRejectedWithGuidance(t *testing.T) {
 	validator := New()
-	err := validator.Validate(Procedure, geoJSONContentType, []byte(`{"type":"Feature","properties":{}}`))
+	err := validator.Validate(Procedure, mediatype.GeoJSON, []byte(`{"type":"Feature","properties":{}}`))
 	var validationErr *Error
 	require.ErrorAs(t, err, &validationErr)
 	require.Equal(t, "Content-Type", validationErr.Details[0].Path)
@@ -76,7 +77,7 @@ func TestValidatorCompilesEmbeddedSchemaAndReportsInvalidDefinition(t *testing.T
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	err = validator.Validate(Procedure, sensorMLContentType, body)
+	err = validator.Validate(Procedure, mediatype.SensorML, body)
 	var validationErr *Error
 	require.True(t, errors.As(err, &validationErr), "expected contract validation error, got %v", err)
 	require.NotEmpty(t, validationErr.Details)
@@ -94,7 +95,7 @@ func TestSchemaValidationReportsStableNestedPath(t *testing.T) {
         "geometry":{"type":"Point","coordinates":"not-an-array"}
     }`)
 
-	err := validator.Validate(SamplingFeature, geoJSONContentType, body)
+	err := validator.Validate(SamplingFeature, mediatype.GeoJSON, body)
 	var validationErr *Error
 	require.ErrorAs(t, err, &validationErr)
 	require.Equal(t, []Violation{
@@ -113,6 +114,10 @@ func TestEmbeddedSchemasCompile(t *testing.T) {
 		"geojson/deployment-bundled.json",
 		"geojson/procedure-bundled.json",
 		"geojson/samplingFeature-bundled.json",
+		"sensorml/system-bundled.json",
+		"sensorml/property-bundled.json",
+		"json/datastream-bundled.json",
+		"json/controlStream-bundled.json",
 		"sensorml/deployment-bundled.json",
 		"sensorml/procedure-bundled.json",
 		"json/observation-bundled.json",

@@ -3,14 +3,15 @@ package generators
 import (
 	"math/rand"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/google/uuid"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
 func FakeDatastreamJSONScalarSchema() *domains.DatastreamSchema {
 	return &domains.DatastreamSchema{
-		ObsFormat: "application/json",
+		ObsFormat: mediatype.JSON,
 		ResultSchema: &domains.DatastreamDataComponent{
 			Type:       "Quantity",
 			Name:       "temperature",
@@ -26,7 +27,7 @@ func FakeDatastreamJSONScalarSchema() *domains.DatastreamSchema {
 func FakeDatastreamJSONRecordSchema() *domains.DatastreamSchema {
 	optional := true
 	return &domains.DatastreamSchema{
-		ObsFormat: "application/json",
+		ObsFormat: mediatype.JSON,
 		ResultSchema: &domains.DatastreamDataComponent{
 			Type:       "DataRecord",
 			Name:       "weatherRecord",
@@ -166,7 +167,7 @@ func FakeDatastreamWithSchema(schema *domains.DatastreamSchema) domains.Datastre
 		},
 	}
 
-	formats := common_shared.StringArray{"application/json"}
+	formats := common_shared.StringArray{mediatype.JSON}
 	if schema != nil && schema.ObsFormat != "" {
 		formats = common_shared.StringArray{schema.ObsFormat}
 	}

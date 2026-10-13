@@ -5,15 +5,16 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -64,32 +65,18 @@ func NewControlStreamHandler(
 func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	controlStreams, _, err := h.repo.List(params, nil)
+	controlStreams, _, err := h.repo.List(r.Context(), params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list control streams", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	items, err := h.fc.SerializeAll(acceptHeader, controlStreams)
-	if err != nil {
-		h.logger.Error("Failed to serialize control streams", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize control streams"})
-		return
-	}
-
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, ControlStreamCollectionResponse{Items: items, Links: links})
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, controlStreams, 0, params.QueryParams)
 }
 
 // ListSystemControlStreams handles GET /systems/{id}/controlstreams
@@ -111,38 +98,21 @@ func (h *ControlStreamHandler) ListControlStreams(w http.ResponseWriter, r *http
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/controlstreams [get]
 func (h *ControlStreamHandler) ListSystemControlStreams(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "systemId")
-	if systemID == "" {
-		systemID = chi.URLParam(r, "id")
-	}
+	systemID := chi.URLParam(r, "id")
 	params, err := queryparams.ControlStreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	controlStreams, _, err := h.repo.List(params, &systemID)
+	controlStreams, _, err := h.repo.List(r.Context(), params, &systemID)
 	if err != nil {
 		h.logger.Error("Failed to list control streams for system", zap.String("systemId", systemID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	items, err := h.fc.SerializeAll(acceptHeader, controlStreams)
-	if err != nil {
-		h.logger.Error("Failed to serialize control streams", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize control streams"})
-		return
-	}
-
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, ControlStreamCollectionResponse{Items: items, Links: links})
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, controlStreams, 0, params.QueryParams)
 }
 
 // GetControlStream handles GET /controlstreams/{id}
@@ -159,25 +129,13 @@ func (h *ControlStreamHandler) ListSystemControlStreams(w http.ResponseWriter, r
 func (h *ControlStreamHandler) GetControlStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
 
-	cs, err := h.repo.GetByID(id)
+	cs, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get control stream", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Control stream not found"})
+		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to load control stream")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, cs)
-	if err != nil {
-		h.logger.Error("Failed to serialize control stream", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize control stream"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, serialized)
+	writeResource(w, r, h.logger, h.fc, cs)
 }
 
 // CreateControlStream handles POST /systems/{id}/controlstreams
@@ -193,13 +151,10 @@ func (h *ControlStreamHandler) GetControlStream(w http.ResponseWriter, r *http.R
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/controlstreams [post]
 func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "systemId")
-	if systemID == "" {
-		systemID = chi.URLParam(r, "id")
-	}
+	systemID := chi.URLParam(r, "id")
 
 	contentType := r.Header.Get("Content-Type")
-	cs, err := h.fc.Deserialize(contentType, r.Body)
+	cs, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize control stream", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -220,10 +175,8 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 		cs.SystemID = &systemID
 	}
 
-	if err := h.repo.Create(cs); err != nil {
-		h.logger.Error("Failed to create control stream", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create control stream"})
+	if err := h.repo.Create(r.Context(), cs); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to create control stream")
 		return
 	}
 
@@ -247,16 +200,14 @@ func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *htt
 // @Router      /controlstreams/{controlStreamId} [put]
 func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
-	existing, err := h.repo.GetByID(id)
+	existing, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get control stream before update", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Control stream not found"})
+		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to load control stream")
 		return
 	}
 
 	contentType := r.Header.Get("Content-Type")
-	cs, err := h.fc.Deserialize(contentType, r.Body)
+	cs, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize control stream", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -271,10 +222,8 @@ func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *htt
 	cs.ID = id
 	// system@link is read-only per spec: a control stream cannot be reparented.
 	cs.SystemID = existing.SystemID
-	if err := h.repo.Update(cs); err != nil {
-		h.logger.Error("Failed to update control stream", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update control stream"})
+	if err := h.repo.Update(r.Context(), cs); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to update control stream")
 		return
 	}
 
@@ -296,19 +245,8 @@ func (h *ControlStreamHandler) UpdateControlStream(w http.ResponseWriter, r *htt
 func (h *ControlStreamHandler) DeleteControlStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
 	cascade := r.URL.Query().Get("cascade") == "true"
-	if err := h.repo.Delete(id, cascade); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Control stream not found"})
-		case errors.Is(err, repository.ErrHasChildren):
-			render.Status(r, http.StatusConflict)
-			render.JSON(w, r, map[string]string{"error": "Control stream has dependent records; use ?cascade=true to delete"})
-		default:
-			h.logger.Error("Failed to delete control stream", zap.String("id", id), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete control stream"})
-		}
+	if err := h.repo.Delete(r.Context(), id, cascade); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to delete control stream")
 		return
 	}
 
@@ -330,30 +268,26 @@ func (h *ControlStreamHandler) DeleteControlStream(w http.ResponseWriter, r *htt
 // @Router      /controlstreams/{controlStreamId}/schema [get]
 func (h *ControlStreamHandler) GetControlStreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "controlStreamId")
-	schema, schemas, err := h.repo.GetSchema(id)
+	schema, schemas, err := h.repo.GetSchema(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get control stream schema", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Control stream not found"})
+		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to load control stream")
 		return
 	}
 
 	if commandFormat := r.URL.Query().Get("commandFormat"); commandFormat != "" {
 		schema = schemas.ForFormat(commandFormat)
 		if schema == nil {
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Control stream has no schema for format " + commandFormat})
+			writeError(w, r, http.StatusNotFound, "Control stream has no schema for format "+commandFormat)
 			return
 		}
 	}
 
 	if schema == nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Control stream schema not found"})
+		writeError(w, r, http.StatusNotFound, "Control stream schema not found")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, schema)
 }
 
@@ -391,10 +325,8 @@ func (h *ControlStreamHandler) UpdateControlStreamSchema(w http.ResponseWriter, 
 		return
 	}
 
-	if err := h.repo.UpdateSchema(id, &schema); err != nil {
-		h.logger.Error("Failed to update control stream schema", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update control stream schema"})
+	if err := h.repo.UpdateSchema(r.Context(), id, &schema); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to update control stream schema")
 		return
 	}
 

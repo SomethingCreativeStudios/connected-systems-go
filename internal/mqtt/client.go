@@ -3,6 +3,7 @@ package mqtt
 import (
 	"crypto/sha256"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +30,12 @@ type Manager struct {
 	client          mqtt.Client
 	mu              sync.Mutex
 	publishedEchoes map[string]publishedEcho
-	subscriptions   []string
+	subscriptions   []subscription
+}
+
+type subscription struct {
+	topic   string
+	handler mqtt.MessageHandler
 }
 
 type publishedEcho struct {
@@ -61,9 +67,7 @@ func (m *Manager) Connect() error {
 		SetConnectionLostHandler(func(client mqtt.Client, err error) {
 			m.logger.Warn("MQTT connection lost", zap.Error(err))
 		}).
-		SetOnConnectHandler(func(client mqtt.Client) {
-			m.logger.Info("MQTT connected", zap.String("broker", m.cfg.Broker))
-		})
+		SetOnConnectHandler(m.onConnect)
 
 	if m.cfg.Username != "" {
 		opts.SetUsername(m.cfg.Username)
@@ -82,6 +86,30 @@ func (m *Manager) Connect() error {
 	}
 
 	return nil
+}
+
+// onConnect runs after the first connect and after every automatic
+// reconnect. The session is clean, so the broker has forgotten our
+// subscriptions and paho does not replay them; restore them here.
+func (m *Manager) onConnect(client mqtt.Client) {
+	m.logger.Info("MQTT connected", zap.String("broker", m.cfg.Broker))
+
+	m.mu.Lock()
+	subscriptions := slices.Clone(m.subscriptions)
+	m.mu.Unlock()
+
+	for _, sub := range subscriptions {
+		token := client.Subscribe(sub.topic, m.cfg.QoS, sub.handler)
+		if !token.WaitTimeout(10 * time.Second) {
+			m.logger.Error("MQTT resubscribe timed out", zap.String("topic", sub.topic))
+			continue
+		}
+		if err := token.Error(); err != nil {
+			m.logger.Error("MQTT resubscribe failed", zap.String("topic", sub.topic), zap.Error(err))
+			continue
+		}
+		m.logger.Info("MQTT resubscribed", zap.String("topic", sub.topic))
+	}
 }
 
 // Disconnect gracefully closes the MQTT connection.
@@ -140,7 +168,7 @@ func (m *Manager) Subscribe(topic string, handler mqtt.MessageHandler) error {
 		return fmt.Errorf("mqtt subscribe %s: %w", topic, token.Error())
 	}
 	m.mu.Lock()
-	m.subscriptions = append(m.subscriptions, topic)
+	m.subscriptions = append(m.subscriptions, subscription{topic: topic, handler: wrapper})
 	m.mu.Unlock()
 
 	m.logger.Info("MQTT subscribed", zap.String("topic", topic))
@@ -205,12 +233,7 @@ func (m *Manager) Unsubscribe(topic string) error {
 		return fmt.Errorf("mqtt unsubscribe %s: %w", topic, token.Error())
 	}
 	m.mu.Lock()
-	for i, subscription := range m.subscriptions {
-		if subscription == topic {
-			m.subscriptions = append(m.subscriptions[:i], m.subscriptions[i+1:]...)
-			break
-		}
-	}
+	m.subscriptions = slices.DeleteFunc(m.subscriptions, func(sub subscription) bool { return sub.topic == topic })
 	m.mu.Unlock()
 
 	return nil
@@ -219,8 +242,8 @@ func (m *Manager) Unsubscribe(topic string) error {
 func (m *Manager) hasMatchingSubscription(topic string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, filter := range m.subscriptions {
-		if topicMatchesFilter(topic, filter) {
+	for _, sub := range m.subscriptions {
+		if topicMatchesFilter(topic, sub.topic) {
 			return true
 		}
 	}

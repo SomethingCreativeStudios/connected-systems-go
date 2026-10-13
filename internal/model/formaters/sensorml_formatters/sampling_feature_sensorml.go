@@ -3,38 +3,33 @@ package sensorml_formatters
 import (
 	"context"
 	"fmt"
-	"encoding/json"
 	"io"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // SamplingFeatureSensorMLFormatter handles serialization and deserialization of SamplingFeature objects in SensorML format
 type SamplingFeatureSensorMLFormatter struct {
 	formaters.Formatter[domains.SamplingFeatureSensorMLFeature, *domains.SamplingFeature]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewSamplingFeatureSensorMLFormatter constructs a formatter with required repository readers
-func NewSamplingFeatureSensorMLFormatter(repos *repository.Repositories) *SamplingFeatureSensorMLFormatter {
-	return &SamplingFeatureSensorMLFormatter{repos: repos}
+func NewSamplingFeatureSensorMLFormatter(links *formaters.LinkResolver) *SamplingFeatureSensorMLFormatter {
+	return &SamplingFeatureSensorMLFormatter{links: links}
 }
 
 func (f *SamplingFeatureSensorMLFormatter) ContentType() string {
-	return SensorMLContentType
+	return mediatype.SensorML
 }
 
 // --- Serialization ---
 
 func (f *SamplingFeatureSensorMLFormatter) Serialize(ctx context.Context, sf *domains.SamplingFeature) (domains.SamplingFeatureSensorMLFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.SamplingFeature{sf})
-	if err != nil {
-		return domains.SamplingFeatureSensorMLFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, sf, f.SerializeAll)
 }
 
 func (f *SamplingFeatureSensorMLFormatter) SerializeAll(ctx context.Context, samplingFeatures []*domains.SamplingFeature) ([]domains.SamplingFeatureSensorMLFeature, error) {
@@ -53,8 +48,8 @@ func (f *SamplingFeatureSensorMLFormatter) SerializeAll(ctx context.Context, sam
 			Definition:         sf.FeatureType,
 			ValidTime:          common_shared.NonEmptyTimeRange(sf.ValidTime),
 			Position:           sf.Geometry,
-			SampledFeatureLink: absolutizeLink(sf.SampledFeatureLink),
-			SampleOf:           absolutizeLinks(sf.SampleOf),
+			SampledFeatureLink: absolutizeLink(f.links, sf.SampledFeatureLink),
+			SampleOf:           absolutizeLinks(f.links, sf.SampleOf),
 			Links:              sf.Links,
 		}
 		features = append(features, feature)
@@ -63,40 +58,40 @@ func (f *SamplingFeatureSensorMLFormatter) SerializeAll(ctx context.Context, sam
 }
 
 // absolutizeLink returns a copy of the link with an absolute href and GeoJSON type.
-func absolutizeLink(link *common_shared.Link) *common_shared.Link {
+func absolutizeLink(links *formaters.LinkResolver, link *common_shared.Link) *common_shared.Link {
 	if link == nil {
 		return nil
 	}
 	cp := *link
-	cp.Href = formaters.ToFunctionalAssociationHref(cp.Href)
+	cp.Href = links.Href(cp.Href)
 	if cp.Type == "" {
-		cp.Type = formaters.GeoJSONContentType
+		cp.Type = mediatype.GeoJSON
 	}
 	return &cp
 }
 
 // absolutizeLinks returns a copy of the links with absolute hrefs.
-func absolutizeLinks(links *common_shared.Links) *common_shared.Links {
+func absolutizeLinks(resolver *formaters.LinkResolver, links *common_shared.Links) *common_shared.Links {
 	if links == nil {
 		return nil
 	}
 	result := make(common_shared.Links, len(*links))
 	for i, l := range *links {
 		result[i] = l
-		result[i].Href = formaters.ToFunctionalAssociationHref(result[i].Href)
+		result[i].Href = resolver.Href(result[i].Href)
 	}
 	return &result
 }
 
 // absolutizeLinksValue returns a copy of the links (value type) with absolute hrefs.
-func absolutizeLinksValue(links common_shared.Links) common_shared.Links {
+func absolutizeLinksValue(resolver *formaters.LinkResolver, links common_shared.Links) common_shared.Links {
 	if len(links) == 0 {
 		return nil
 	}
 	result := make(common_shared.Links, len(links))
 	for i, l := range links {
 		result[i] = l
-		result[i].Href = formaters.ToFunctionalAssociationHref(result[i].Href)
+		result[i].Href = resolver.Href(result[i].Href)
 	}
 	return result
 }
@@ -106,11 +101,6 @@ func absolutizeLinksValue(links common_shared.Links) common_shared.Links {
 func (f *SamplingFeatureSensorMLFormatter) Deserialize(ctx context.Context, reader io.Reader) (*domains.SamplingFeature, error) {
 	body, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, err
-	}
-
-	var raw map[string]interface{}
-	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
 	}
 
@@ -125,11 +115,7 @@ func (f *SamplingFeatureSensorMLFormatter) Deserialize(ctx context.Context, read
 
 	sf.UniqueIdentifier = domains.UniqueID(sensorML.UniqueID)
 
-	if sensorML.Label != "" {
-		sf.Name = sensorML.Label
-	} else if v, ok := raw["name"].(string); ok {
-		sf.Name = v
-	}
+	sf.Name = sensorML.Label
 
 	sf.Description = sensorML.Description
 
@@ -162,24 +148,6 @@ func (f *SamplingFeatureSensorMLFormatter) Deserialize(ctx context.Context, read
 	// Handle sampled feature link
 	if sensorML.SampledFeatureLink != nil && sensorML.SampledFeatureLink.Href != "" {
 		sf.SampledFeatureID = sensorML.SampledFeatureLink.GetId("samplingFeatures")
-	}
-
-	// Handle geometry from position field if present.
-	var geomObj interface{}
-	if sensorML.Position == nil {
-		if position, ok := raw["position"]; ok {
-			geomObj = position
-		} else if geometry, ok := raw["geometry"]; ok {
-			geomObj = geometry
-		}
-	}
-	if geomObj != nil {
-		if gb, err := json.Marshal(geomObj); err == nil {
-			var gg common_shared.GoGeom
-			if err := json.Unmarshal(gb, &gg); err == nil {
-				sf.Geometry = &gg
-			}
-		}
 	}
 
 	return sf, nil

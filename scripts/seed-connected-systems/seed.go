@@ -6,9 +6,13 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 const (
@@ -223,7 +227,7 @@ func (s *Seeder) seedProcedurePools(ctx context.Context) (map[string][]string, e
 		for count := s.draw(s.cfg.Seed.ProcedureVariantsPerSystemType); count > 0; count-- {
 			payload := map[string]any{
 				"type":        role.ProcedureProcessType,
-				"label":       s.name(strings.Title(role.Key) + " datasheet"),
+				"label":       s.name(titleCase.String(role.Key) + " datasheet"),
 				"description": "Synthetic type definition for seeded " + role.Key + " systems",
 				"uniqueId":    s.uid("procedure-" + role.Key),
 				"definition":  role.ProcedureType,
@@ -271,7 +275,7 @@ func (s *Seeder) seedSystems(ctx context.Context, procedures map[string][]string
 func (s *Seeder) createSystem(ctx context.Context, resourcePath string, role systemRole, procedureID, parentID string) (seededSystem, error) {
 	system := seededSystem{
 		UID:         s.uid("system-" + role.Key),
-		Name:        s.name(strings.Title(role.Key) + " system"),
+		Name:        s.name(titleCase.String(role.Key) + " system"),
 		Role:        role,
 		ProcedureID: procedureID,
 		Geometry:    s.point(),
@@ -505,7 +509,7 @@ func (s *Seeder) createCommandLifecycle(ctx context.Context, controlStream seede
 	if !successful {
 		statuses = []string{"ACCEPTED", "EXECUTING", "REJECTED"}
 	}
-	for index := 0; index < statusCount; index++ {
+	for index := range statusCount {
 		status := statuses[index]
 		if status == "COMPLETED" {
 			completed = true
@@ -769,10 +773,7 @@ func slugify(input string) string {
 }
 
 func contains(values []string, wanted string) bool {
-	for _, value := range values {
-		if value == wanted {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, wanted)
 }
+
+var titleCase = cases.Title(language.English)

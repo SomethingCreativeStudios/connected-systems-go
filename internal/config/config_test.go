@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"testing"
 	"time"
 
@@ -54,4 +55,26 @@ func TestBatchResourceEventWindowMustBePositive(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+// The DSN escapes credentials, so a password with URL-special characters
+// still reaches the server unchanged.
+func TestDatabaseDSN(t *testing.T) {
+	db := DatabaseConfig{Host: "db.internal", Port: 5432, Name: "connected_systems", User: "cs", Password: "p@ss w/rd?#", SSLMode: "require"}
+	require.Equal(t, "postgres://cs:p%40ss%20w%2Frd%3F%23@db.internal:5432/connected_systems?sslmode=require", db.DSN())
+
+	parsed, err := url.Parse(db.DSN())
+	require.NoError(t, err)
+	password, _ := parsed.User.Password()
+	require.Equal(t, "p@ss w/rd?#", password)
+}
+
+func TestDatabaseDefaults(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, "disable", cfg.Database.SSLMode)
+	require.True(t, cfg.Database.AutoMigrate)
 }

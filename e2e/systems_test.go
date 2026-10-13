@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createProcedureViaAPI(t *testing.T, payload map[string]interface{}) string {
+func createProcedureViaAPI(t *testing.T, payload map[string]any) string {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -36,26 +36,26 @@ func createProcedureViaAPI(t *testing.T, payload map[string]interface{}) string 
 	return id
 }
 
-func baseSamplingFeaturePayload(name string) map[string]interface{} {
-	return map[string]interface{}{
+func baseSamplingFeaturePayload(name string) map[string]any {
+	return map[string]any{
 		"type": "Feature",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"uid":         "urn:uuid:" + uuid.NewString(),
 			"name":        name,
 			"description": "Sampling feature for system association link tests",
 			"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
-			"sampledFeature@link": map[string]interface{}{
+			"sampledFeature@link": map[string]any{
 				"href": "http://example.org/features/test-foi",
 			},
 		},
-		"geometry": map[string]interface{}{
+		"geometry": map[string]any{
 			"type":        "Point",
 			"coordinates": []float64{-117.1625, 32.715},
 		},
 	}
 }
 
-func createSamplingFeatureViaAPI(t *testing.T, systemID string, payload map[string]interface{}) string {
+func createSamplingFeatureViaAPI(t *testing.T, systemID string, payload map[string]any) string {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -82,28 +82,28 @@ const (
 	SystemSMLSchema = "sensorml/system-bundled.json"
 )
 
-func baseSystemPayload(name string) map[string]interface{} {
+func baseSystemPayload(name string) map[string]any {
 	uid := "urn:uuid:" + uuid.NewString()
-	return map[string]interface{}{
+	return map[string]any{
 		"type": "Feature",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"uid":         uid,
 			"name":        name,
 			"featureType": "http://www.w3.org/ns/sosa/Sensor",
 			"assetType":   "Equipment",
 		},
-		"geometry": map[string]interface{}{
+		"geometry": map[string]any{
 			"type":        "Point",
 			"coordinates": []float64{-117.1625, 32.715},
 		},
 	}
 }
 
-func baseSystemPayloadWithoutGeometry(name string) map[string]interface{} {
+func baseSystemPayloadWithoutGeometry(name string) map[string]any {
 	uid := "urn:uuid:" + uuid.NewString()
-	return map[string]interface{}{
+	return map[string]any{
 		"type": "Feature",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"uid":         uid,
 			"name":        name,
 			"featureType": "http://www.w3.org/ns/sosa/Sensor",
@@ -112,7 +112,7 @@ func baseSystemPayloadWithoutGeometry(name string) map[string]interface{} {
 	}
 }
 
-func createSystemViaAPI(t *testing.T, endpoint string, payload map[string]interface{}) string {
+func createSystemViaAPI(t *testing.T, endpoint string, payload map[string]any) string {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -134,7 +134,7 @@ func createSystemViaAPI(t *testing.T, endpoint string, payload map[string]interf
 	return id
 }
 
-func createSystemSMLViaAPI(t *testing.T, endpoint string, payload map[string]interface{}) string {
+func createSystemSMLViaAPI(t *testing.T, endpoint string, payload map[string]any) string {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -158,15 +158,15 @@ func createSystemSMLViaAPI(t *testing.T, endpoint string, payload map[string]int
 
 func getFeatureCollectionIDs(t *testing.T, body []byte) []string {
 	t.Helper()
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.Unmarshal(body, &collection))
 
-	features, ok := collection["features"].([]interface{})
+	features, ok := collection["features"].([]any)
 	require.True(t, ok, "response must contain features array")
 
 	ids := make([]string, 0, len(features))
 	for _, f := range features {
-		obj, ok := f.(map[string]interface{})
+		obj, ok := f.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -177,12 +177,9 @@ func getFeatureCollectionIDs(t *testing.T, body []byte) []string {
 	return ids
 }
 
-func requireSchemaOrSkip(t *testing.T, body []byte, schema string) {
+func requireResponseSchema(t *testing.T, body []byte, schema string) {
 	t.Helper()
 	err := validateAgainstSchema(t, body, schema)
-	if err != nil && strings.Contains(err.Error(), "failed to compile schema") {
-		t.Skipf("skipping schema assertion due invalid bundled schema refs: %v", err)
-	}
 	require.NoError(t, err)
 }
 
@@ -249,7 +246,7 @@ func TestSystemConformance_CanonicalURL(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var feature map[string]interface{}
+	var feature map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 	assert.Equal(t, systemID, feature["id"])
 }
@@ -273,7 +270,7 @@ func TestSystemConformance_LocationAndLocationTime(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var feature map[string]interface{}
+	var feature map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 	_, hasGeometry := feature["geometry"]
 	assert.True(t, hasGeometry, "physical system should expose geometry when provided")
@@ -293,7 +290,7 @@ func TestSystemGeoJSON_NoGeometryDoesNotDefaultToZeroZero(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var feature map[string]interface{}
+	var feature map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 	require.Contains(t, feature, "geometry", "GeoJSON Feature must include a geometry member")
 	require.Nil(t, feature["geometry"], "missing position should be represented as null geometry, not Point(0 0)")
@@ -307,7 +304,7 @@ func TestSystemGeoJSON_NoGeometryDoesNotDefaultToZeroZero(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var sml map[string]interface{}
+	var sml map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&sml))
 	require.NotContains(t, sml, "position", "SensorML should omit position when none was supplied")
 }
@@ -315,7 +312,7 @@ func TestSystemGeoJSON_NoGeometryDoesNotDefaultToZeroZero(t *testing.T) {
 func TestSystemGeoJSON_SensorMLWithoutPositionDoesNotDefaultToZeroZero(t *testing.T) {
 	cleanupDB(t)
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"type":       "PhysicalSystem",
 		"label":      "SML System No Position",
 		"uniqueId":   "urn:uuid:" + uuid.NewString(),
@@ -332,7 +329,7 @@ func TestSystemGeoJSON_SensorMLWithoutPositionDoesNotDefaultToZeroZero(t *testin
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var feature map[string]interface{}
+	var feature map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 	require.Contains(t, feature, "geometry", "GeoJSON Feature must include a geometry member")
 	require.Nil(t, feature["geometry"], "SensorML without position should serialize to null geometry, not Point(0 0)")
@@ -359,7 +356,7 @@ func TestSystemSchema_GeoJSON(t *testing.T) {
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	requireSchemaOrSkip(t, body, SystemGeoSchema)
+	requireResponseSchema(t, body, SystemGeoSchema)
 }
 
 func TestSystemList_SensorMLEnvelope(t *testing.T) {
@@ -381,10 +378,10 @@ func TestSystemList_SensorMLEnvelope(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.Unmarshal(body, &collection))
 
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok, "sml+json collection must use an \"items\" array, got: %s", body)
 	require.Len(t, items, 1)
 
@@ -411,15 +408,15 @@ func TestSystemList_CursorPagination(t *testing.T) {
 	firstIDs := getFeatureCollectionIDs(t, firstBody)
 	require.Len(t, firstIDs, 1)
 
-	var firstCollection map[string]interface{}
+	var firstCollection map[string]any
 	require.NoError(t, json.Unmarshal(firstBody, &firstCollection))
 	assert.Equal(t, float64(3), firstCollection["numberMatched"])
 	assert.Equal(t, float64(1), firstCollection["numberReturned"])
-	firstLinks, ok := firstCollection["links"].([]interface{})
+	firstLinks, ok := firstCollection["links"].([]any)
 	require.True(t, ok)
 	var nextURL string
 	for _, link := range firstLinks {
-		entry := link.(map[string]interface{})
+		entry := link.(map[string]any)
 		if entry["rel"] == "next" {
 			nextURL = entry["href"].(string)
 		}
@@ -438,12 +435,12 @@ func TestSystemList_CursorPagination(t *testing.T) {
 	require.Len(t, nextIDs, 1)
 	assert.NotEqual(t, firstIDs[0], nextIDs[0])
 
-	var nextCollection map[string]interface{}
+	var nextCollection map[string]any
 	require.NoError(t, json.Unmarshal(nextBody, &nextCollection))
-	nextLinks := nextCollection["links"].([]interface{})
+	nextLinks := nextCollection["links"].([]any)
 	var prevURL string
 	for _, link := range nextLinks {
-		entry := link.(map[string]interface{})
+		entry := link.(map[string]any)
 		if entry["rel"] == "prev" {
 			prevURL = entry["href"].(string)
 		}
@@ -475,7 +472,7 @@ func TestSystemSchema_SensorML(t *testing.T) {
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	requireSchemaOrSkip(t, body, SystemSMLSchema)
+	requireResponseSchema(t, body, SystemSMLSchema)
 }
 
 // =============================================================================
@@ -511,7 +508,7 @@ func TestSubsystemConformance_Collection(t *testing.T) {
 func TestSystem_AssociationLinks_Subsystems(t *testing.T) {
 	cleanupDB(t)
 
-	procedureID := createProcedureViaAPI(t, map[string]interface{}{
+	procedureID := createProcedureViaAPI(t, map[string]any{
 		"type":       "SimpleProcess",
 		"uniqueId":   "urn:uuid:" + uuid.NewString(),
 		"label":      "Association Procedure",
@@ -520,9 +517,9 @@ func TestSystem_AssociationLinks_Subsystems(t *testing.T) {
 	require.NotEmpty(t, procedureID)
 
 	parentPayload := baseSystemPayload("Association Parent")
-	parentProps, ok := parentPayload["properties"].(map[string]interface{})
+	parentProps, ok := parentPayload["properties"].(map[string]any)
 	require.True(t, ok)
-	parentProps["systemKind@link"] = map[string]interface{}{
+	parentProps["systemKind@link"] = map[string]any{
 		"href": "/procedures/" + procedureID,
 		"rel":  "ogc-rel:systemKind",
 	}
@@ -543,10 +540,10 @@ func TestSystem_AssociationLinks_Subsystems(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var feature map[string]interface{}
+	var feature map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 
-	links, ok := feature["links"].([]interface{})
+	links, ok := feature["links"].([]any)
 	require.True(t, ok, "system must expose a links array when associations exist")
 
 	foundSubsystems := false
@@ -556,7 +553,7 @@ func TestSystem_AssociationLinks_Subsystems(t *testing.T) {
 	foundDatastreams := false
 	foundControlStreams := false
 	for _, rawLink := range links {
-		link, ok := rawLink.(map[string]interface{})
+		link, ok := rawLink.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -626,15 +623,15 @@ func TestSystem_AssociationLinks_OnlyWhenAssociationExists(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var feature map[string]interface{}
+	var feature map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 
 	if linksRaw, ok := feature["links"]; ok {
-		links, ok := linksRaw.([]interface{})
+		links, ok := linksRaw.([]any)
 		require.True(t, ok)
 
 		for _, rawLink := range links {
-			link, ok := rawLink.(map[string]interface{})
+			link, ok := rawLink.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -666,15 +663,15 @@ func TestSystem_AssociationLinks_AppearInSystemCollection(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
 
-	features, ok := collection["features"].([]interface{})
+	features, ok := collection["features"].([]any)
 	require.True(t, ok, "system collection must contain features")
 
-	var target map[string]interface{}
+	var target map[string]any
 	for _, rawFeature := range features {
-		feature, ok := rawFeature.(map[string]interface{})
+		feature, ok := rawFeature.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -687,12 +684,12 @@ func TestSystem_AssociationLinks_AppearInSystemCollection(t *testing.T) {
 
 	require.NotNil(t, target, "created system must be present in /systems collection")
 
-	links, ok := target["links"].([]interface{})
+	links, ok := target["links"].([]any)
 	require.True(t, ok, "system collection item must expose links when associations exist")
 
 	foundControlStreams := false
 	for _, rawLink := range links {
-		link, ok := rawLink.(map[string]interface{})
+		link, ok := rawLink.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -825,8 +822,8 @@ func TestSystemCRUD_CreateReplaceDelete(t *testing.T) {
 	systemID := createSystemViaAPI(t, "/systems", payload)
 
 	updated := baseSystemPayload("CRUD System Updated")
-	updatedProps := updated["properties"].(map[string]interface{})
-	updatedProps["uid"] = payload["properties"].(map[string]interface{})["uid"]
+	updatedProps := updated["properties"].(map[string]any)
+	updatedProps["uid"] = payload["properties"].(map[string]any)["uid"]
 
 	updateBody, err := json.Marshal(updated)
 	require.NoError(t, err)
@@ -847,9 +844,9 @@ func TestSystemCRUD_CreateReplaceDelete(t *testing.T) {
 	defer getResp.Body.Close()
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 
-	var got map[string]interface{}
+	var got map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&got))
-	props, ok := got["properties"].(map[string]interface{})
+	props, ok := got["properties"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "CRUD System Updated", props["name"])
 
@@ -883,7 +880,7 @@ func TestSubsystemCRUD_CreateAndCanonicalRead(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var child map[string]interface{}
+	var child map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&child))
 	assert.Equal(t, childID, child["id"])
 }

@@ -1,6 +1,6 @@
 package model
 
-import "github.com/yourusername/connected-systems-go/internal/model/common_shared"
+import "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 
 // CollectionMetadata represents OGC API Collections metadata
 type CollectionMetadata struct {

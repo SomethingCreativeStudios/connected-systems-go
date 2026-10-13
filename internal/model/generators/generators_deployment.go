@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"math/rand"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/google/uuid"
 	geom "github.com/twpayne/go-geom"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
 // =============================================================================
@@ -31,7 +32,7 @@ func FakeSetValue() common_shared.SetValue {
 
 // FakeSetArrayValue creates a SetArrayValue for configuration
 func FakeSetArrayValue() common_shared.SetArrayValue {
-	values := make([]interface{}, rand.Intn(5)+2)
+	values := make([]any, rand.Intn(5)+2)
 	for i := range values {
 		values[i] = rand.Float64() * 100
 	}
@@ -63,11 +64,11 @@ func FakeAllowedValues() common_shared.AllowedValues {
 	return common_shared.AllowedValues{
 		Type: "AllowedValues",
 		Values: []common_shared.ValueItem{
-			{Number: ptrFloat64(0)},
-			{Number: ptrFloat64(100)},
+			{Number: new(float64(0))},
+			{Number: new(float64(100))},
 		},
 		Intervals: [][]common_shared.ValueItem{
-			{{Number: ptrFloat64(0)}, {Number: ptrFloat64(50)}},
+			{{Number: new(float64(0))}, {Number: new(float64(50))}},
 		},
 	}
 }
@@ -159,7 +160,7 @@ func FakeDeployedSystemItemFull() domains.DeployedSystemItem {
 		System: common_shared.Link{
 			Href:  fmt.Sprintf("http://example.org/api/systems/%s", uuid.New().String()),
 			Rel:   "system",
-			Type:  "application/sml+json",
+			Type:  mediatype.SensorML,
 			Title: f.Company().Name() + " Sensor",
 			UID:   &uid,
 		},
@@ -170,7 +171,7 @@ func FakeDeployedSystemItemFull() domains.DeployedSystemItem {
 // FakeDeployedSystemItems creates multiple DeployedSystemItems
 func FakeDeployedSystemItems(count int) domains.DeployedSystemItems {
 	items := make(domains.DeployedSystemItems, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		// Mix of different complexity levels
 		switch rand.Intn(3) {
 		case 0:
@@ -211,7 +212,7 @@ func FakePlatformFull() *domains.DeployedSystemItem {
 		System: common_shared.Link{
 			Href:  fmt.Sprintf("http://example.org/api/systems/%s", uuid.New().String()),
 			Rel:   "platform",
-			Type:  "application/sml+json",
+			Type:  mediatype.SensorML,
 			Title: fmt.Sprintf("%s %s", f.Company().Name(), platformType),
 			UID:   &uid,
 		},
@@ -257,7 +258,7 @@ func FakeDeploymentLineStringGeometry() *common_shared.GoGeom {
 	numPoints := rand.Intn(5) + 3
 
 	coords := make([]geom.Coord, numPoints)
-	for i := 0; i < numPoints; i++ {
+	for i := range numPoints {
 		coords[i] = geom.Coord{
 			startLon + float64(i)*0.01,
 			startLat + float64(i)*0.005,
@@ -325,7 +326,7 @@ func FakeDeploymentFixed() domains.Deployment {
 		DeploymentType:      domains.DeploymentTypeDeployment,
 		ValidTime:           FakeValidTimeCurrent(),
 		Geometry:            FakeDeploymentPointGeometry(),
-		Lang:                ptrString("en"),
+		Lang:                new("en"),
 		Keywords:            common_shared.StringArray{"fixed", "monitoring", f.Lorem().Word()},
 		Identifiers:         FakeIdentifiers(2),
 		Classifiers:         FakeClassifiers(2),
@@ -357,7 +358,7 @@ func FakeDeploymentMobile() domains.Deployment {
 		DeploymentType:  domains.DeploymentTypeDeployment,
 		ValidTime:       FakeValidTimeCurrent(),
 		Geometry:        FakeDeploymentLineStringGeometry(),
-		Lang:            ptrString("en"),
+		Lang:            new("en"),
 		Keywords:        common_shared.StringArray{"mobile", "trajectory", "survey"},
 		Identifiers:     FakeIdentifiers(2),
 		Classifiers:     FakeClassifiers(1),
@@ -385,7 +386,7 @@ func FakeDeploymentArea() domains.Deployment {
 		DeploymentType:  domains.DeploymentTypeDeployment,
 		ValidTime:       FakeValidTimeCurrent(),
 		Geometry:        FakeDeploymentPolygonGeometry(),
-		Lang:            ptrString("en"),
+		Lang:            new("en"),
 		Keywords:        common_shared.StringArray{"area", "network", "distributed"},
 		Identifiers:     FakeIdentifiers(1),
 		Classifiers:     FakeClassifiers(1),
@@ -433,7 +434,7 @@ func FakeDeploymentFull() domains.Deployment {
 		DeploymentType:      domains.DeploymentTypeDeployment,
 		ValidTime:           FakeValidTimeCurrent(),
 		Geometry:            FakeDeploymentPointGeometry(),
-		Lang:                ptrString("en"),
+		Lang:                new("en"),
 		Keywords:            common_shared.StringArray{f.Lorem().Word(), f.Lorem().Word(), f.Lorem().Word()},
 		Identifiers:         FakeIdentifiers(3),
 		Classifiers:         FakeClassifiers(2),
@@ -491,7 +492,3 @@ func FakeDeploymentRandom() domains.Deployment {
 // =============================================================================
 // Helper Functions
 // =============================================================================
-
-func ptrFloat64(f float64) *float64 {
-	return &f
-}

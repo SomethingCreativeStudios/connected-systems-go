@@ -1,17 +1,15 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -74,26 +72,18 @@ func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.S
 func (h *SystemHandler) ListSystems(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.SystemQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	systems, total, err := h.repo.List(params)
+	systems, total, err := h.repo.List(r.Context(), params)
 	if err != nil {
 		h.logger.Error("Failed to list systems", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	h.populateSystemAssociationLinks(systems)
-
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, systems, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, systems, total, params.QueryParams)
 }
 
 // GetSystem retrieves a single system by ID
@@ -110,27 +100,13 @@ func (h *SystemHandler) ListSystems(w http.ResponseWriter, r *http.Request) {
 func (h *SystemHandler) GetSystem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	system, err := h.repo.GetByID(id)
+	system, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get system", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "System not found"})
+		writeRepositoryError(w, r, h.logger, err, "System", "Failed to load system")
 		return
 	}
 
-	system.Links = append(system.Links, h.repo.BuildSystemAssociations(id)...)
-
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, system)
-	if err != nil {
-		h.logger.Error("Failed to serialize system", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize system"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, serialized)
+	writeResource(w, r, h.logger, h.fc, system)
 }
 
 // CreateSystem creates a new system
@@ -146,21 +122,19 @@ func (h *SystemHandler) GetSystem(w http.ResponseWriter, r *http.Request) {
 // @Router      /systems [post]
 func (h *SystemHandler) CreateSystem(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
-	system, err := h.fc.Deserialize(contentType, r.Body)
+	system, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize system", zap.Error(err))
 		writeDeserializeError(w, r, err)
 		return
 	}
 
-	if err := h.repo.Create(system); err != nil {
-		h.logger.Error("Failed to create system", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create system"})
+	if err := h.repo.Create(r.Context(), system); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "System", "Failed to create system")
 		return
 	}
 
-	if _, err := h.historyRepo.CreateFromSystem(system); err != nil {
+	if _, err := h.historyRepo.CreateFromSystem(r.Context(), system); err != nil {
 		h.logger.Warn("Failed to create initial system history snapshot", zap.String("systemId", system.ID), zap.Error(err))
 	}
 
@@ -185,7 +159,7 @@ func (h *SystemHandler) UpdateSystem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	contentType := r.Header.Get("Content-Type")
-	system, err := h.fc.Deserialize(contentType, r.Body)
+	system, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize system", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -193,14 +167,12 @@ func (h *SystemHandler) UpdateSystem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	system.ID = id
-	if err := h.repo.Update(system.ID, system); err != nil {
-		h.logger.Error("Failed to update system", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update system"})
+	if err := h.repo.Update(r.Context(), system.ID, system); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "System", "Failed to update system")
 		return
 	}
 
-	if _, err := h.historyRepo.CreateFromSystem(system); err != nil {
+	if _, err := h.historyRepo.CreateFromSystem(r.Context(), system); err != nil {
 		h.logger.Warn("Failed to create system history snapshot after update", zap.String("systemId", system.ID), zap.Error(err))
 	}
 
@@ -223,19 +195,8 @@ func (h *SystemHandler) DeleteSystem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	cascade := r.URL.Query().Get("cascade") == "true"
 
-	if err := h.repo.Delete(id, cascade); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "System not found"})
-		case errors.Is(err, repository.ErrHasChildren):
-			render.Status(r, http.StatusConflict)
-			render.JSON(w, r, map[string]string{"error": "System has dependent records; use ?cascade=true to delete"})
-		default:
-			h.logger.Error("Failed to delete system", zap.String("id", id), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete system"})
-		}
+	if err := h.repo.Delete(r.Context(), id, cascade); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "System", "Failed to delete system")
 		return
 	}
 
@@ -269,35 +230,18 @@ func (h *SystemHandler) GetSubsystems(w http.ResponseWriter, r *http.Request) {
 	parentID := chi.URLParam(r, "id")
 	params, err := queryparams.SystemQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	systems, total, err := h.repo.ListSubsystems(parentID, params)
+	systems, total, err := h.repo.ListSubsystems(r.Context(), parentID, params)
 	if err != nil {
 		h.logger.Error("Failed to get subsystems", zap.String("parentID", parentID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to get subsystems"})
+		writeError(w, r, http.StatusInternalServerError, "Failed to get subsystems")
 		return
 	}
 
-	h.populateSystemAssociationLinks(systems)
-
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, systems, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
-}
-
-func (h *SystemHandler) populateSystemAssociationLinks(systems []*domains.System) {
-	for _, system := range systems {
-		if system == nil || strings.TrimSpace(system.ID) == "" {
-			continue
-		}
-		system.Links = append(system.Links, h.repo.BuildSystemAssociations(system.ID)...)
-	}
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, systems, total, params.QueryParams)
 }
 
 // GetDeployments retrieves deployments associated with a system
@@ -328,26 +272,20 @@ func (h *SystemHandler) GetDeployments(w http.ResponseWriter, r *http.Request) {
 	// Build optional pagination params from request
 	params, err := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	params.System = append(params.System, id)
 
 	// Use deployment repository helper to find deployments associated with this system
-	deployments, total, err := h.deploymentRepo.List(params, nil)
+	deployments, total, err := h.deploymentRepo.List(r.Context(), params, nil)
 	if err != nil {
 		h.logger.Error("Failed to get deployments for system", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to get deployments"})
+		writeError(w, r, http.StatusInternalServerError, "Failed to get deployments")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.deploymentFC.BuildCollection(acceptHeader, deployments, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.deploymentFC.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
+	writeCollection(w, r, h.logger, h.deploymentFC, h.cfg.API.BaseURL, deployments, total, params.QueryParams)
 }
 
 // GetProcedures retrieves procedures associated with a system.
@@ -371,24 +309,18 @@ func (h *SystemHandler) GetProcedures(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	params, err := queryparams.ProceduresQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	procedures, total, err := h.procedureRepo.ListBySystem(id, params)
+	procedures, total, err := h.procedureRepo.ListBySystem(r.Context(), id, params)
 	if err != nil {
 		h.logger.Error("Failed to get procedures for system", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to get procedures"})
+		writeError(w, r, http.StatusInternalServerError, "Failed to get procedures")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.procedureFC.BuildCollection(acceptHeader, procedures, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.procedureFC.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
+	writeCollection(w, r, h.logger, h.procedureFC, h.cfg.API.BaseURL, procedures, total, params.QueryParams)
 }
 
 // AddSubsystem adds a subsystem to a system
@@ -407,7 +339,7 @@ func (h *SystemHandler) AddSubsystem(w http.ResponseWriter, r *http.Request) {
 	parentID := chi.URLParam(r, "id")
 
 	contentType := r.Header.Get("Content-Type")
-	system, err := h.fc.Deserialize(contentType, r.Body)
+	system, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize system", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -416,14 +348,12 @@ func (h *SystemHandler) AddSubsystem(w http.ResponseWriter, r *http.Request) {
 
 	system.ParentSystemID = &parentID
 
-	if err := h.repo.Create(system); err != nil {
-		h.logger.Error("Failed to create subsystem", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create subsystem"})
+	if err := h.repo.Create(r.Context(), system); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Subsystem", "Failed to create subsystem")
 		return
 	}
 
-	if _, err := h.historyRepo.CreateFromSystem(system); err != nil {
+	if _, err := h.historyRepo.CreateFromSystem(r.Context(), system); err != nil {
 		h.logger.Warn("Failed to create subsystem history snapshot", zap.String("systemId", system.ID), zap.Error(err))
 	}
 

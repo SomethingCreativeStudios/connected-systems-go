@@ -6,7 +6,7 @@ import (
 )
 
 // Properties represents a flexible key-value map for additional properties
-type Properties map[string]interface{}
+type Properties map[string]any
 
 // Value implements driver.Valuer for JSONB storage
 func (p Properties) Value() (driver.Value, error) {
@@ -17,7 +17,7 @@ func (p Properties) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (p *Properties) Scan(value interface{}) error {
+func (p *Properties) Scan(value any) error {
 	if value == nil {
 		*p = nil
 		return nil

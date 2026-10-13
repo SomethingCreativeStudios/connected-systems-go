@@ -6,19 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func requirePropertySchemaOrSkip(t *testing.T, body []byte, schema string) {
+func requirePropertySchema(t *testing.T, body []byte, schema string) {
 	t.Helper()
 	err := validateAgainstSchema(t, body, schema)
-	if err != nil && strings.Contains(err.Error(), "failed to compile schema") {
-		t.Skipf("skipping schema assertion due invalid bundled schema refs: %v", err)
-	}
 	require.NoError(t, err)
 }
 
@@ -26,7 +22,7 @@ func requirePropertySchemaOrSkip(t *testing.T, body []byte, schema string) {
 func setupPropertyConformanceData(t *testing.T) []string {
 	t.Helper()
 
-	testProperties := []map[string]interface{}{
+	testProperties := []map[string]any{
 		{
 			"label":        "Temperature",
 			"description":  "Air temperature property",
@@ -60,12 +56,12 @@ func setupPropertyConformanceData(t *testing.T) []string {
 			"description":  "Temperature with measurement qualifiers",
 			"uniqueId":     "urn:ogc:conf:property:temp-qualified",
 			"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
-			"qualifiers": []map[string]interface{}{
+			"qualifiers": []map[string]any{
 				{
 					"type":       "Quantity",
 					"label":      "Measurement Height",
 					"definition": "http://sensorml.com/ont/swe/property/Height",
-					"uom": map[string]interface{}{
+					"uom": map[string]any{
 						"code": "m",
 					},
 					"value": 2.0,
@@ -145,12 +141,12 @@ func TestPropertyConformance(t *testing.T) {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				var collection map[string]interface{}
+				var collection map[string]any
 				err = json.Unmarshal(body, &collection)
 				require.NoError(t, err, "Response must be valid JSON")
 
 				// sml+json collections use an "items" array (OGC /req/sensorml/collection-items)
-				items, ok := collection["items"].([]interface{})
+				items, ok := collection["items"].([]any)
 				assert.True(t, ok, "Response must contain 'items' array")
 				assert.GreaterOrEqual(t, len(items), 1, "Collection must contain at least one property")
 			},
@@ -201,7 +197,7 @@ func TestPropertyConformance(t *testing.T) {
 
 						assert.Equal(t, http.StatusOK, resp.StatusCode, "GET /properties/{id} must return 200 OK")
 
-						var property map[string]interface{}
+						var property map[string]any
 						err = json.NewDecoder(resp.Body).Decode(&property)
 						require.NoError(t, err)
 
@@ -260,7 +256,7 @@ func TestPropertySchema_SensorML(t *testing.T) {
 						require.NoError(t, err)
 
 						// Validate against property schema.
-						requirePropertySchemaOrSkip(t, body, PropertySchema)
+						requirePropertySchema(t, body, PropertySchema)
 					})
 				}
 			},
@@ -286,11 +282,11 @@ func TestPropertySchema_SensorML(t *testing.T) {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				var collection map[string]interface{}
+				var collection map[string]any
 				err = json.Unmarshal(body, &collection)
 				require.NoError(t, err)
 
-				items, ok := collection["items"].([]interface{})
+				items, ok := collection["items"].([]any)
 				require.True(t, ok, "Collection must have items array")
 
 				for i, item := range items {
@@ -298,7 +294,7 @@ func TestPropertySchema_SensorML(t *testing.T) {
 						itemBytes, err := json.Marshal(item)
 						require.NoError(t, err)
 
-						requirePropertySchemaOrSkip(t, itemBytes, PropertySchema)
+						requirePropertySchema(t, itemBytes, PropertySchema)
 					})
 				}
 			},
@@ -324,7 +320,7 @@ func TestPropertySchema_SensorML(t *testing.T) {
 
 						require.Equal(t, http.StatusOK, resp.StatusCode)
 
-						var property map[string]interface{}
+						var property map[string]any
 						err = json.NewDecoder(resp.Body).Decode(&property)
 						require.NoError(t, err)
 
@@ -344,7 +340,7 @@ func TestPropertySchema_SensorML(t *testing.T) {
 							assert.IsType(t, "", statistic, "statistic must be a string")
 						}
 						if qualifiers, ok := property["qualifiers"]; ok {
-							assert.IsType(t, []interface{}{}, qualifiers, "qualifiers must be an array")
+							assert.IsType(t, []any{}, qualifiers, "qualifiers must be an array")
 						}
 					})
 				}
@@ -366,23 +362,23 @@ func TestPropertySchema_SensorML(t *testing.T) {
 // =============================================================================
 func TestPropertyCRUD_Create(t *testing.T) {
 	testCases := map[string]struct {
-		payload      map[string]interface{}
-		validateFunc func(t *testing.T, created map[string]interface{})
+		payload      map[string]any
+		validateFunc func(t *testing.T, created map[string]any)
 	}{
 		"minimal property": {
-			payload: map[string]interface{}{
+			payload: map[string]any{
 				"label":        "Test Minimal Property",
 				"uniqueId":     "urn:ogc:conf:property:minimal-create",
 				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
 			},
-			validateFunc: func(t *testing.T, created map[string]interface{}) {
+			validateFunc: func(t *testing.T, created map[string]any) {
 				assert.Equal(t, "Test Minimal Property", created["label"])
 				assert.Equal(t, "urn:ogc:conf:property:minimal-create", created["uniqueId"])
 				assert.Equal(t, "https://qudt.org/vocab/quantitykind/Temperature", created["baseProperty"])
 			},
 		},
 		"property with all optional fields": {
-			payload: map[string]interface{}{
+			payload: map[string]any{
 				"label":        "Test Full Property",
 				"description":  "A fully specified property",
 				"uniqueId":     "urn:ogc:conf:property:full-create",
@@ -390,7 +386,7 @@ func TestPropertyCRUD_Create(t *testing.T) {
 				"objectType":   "http://dbpedia.org/resource/Sensor",
 				"statistic":    "http://sensorml.com/ont/x-stats/Mean",
 			},
-			validateFunc: func(t *testing.T, created map[string]interface{}) {
+			validateFunc: func(t *testing.T, created map[string]any) {
 				assert.Equal(t, "Test Full Property", created["label"])
 				assert.Equal(t, "A fully specified property", created["description"])
 				assert.Equal(t, "urn:ogc:conf:property:full-create", created["uniqueId"])
@@ -400,36 +396,36 @@ func TestPropertyCRUD_Create(t *testing.T) {
 			},
 		},
 		"property with qualifiers": {
-			payload: map[string]interface{}{
+			payload: map[string]any{
 				"label":        "Test Property with Qualifiers",
 				"uniqueId":     "urn:ogc:conf:property:qualified-create",
 				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
-				"qualifiers": []map[string]interface{}{
+				"qualifiers": []map[string]any{
 					{
 						"type":       "Quantity",
 						"label":      "Height",
 						"definition": "http://sensorml.com/ont/swe/property/Height",
-						"uom":        map[string]interface{}{"code": "m"},
+						"uom":        map[string]any{"code": "m"},
 						"value":      5.0,
 					},
 				},
 			},
-			validateFunc: func(t *testing.T, created map[string]interface{}) {
+			validateFunc: func(t *testing.T, created map[string]any) {
 				assert.Equal(t, "Test Property with Qualifiers", created["label"])
 				assert.Equal(t, "urn:ogc:conf:property:qualified-create", created["uniqueId"])
 				assert.Equal(t, "https://qudt.org/vocab/quantitykind/Temperature", created["baseProperty"])
 
-				qualifiers, ok := created["qualifiers"].([]interface{})
+				qualifiers, ok := created["qualifiers"].([]any)
 				require.True(t, ok, "qualifiers must be an array")
 				require.Len(t, qualifiers, 1, "there must be one qualifier")
 
-				qualifier, ok := qualifiers[0].(map[string]interface{})
+				qualifier, ok := qualifiers[0].(map[string]any)
 				require.True(t, ok, "qualifier must be an object")
 				assert.Equal(t, "Quantity", qualifier["type"])
 				assert.Equal(t, "Height", qualifier["label"])
 				assert.Equal(t, "http://sensorml.com/ont/swe/property/Height", qualifier["definition"])
 
-				uom, ok := qualifier["uom"].(map[string]interface{})
+				uom, ok := qualifier["uom"].(map[string]any)
 				require.True(t, ok, "uom must be an object")
 				assert.Equal(t, "m", uom["code"])
 
@@ -467,7 +463,7 @@ func TestPropertyCRUD_Create(t *testing.T) {
 // Systems spec, the `property` schema is DerivedProperty + {required: [uniqueId]},
 // and DerivedProperty itself requires baseProperty (and label).
 func TestPropertyCRUD_Create_MissingBaseProperty(t *testing.T) {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"label":    "Test Property Without Base",
 		"uniqueId": "urn:ogc:conf:property:missing-base-create",
 	}
@@ -495,45 +491,45 @@ func TestPropertyCRUD_Replace(t *testing.T) {
 	// Server SHALL support PUT to /properties/{id} to replace property resources
 
 	replaceTestCases := map[string]struct {
-		createPayload   map[string]interface{}
-		updatePayload   map[string]interface{}
+		createPayload   map[string]any
+		updatePayload   map[string]any
 		expectedGetCode int
-		validateUpdate  func(t *testing.T, result map[string]interface{})
+		validateUpdate  func(t *testing.T, result map[string]any)
 	}{
 		"update property label": {
-			createPayload: map[string]interface{}{
+			createPayload: map[string]any{
 				"label":        "Property to Update",
 				"uniqueId":     "urn:test:property:crud-update",
 				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
 			},
-			updatePayload: map[string]interface{}{
+			updatePayload: map[string]any{
 				"label":        "Updated Property Name",
 				"uniqueId":     "urn:test:property:crud-update",
 				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
 				"description":  "Now with a description",
 			},
 			expectedGetCode: http.StatusOK,
-			validateUpdate: func(t *testing.T, result map[string]interface{}) {
+			validateUpdate: func(t *testing.T, result map[string]any) {
 				assert.Equal(t, "Updated Property Name", result["label"])
 				assert.Equal(t, "Now with a description", result["description"])
 			},
 		},
 		"update property with qualifiers": {
-			createPayload: map[string]interface{}{
+			createPayload: map[string]any{
 				"label":        "Property for Qualifier Update",
 				"uniqueId":     "urn:test:property:crud-qualifier-update",
 				"baseProperty": "https://qudt.org/vocab/quantitykind/Pressure",
 			},
-			updatePayload: map[string]interface{}{
+			updatePayload: map[string]any{
 				"label":        "Property for Qualifier Update",
 				"uniqueId":     "urn:test:property:crud-qualifier-update",
 				"baseProperty": "https://qudt.org/vocab/quantitykind/Pressure",
-				"qualifiers": []map[string]interface{}{
+				"qualifiers": []map[string]any{
 					{
 						"type":       "Quantity",
 						"label":      "Altitude",
 						"definition": "http://sensorml.com/ont/swe/property/Altitude",
-						"uom": map[string]interface{}{
+						"uom": map[string]any{
 							"code": "m",
 						},
 						"value": 1000.0,
@@ -541,8 +537,8 @@ func TestPropertyCRUD_Replace(t *testing.T) {
 				},
 			},
 			expectedGetCode: http.StatusOK,
-			validateUpdate: func(t *testing.T, result map[string]interface{}) {
-				qualifiers, ok := result["qualifiers"].([]interface{})
+			validateUpdate: func(t *testing.T, result map[string]any) {
+				qualifiers, ok := result["qualifiers"].([]any)
 				require.True(t, ok, "expected qualifiers array after update")
 				assert.Len(t, qualifiers, 1)
 			},
@@ -596,11 +592,11 @@ func TestPropertyCRUD_Delete(t *testing.T) {
 	// Server SHALL support DELETE to /properties/{id} to delete property resources
 
 	deleteTestCases := map[string]struct {
-		createPayload   map[string]interface{}
+		createPayload   map[string]any
 		expectedGetCode int
 	}{
 		"delete existing property": {
-			createPayload: map[string]interface{}{
+			createPayload: map[string]any{
 				"label":        "Property to Delete",
 				"uniqueId":     "urn:test:property:crud-delete",
 				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
@@ -608,16 +604,16 @@ func TestPropertyCRUD_Delete(t *testing.T) {
 			expectedGetCode: http.StatusNotFound,
 		},
 		"delete property with qualifiers": {
-			createPayload: map[string]interface{}{
+			createPayload: map[string]any{
 				"label":        "Property with Qualifiers to Delete",
 				"uniqueId":     "urn:test:property:crud-delete-qualifiers",
 				"baseProperty": "https://qudt.org/vocab/quantitykind/Temperature",
-				"qualifiers": []map[string]interface{}{
+				"qualifiers": []map[string]any{
 					{
 						"type":       "Quantity",
 						"label":      "Depth",
 						"definition": "http://sensorml.com/ont/swe/property/Depth",
-						"uom":        map[string]interface{}{"code": "m"},
+						"uom":        map[string]any{"code": "m"},
 						"value":      50.0,
 					},
 				},
@@ -714,11 +710,11 @@ func TestPropertyAdvancedFiltering_BaseProp(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-			var collection map[string]interface{}
+			var collection map[string]any
 			err = json.NewDecoder(resp.Body).Decode(&collection)
 			require.NoError(t, err)
 
-			features, ok := collection["items"].([]interface{})
+			features, ok := collection["items"].([]any)
 			require.True(t, ok)
 
 			if tc.expectedMinLen == 0 {
@@ -728,7 +724,7 @@ func TestPropertyAdvancedFiltering_BaseProp(t *testing.T) {
 
 				// Verify all returned properties have the expected baseProperty
 				for _, item := range features {
-					prop := item.(map[string]interface{})
+					prop := item.(map[string]any)
 					assert.Equal(t, tc.baseProperty, prop["baseProperty"], "All returned properties must match the baseProperty filter")
 				}
 			}
@@ -786,11 +782,11 @@ func TestPropertyAdvancedFiltering_ObjectType(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-			var collection map[string]interface{}
+			var collection map[string]any
 			err = json.NewDecoder(resp.Body).Decode(&collection)
 			require.NoError(t, err)
 
-			features, ok := collection["items"].([]interface{})
+			features, ok := collection["items"].([]any)
 			require.True(t, ok)
 
 			if tc.expectedMinLen == 0 {
@@ -800,7 +796,7 @@ func TestPropertyAdvancedFiltering_ObjectType(t *testing.T) {
 
 				// Verify all returned properties have the expected objectType
 				for _, item := range features {
-					prop := item.(map[string]interface{})
+					prop := item.(map[string]any)
 					assert.Equal(t, tc.objectType, prop["objectType"], "All returned properties must match the objectType filter")
 				}
 			}
@@ -861,11 +857,11 @@ func TestPropertyAdvancedFiltering_CombinedFilters(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-			var collection map[string]interface{}
+			var collection map[string]any
 			err = json.NewDecoder(resp.Body).Decode(&collection)
 			require.NoError(t, err)
 
-			features, ok := collection["items"].([]interface{})
+			features, ok := collection["items"].([]any)
 			require.True(t, ok)
 
 			if tc.expectedMinLen == 0 {
@@ -875,7 +871,7 @@ func TestPropertyAdvancedFiltering_CombinedFilters(t *testing.T) {
 
 				// Verify all returned properties match both filters
 				for _, item := range features {
-					prop := item.(map[string]interface{})
+					prop := item.(map[string]any)
 					assert.Equal(t, tc.baseProperty, prop["baseProperty"])
 					assert.Equal(t, tc.objectType, prop["objectType"])
 				}

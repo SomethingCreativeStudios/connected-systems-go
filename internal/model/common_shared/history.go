@@ -35,8 +35,11 @@ func (ht *HistoryTime) UnmarshalJSON(b []byte) error {
 			ht.Range = nil
 			return nil
 		}
-		// fallback: interpret string as a range (start/end)
-		tr := ToTimeRange(s)
+		// otherwise it must be a range (start/end)
+		tr, err := toTimeRangeStrict(s)
+		if err != nil {
+			return err
+		}
 		ht.Range = &tr
 		ht.Instant = nil
 		return nil
@@ -71,7 +74,7 @@ func (ht HistoryTime) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner so HistoryTime can be loaded from JSONB.
-func (ht *HistoryTime) Scan(value interface{}) error {
+func (ht *HistoryTime) Scan(value any) error {
 	if value == nil {
 		*ht = HistoryTime{}
 		return nil
@@ -109,7 +112,7 @@ func (h History) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner to load History from a JSONB column.
-func (h *History) Scan(value interface{}) error {
+func (h *History) Scan(value any) error {
 	if value == nil {
 		*h = nil
 		return nil

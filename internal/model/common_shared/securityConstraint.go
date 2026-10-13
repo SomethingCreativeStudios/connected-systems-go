@@ -3,6 +3,7 @@ package common_shared
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"maps"
 )
 
 // SecurityConstraint represents a security tagging object. The SensorML schema
@@ -11,14 +12,14 @@ import (
 // Extra map. Custom JSON marshal/unmarshal preserve both the typed field and
 // arbitrary extras so round-tripping is lossless.
 type SecurityConstraint struct {
-	Type  string                 `json:"type"`
-	Extra map[string]interface{} `json:"-"`
+	Type  string         `json:"type"`
+	Extra map[string]any `json:"-"`
 }
 
 // UnmarshalJSON implements custom unmarshalling to extract the `type` field
 // and preserve any other properties in the Extra map.
 func (s *SecurityConstraint) UnmarshalJSON(b []byte) error {
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(b, &m); err != nil {
 		return err
 	}
@@ -39,11 +40,9 @@ func (s *SecurityConstraint) UnmarshalJSON(b []byte) error {
 // MarshalJSON writes out the `type` field and any extras captured in the
 // Extra map.
 func (s SecurityConstraint) MarshalJSON() ([]byte, error) {
-	m := map[string]interface{}{}
+	m := map[string]any{}
 	if s.Extra != nil {
-		for k, v := range s.Extra {
-			m[k] = v
-		}
+		maps.Copy(m, s.Extra)
 	}
 	m["type"] = s.Type
 	return json.Marshal(m)
@@ -61,7 +60,7 @@ func (s SecurityConstraints) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (s *SecurityConstraints) Scan(value interface{}) error {
+func (s *SecurityConstraints) Scan(value any) error {
 	if value == nil {
 		*s = nil
 		return nil

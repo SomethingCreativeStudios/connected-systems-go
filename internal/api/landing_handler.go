@@ -3,10 +3,11 @@ package api
 import (
 	"net/http"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"go.uber.org/zap"
 )
 
@@ -42,7 +43,7 @@ func (h *LandingHandler) GetLandingPage(w http.ResponseWriter, r *http.Request) 
 			{
 				Href:  baseURL + "/",
 				Rel:   "self",
-				Type:  "application/json",
+				Type:  mediatype.JSON,
 				Title: "This document",
 			},
 			{
@@ -54,43 +55,43 @@ func (h *LandingHandler) GetLandingPage(w http.ResponseWriter, r *http.Request) 
 			{
 				Href:  baseURL + "/conformance",
 				Rel:   "conformance",
-				Type:  "application/json",
+				Type:  mediatype.JSON,
 				Title: "Conformance declaration",
 			},
 			{
 				Href:  baseURL + "/collections",
 				Rel:   "data",
-				Type:  "application/json",
+				Type:  mediatype.JSON,
 				Title: "Collections",
 			},
 			{
 				Href:  baseURL + "/systems",
 				Rel:   "data",
-				Type:  "application/geo+json",
+				Type:  mediatype.GeoJSON,
 				Title: "Systems",
 			},
 			{
 				Href:  baseURL + "/deployments",
 				Rel:   "data",
-				Type:  "application/geo+json",
+				Type:  mediatype.GeoJSON,
 				Title: "Deployments",
 			},
 			{
 				Href:  baseURL + "/procedures",
 				Rel:   "data",
-				Type:  "application/geo+json",
+				Type:  mediatype.GeoJSON,
 				Title: "Procedures",
 			},
 			{
 				Href:  baseURL + "/samplingFeatures",
 				Rel:   "data",
-				Type:  "application/geo+json",
+				Type:  mediatype.GeoJSON,
 				Title: "Sampling Features",
 			},
 			{
 				Href:  baseURL + "/properties",
 				Rel:   "data",
-				Type:  "application/json",
+				Type:  mediatype.JSON,
 				Title: "Properties",
 			},
 		},

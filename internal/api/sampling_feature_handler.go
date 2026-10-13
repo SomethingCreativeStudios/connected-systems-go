@@ -1,18 +1,16 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -55,24 +53,18 @@ func (h *SamplingFeatureHandler) ListSamplingFeatures(w http.ResponseWriter, r *
 
 	if err != nil {
 		h.logger.Error("Failed to parse query parameters", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid query parameters"})
+		writeError(w, r, http.StatusBadRequest, "Invalid query parameters")
 		return
 	}
 
-	sampledFeatures, total, err := h.repo.List(params)
+	sampledFeatures, total, err := h.repo.List(r.Context(), params)
 	if err != nil {
 		h.logger.Error("Failed to list sampling features", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, sampledFeatures, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, sampledFeatures, total, params.QueryParams)
 }
 
 // GetSamplingFeature returns a single sampling feature by ID
@@ -89,26 +81,13 @@ func (h *SamplingFeatureHandler) ListSamplingFeatures(w http.ResponseWriter, r *
 func (h *SamplingFeatureHandler) GetSamplingFeature(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	samplingFeature, err := h.repo.GetByID(id)
+	samplingFeature, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get sampling feature", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Sampling Feature not found"})
+		writeRepositoryError(w, r, h.logger, err, "Sampling Feature", "Failed to load sampling Feature")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, samplingFeature)
-	if err != nil {
-		h.logger.Error("Failed to serialize sampling feature", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize sampling feature"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	writeNegotiated(w, serialized)
+	writeResource(w, r, h.logger, h.fc, samplingFeature)
 }
 
 func validateSamplingFeature(sf *domains.SamplingFeature) error {
@@ -139,7 +118,7 @@ func validateSamplingFeature(sf *domains.SamplingFeature) error {
 // @Router      /systems/{id}/samplingFeatures [post]
 func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
-	sampledFeature, err := h.fc.Deserialize(contentType, r.Body)
+	sampledFeature, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize sampling feature", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -147,8 +126,7 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 	}
 
 	if err := validateSamplingFeature(sampledFeature); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -157,19 +135,15 @@ func (h *SamplingFeatureHandler) CreateSamplingFeature(w http.ResponseWriter, r 
 	// is associated with the parent system.
 	if parentID := chi.URLParam(r, "id"); parentID != "" {
 		// Validate the parent system exists before associating
-		if _, err := h.systemRepo.GetByID(parentID); err != nil {
-			h.logger.Error("Parent system not found", zap.String("systemId", parentID), zap.Error(err))
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "System not found"})
+		if _, err := h.systemRepo.GetByID(r.Context(), parentID); err != nil {
+			writeRepositoryError(w, r, h.logger, err, "System", "Failed to load system")
 			return
 		}
 		sampledFeature.ParentSystemID = &parentID
 	}
 
-	if err := h.repo.Create(sampledFeature); err != nil {
-		h.logger.Error("Failed to create sampling feature", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create sampling feature"})
+	if err := h.repo.Create(r.Context(), sampledFeature); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Sampling feature", "Failed to create sampling feature")
 		return
 	}
 
@@ -195,7 +169,7 @@ func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r 
 	id := chi.URLParam(r, "id")
 
 	contentType := r.Header.Get("Content-Type")
-	sampledFeature, err := h.fc.Deserialize(contentType, r.Body)
+	sampledFeature, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize sampling feature", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -204,14 +178,11 @@ func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r 
 
 	sampledFeature.ID = id
 	if err := validateSamplingFeature(sampledFeature); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := h.repo.Update(sampledFeature); err != nil {
-		h.logger.Error("Failed to update sampling feature", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update sampling feature"})
+	if err := h.repo.Update(r.Context(), sampledFeature); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Sampling feature", "Failed to update sampling feature")
 		return
 	}
 
@@ -231,16 +202,8 @@ func (h *SamplingFeatureHandler) UpdateSamplingFeature(w http.ResponseWriter, r 
 func (h *SamplingFeatureHandler) DeleteSamplingFeature(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	if err := h.repo.Delete(id); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Sampling feature not found"})
-		default:
-			h.logger.Error("Failed to delete sampling feature", zap.String("id", id), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete sampling feature"})
-		}
+	if err := h.repo.Delete(r.Context(), id); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Sampling feature", "Failed to delete sampling feature")
 		return
 	}
 
@@ -273,23 +236,17 @@ func (h *SamplingFeatureHandler) GetSystemSamplingFeatures(w http.ResponseWriter
 	params, err := queryparams.SamplingFeatureQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
 		h.logger.Error("Failed to parse query parameters", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid query parameters"})
+		writeError(w, r, http.StatusBadRequest, "Invalid query parameters")
 		return
 	}
 
-	sampledFeatures, total, err := h.repo.ListSystem(params, &systemID)
+	sampledFeatures, total, err := h.repo.ListSystem(r.Context(), params, &systemID)
 	if err != nil {
 		h.logger.Error("Failed to list sampling features", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, sampledFeatures, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, sampledFeatures, total, params.QueryParams)
 
 }

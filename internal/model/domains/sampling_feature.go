@@ -1,7 +1,7 @@
 package domains
 
 import (
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // SamplingFeature represents a sosa:Sample feature

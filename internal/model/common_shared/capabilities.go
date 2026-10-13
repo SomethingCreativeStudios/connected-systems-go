@@ -68,7 +68,7 @@ func (c CapabilityGroups) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (c *CapabilityGroups) Scan(value interface{}) error {
+func (c *CapabilityGroups) Scan(value any) error {
 	if value == nil {
 		*c = nil
 		return nil

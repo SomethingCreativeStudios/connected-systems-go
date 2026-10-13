@@ -3,10 +3,8 @@ package api
 import (
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
-
-func ptrBool(b bool) *bool { return &b }
 
 func TestValidateSWEComponent(t *testing.T) {
 	quantityNoUOM := &domains.DatastreamDataComponent{
@@ -100,7 +98,7 @@ func TestValidateSWEComponent(t *testing.T) {
 			"optional field still needs required attrs",
 			&domains.DatastreamDataComponent{Type: "DataRecord", Fields: []domains.DatastreamNamedComponent{
 				{Name: "speed", DatastreamDataComponent: domains.DatastreamDataComponent{
-					Type: "Quantity", Definition: "urn:x:s", Label: "S", Optional: ptrBool(true),
+					Type: "Quantity", Definition: "urn:x:s", Label: "S", Optional: new(true),
 				}},
 			}},
 			true, // optional Quantity still requires uom

@@ -4,12 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
-	"github.com/yourusername/connected-systems-go/internal/repository/testutil"
 )
 
 // setupFormatterTestDB spins up a PostGIS container, migrates models, and returns repos + cleanup.
@@ -40,8 +41,6 @@ func setupFormatterTestDB(t *testing.T) (*repository.Repositories, func()) {
 // TestDeploymentGeoJSONFormatter_SerializeAll_EnrichesInlineLinksFromDB verifies that
 // SerializeAll populates Title and UID on platform@link and deployedSystems@link.
 func TestDeploymentGeoJSONFormatter_SerializeAll_EnrichesInlineLinksFromDB(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
 	repos, cleanup := setupFormatterTestDB(t)
 	defer cleanup()
@@ -52,13 +51,13 @@ func TestDeploymentGeoJSONFormatter_SerializeAll_EnrichesInlineLinksFromDB(t *te
 		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sys:platform", Name: "Platform System"},
 		SystemType: domains.SystemTypePlatform,
 	}
-	require.NoError(t, repos.System.Create(platformSys))
+	require.NoError(t, repos.System.Create(t.Context(), platformSys))
 
 	deployedSys := &domains.System{
 		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sys:deployed", Name: "Deployed System"},
 		SystemType: domains.SystemTypeSensor,
 	}
-	require.NoError(t, repos.System.Create(deployedSys))
+	require.NoError(t, repos.System.Create(t.Context(), deployedSys))
 
 	// Create deployment with platform and deployedSystems
 	deployment := &domains.Deployment{
@@ -76,7 +75,7 @@ func TestDeploymentGeoJSONFormatter_SerializeAll_EnrichesInlineLinksFromDB(t *te
 		},
 	}
 
-	formatter := NewDeploymentGeoJSONFormatter(repos)
+	formatter := NewDeploymentGeoJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test", Systems: repos.System, Procedures: repos.Procedure, Deployments: repos.Deployment, SamplingFeatures: repos.SamplingFeature, SystemChildren: repos.System, DeploymentChildren: repos.Deployment, ProcedureChildren: repos.Procedure})
 	features, err := formatter.SerializeAll(ctx, []*domains.Deployment{deployment})
 	require.NoError(t, err)
 	require.Len(t, features, 1)
@@ -85,7 +84,7 @@ func TestDeploymentGeoJSONFormatter_SerializeAll_EnrichesInlineLinksFromDB(t *te
 
 	// platform@link enrichment
 	require.NotNil(t, f.Properties.Platform)
-	require.Equal(t, formaters.GeoJSONContentType, f.Properties.Platform.Type)
+	require.Equal(t, mediatype.GeoJSON, f.Properties.Platform.Type)
 	require.Equal(t, "Platform System", f.Properties.Platform.Title)
 	require.NotNil(t, f.Properties.Platform.UID)
 	require.Equal(t, "urn:test:sys:platform", *f.Properties.Platform.UID)
@@ -93,7 +92,7 @@ func TestDeploymentGeoJSONFormatter_SerializeAll_EnrichesInlineLinksFromDB(t *te
 	// deployedSystems@link enrichment
 	require.Len(t, f.Properties.DeployedSystems, 1)
 	ds := f.Properties.DeployedSystems[0]
-	require.Equal(t, formaters.GeoJSONContentType, ds.Type)
+	require.Equal(t, mediatype.GeoJSON, ds.Type)
 	require.Equal(t, "Deployed System", ds.Title)
 	require.NotNil(t, ds.UID)
 	require.Equal(t, "urn:test:sys:deployed", *ds.UID)

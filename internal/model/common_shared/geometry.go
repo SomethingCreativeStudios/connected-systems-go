@@ -7,8 +7,8 @@ import (
 
 // Geometry can be any GeoJSON geometry type
 type Geometry struct {
-	Type        string      `json:"type"`
-	Coordinates interface{} `json:"coordinates"`
+	Type        string `json:"type"`
+	Coordinates any    `json:"coordinates"`
 }
 
 // Value implements driver.Valuer for PostGIS
@@ -17,7 +17,7 @@ func (g Geometry) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for PostGIS
-func (g *Geometry) Scan(value interface{}) error {
+func (g *Geometry) Scan(value any) error {
 	if value == nil {
 		return nil
 	}

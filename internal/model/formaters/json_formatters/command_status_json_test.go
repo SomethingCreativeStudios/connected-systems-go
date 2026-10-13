@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
 func TestDecodeCommandStatusReportHTTPPayload(t *testing.T) {

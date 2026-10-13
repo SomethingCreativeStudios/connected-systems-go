@@ -21,7 +21,7 @@ func (l Terms) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (l *Terms) Scan(value interface{}) error {
+func (l *Terms) Scan(value any) error {
 	if value == nil {
 		return nil
 	}

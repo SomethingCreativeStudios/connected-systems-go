@@ -17,7 +17,7 @@ func (p Point) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for PostGIS
-func (p *Point) Scan(value interface{}) error {
+func (p *Point) Scan(value any) error {
 	if value == nil {
 		return nil
 	}

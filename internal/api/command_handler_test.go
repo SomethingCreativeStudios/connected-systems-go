@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
 
 func TestCommandResponse_EmptyExecutionTimeOmitted(t *testing.T) {

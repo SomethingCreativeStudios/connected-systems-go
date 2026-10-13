@@ -5,9 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 func TestSamplingFeatureDeserialize_StripsOnlyAssociationLinks(t *testing.T) {
@@ -33,16 +34,13 @@ func TestSamplingFeatureDeserialize_StripsOnlyAssociationLinks(t *testing.T) {
 		t.Fatalf("deserialize failed: %v", err)
 	}
 
-	if sf.ParentSystemID == nil || *sf.ParentSystemID != "abc" {
-		t.Fatalf("expected parent system association to be mapped from link")
+	// ogc-rel links are server-generated: the parent system is only set
+	// through /systems/{id}/samplingFeatures, never from a client link.
+	if sf.ParentSystemID != nil {
+		t.Fatalf("expected parentSystem link to be ignored, got %q", *sf.ParentSystemID)
 	}
-
-	if sf.SampleOf == nil || len(*sf.SampleOf) != 1 {
-		t.Fatalf("expected sampleOf association to be mapped from link")
-	}
-
-	if sf.SampleOfIDs == nil || len(*sf.SampleOfIDs) != 1 || (*sf.SampleOfIDs)[0] != "xyz" {
-		t.Fatalf("expected sampleOf IDs to be extracted from link")
+	if sf.SampleOf != nil || sf.SampleOfIDs != nil {
+		t.Fatalf("expected sampleOf link to be ignored, got %+v / %+v", sf.SampleOf, sf.SampleOfIDs)
 	}
 
 	if len(sf.Links) != 1 {
@@ -55,9 +53,8 @@ func TestSamplingFeatureDeserialize_StripsOnlyAssociationLinks(t *testing.T) {
 }
 
 func TestSamplingFeatureSerialize_ShowsAssociationLinksToEndUser(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewSamplingFeatureGeoJSONFormatter(nil)
+	formatter := NewSamplingFeatureGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL})
 
 	parentID := "sys-123"
 	sampleOf := common_shared.Links{
@@ -111,9 +108,8 @@ func TestSamplingFeatureSerialize_ShowsAssociationLinksToEndUser(t *testing.T) {
 
 // Phase 1: inline @link Type enrichment
 func TestSamplingFeatureGeoJSONSerialize_SetsTypeOnSampledFeatureLink(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewSamplingFeatureGeoJSONFormatter(nil)
+	formatter := NewSamplingFeatureGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL})
 
 	sf := &domains.SamplingFeature{
 		Base: domains.Base{ID: "sf-1"},
@@ -135,16 +131,15 @@ func TestSamplingFeatureGeoJSONSerialize_SetsTypeOnSampledFeatureLink(t *testing
 	if out.Properties.SampledFeatureLink == nil {
 		t.Fatal("expected SampledFeatureLink to be non-nil")
 	}
-	if out.Properties.SampledFeatureLink.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected SampledFeatureLink.Type %q, got %q", formaters.GeoJSONContentType, out.Properties.SampledFeatureLink.Type)
+	if out.Properties.SampledFeatureLink.Type != mediatype.GeoJSON {
+		t.Errorf("expected SampledFeatureLink.Type %q, got %q", mediatype.GeoJSON, out.Properties.SampledFeatureLink.Type)
 	}
 }
 
 // Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
 func TestSamplingFeatureGeoJSONSerializeAll_EnrichesInlineLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewSamplingFeatureGeoJSONFormatter(nil)
+	formatter := NewSamplingFeatureGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL})
 
 	sfs := []*domains.SamplingFeature{
 		{
@@ -170,8 +165,8 @@ func TestSamplingFeatureGeoJSONSerializeAll_EnrichesInlineLinks(t *testing.T) {
 	}
 
 	// Type is always set (Phase 1)
-	if features[0].Properties.SampledFeatureLink.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected SampledFeatureLink.Type %q, got %q", formaters.GeoJSONContentType, features[0].Properties.SampledFeatureLink.Type)
+	if features[0].Properties.SampledFeatureLink.Type != mediatype.GeoJSON {
+		t.Errorf("expected SampledFeatureLink.Type %q, got %q", mediatype.GeoJSON, features[0].Properties.SampledFeatureLink.Type)
 	}
 
 	// Title/UID are empty with nil repos (no cache population)

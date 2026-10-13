@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -21,14 +21,14 @@ func NewPropertyRepository(db *gorm.DB) *PropertyRepository {
 }
 
 // Create creates a new property
-func (r *PropertyRepository) Create(property *domains.Property) error {
-	return r.db.Create(property).Error
+func (r *PropertyRepository) Create(ctx context.Context, property *domains.Property) error {
+	return r.db.WithContext(ctx).Create(property).Error
 }
 
 // GetByID retrieves a property by ID
-func (r *PropertyRepository) GetByID(id string) (*domains.Property, error) {
+func (r *PropertyRepository) GetByID(ctx context.Context, id string) (*domains.Property, error) {
 	var property domains.Property
-	err := r.db.Where("id = ?", id).First(&property).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&property).Error
 	if err != nil {
 		return nil, err
 	}
@@ -36,35 +36,24 @@ func (r *PropertyRepository) GetByID(id string) (*domains.Property, error) {
 }
 
 // List retrieves properties with filtering
-func (r *PropertyRepository) List(params *queryparams.PropertiesQueryParams) ([]*domains.Property, int64, error) {
-	var properties []*domains.Property
-	var total int64
+func (r *PropertyRepository) List(ctx context.Context, params *queryparams.PropertiesQueryParams) ([]*domains.Property, int64, error) {
 
-	query := r.db.Model(&domains.Property{})
+	query := r.db.WithContext(ctx).Model(&domains.Property{})
 	query = r.applyFilters(query, params)
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&properties).Error
-	properties = FinalizeCursorPage(properties, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(properties, func(property *domains.Property) []string { return []string{property.ID} })
-	return properties, total, err
+	return listPage(query, &params.QueryParams, idOrder("properties"), idAnchor[*domains.Property])
 }
 
 // Update updates a property
-func (r *PropertyRepository) Update(property *domains.Property) error {
-	return r.db.Save(property).Error
+func (r *PropertyRepository) Update(ctx context.Context, property *domains.Property) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceByID(tx, property, nil)
+	})
 }
 
 // Delete deletes a property
-func (r *PropertyRepository) Delete(id string) error {
-	result := r.db.Delete(&domains.Property{}, "id = ?", id)
+func (r *PropertyRepository) Delete(ctx context.Context, id string) error {
+	result := r.db.WithContext(ctx).Delete(&domains.Property{}, "id = ?", id)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -79,23 +68,7 @@ func (r *PropertyRepository) applyFilters(query *gorm.DB, params *queryparams.Pr
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
 
-	if len(params.Q) > 0 {
-		var clauses []string
-		var args []interface{}
-		for _, term := range params.Q {
-			clauses = append(clauses, "name ILIKE ?")
-			args = append(args, "%"+term+"%")
-			clauses = append(clauses, "description ILIKE ?")
-			args = append(args, "%"+term+"%")
-			clauses = append(clauses, "base_property ILIKE ?")
-			args = append(args, "%"+term+"%")
-			clauses = append(clauses, "object_type ILIKE ?")
-			args = append(args, "%"+term+"%")
-			clauses = append(clauses, "property_type ILIKE ?")
-			args = append(args, "%"+term+"%")
-		}
-		query = query.Where(strings.Join(clauses, " OR "), args...)
-	}
+	query = applyKeywordFilter(query, params.Q, "name", "description", "base_property", "object_type", "property_type")
 
 	if len(params.ObjectType) > 0 {
 		query = query.Where("object_type IN ?", params.ObjectType)
@@ -139,14 +112,14 @@ func (r *PropertyRepository) GetBySystemIDs(ctx context.Context, systemIDs []str
 		// attempt to find linking hrefs in properties
 		for _, rawVal := range p.Properties {
 			b, _ := json.Marshal(rawVal)
-			var arr []map[string]interface{}
+			var arr []map[string]any
 			if err := json.Unmarshal(b, &arr); err != nil {
 				continue
 			}
 			for _, el := range arr {
 				if hrefVal, ok := el["href"].(string); ok {
 					for _, sid := range systemIDs {
-						if hrefVal == sid || stringIndex(hrefVal, sid) >= 0 {
+						if strings.Contains(hrefVal, sid) {
 							result[sid] = append(result[sid], p)
 						}
 					}
@@ -157,5 +130,3 @@ func (r *PropertyRepository) GetBySystemIDs(ctx context.Context, systemIDs []str
 
 	return result, nil
 }
-
-// stringIndex is provided in deployment_repository.go; reuse the package-level helper.

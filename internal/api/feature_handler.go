@@ -4,14 +4,13 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/queryables"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/queryables"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -82,25 +81,19 @@ func (h *FeatureHandler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 
 	params, err := queryparams.FeatureQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	params.CollectionID = collectionID
 
-	features, total, err := h.repo.ListByCollection(collectionID, params)
+	features, total, err := h.repo.ListByCollection(r.Context(), collectionID, params)
 	if err != nil {
 		h.logger.Error("Failed to list features", zap.String("collectionId", collectionID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, features, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, features, total, params.QueryParams)
 }
 
 // GetFeature retrieves a single feature by ID (OGC path: /collections/{collectionId}/items/{featureId})
@@ -124,32 +117,13 @@ func (h *FeatureHandler) GetFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	feature, err := h.repo.GetByCollectionAndID(collectionID, featureID)
+	feature, err := h.repo.GetByCollectionAndID(r.Context(), collectionID, featureID)
 	if err != nil {
-		h.logger.Error("Failed to get feature",
-			zap.String("collectionId", collectionID),
-			zap.String("featureId", featureID),
-			zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Feature not found"})
+		writeRepositoryError(w, r, h.logger, err, "Feature", "Failed to load feature")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	json, err := h.fc.Serialize(acceptHeader, feature)
-
-	if err != nil {
-		h.logger.Error("Failed to serialize feature",
-			zap.String("collectionId", collectionID),
-			zap.String("featureId", featureID),
-			zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize feature"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, json)
+	writeResource(w, r, h.logger, h.fc, feature)
 }
 
 // CreateFeature creates a new feature in a collection
@@ -174,7 +148,7 @@ func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 
 	contentType := r.Header.Get("Content-Type")
 
-	feature, err := h.fc.Deserialize(contentType, r.Body)
+	feature, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 
 	if err != nil {
 		h.logger.Error("Failed to decode feature", zap.Error(err))
@@ -185,15 +159,12 @@ func (h *FeatureHandler) CreateFeature(w http.ResponseWriter, r *http.Request) {
 	// Set collection ID from path
 	feature.CollectionID = collectionID
 	if err := h.validateCollectionFeature(r, collectionID, feature); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if err := h.repo.Create(feature); err != nil {
-		h.logger.Error("Failed to create feature", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create feature"})
+	if err := h.repo.Create(r.Context(), feature); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Feature", "Failed to create feature")
 		return
 	}
 
@@ -224,17 +195,13 @@ func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := h.repo.GetByCollectionAndID(collectionID, featureID)
+	existing, err := h.repo.GetByCollectionAndID(r.Context(), collectionID, featureID)
 	if err != nil {
-		h.logger.Error("Feature not found",
-			zap.String("collectionId", collectionID),
-			zap.String("featureId", featureID))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Feature not found"})
+		writeRepositoryError(w, r, h.logger, err, "Feature", "Failed to load feature")
 		return
 	}
 
-	updated, err := h.fc.Deserialize(r.Header.Get("content-type"), r.Body)
+	updated, err := h.fc.DeserializeContext(r.Context(), r.Header.Get("content-type"), r.Body)
 	if err != nil {
 		h.logger.Error("Failed to decode feature", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -245,22 +212,16 @@ func (h *FeatureHandler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 	updated.ID = existing.ID
 	updated.CollectionID = collectionID
 	if err := h.validateCollectionFeature(r, collectionID, updated); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if err := h.repo.Update(updated); err != nil {
-		h.logger.Error("Failed to update feature", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update feature"})
+	if err := h.repo.Update(r.Context(), updated); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Feature", "Failed to update feature")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	json, _ := h.fc.Serialize(acceptHeader, updated)
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, json)
+	writeResource(w, r, h.logger, h.fc, updated)
 }
 
 func (h *FeatureHandler) validateCollectionFeature(r *http.Request, collectionID string, feature *domains.Feature) error {
@@ -291,29 +252,16 @@ func (h *FeatureHandler) DeleteFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.repo.GetByCollectionAndID(collectionID, featureID)
+	_, err := h.repo.GetByCollectionAndID(r.Context(), collectionID, featureID)
 	if err != nil {
-		h.logger.Error("Feature not found",
-			zap.String("collectionId", collectionID),
-			zap.String("featureId", featureID))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Feature not found"})
+		writeRepositoryError(w, r, h.logger, err, "Feature", "Failed to load feature")
 		return
 	}
 
-	if err := h.repo.Delete(featureID); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Feature not found"})
-		default:
-			h.logger.Error("Failed to delete feature", zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete feature"})
-		}
+	if err := h.repo.Delete(r.Context(), featureID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Feature", "Failed to delete feature")
 		return
 	}
 
-	render.Status(r, http.StatusNoContent)
-	w.Write(nil)
+	w.WriteHeader(http.StatusNoContent)
 }

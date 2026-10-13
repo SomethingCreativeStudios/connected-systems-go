@@ -17,12 +17,12 @@ func TestFeaturesAPI_E2E(t *testing.T) {
 	var collectionID string
 	var featureLocation string
 	t.Run("Setup - create collection", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"id":          "test-features-collection",
 			"title":       "Test Features Collection",
 			"description": "Collection to host feature E2E tests",
-			"queryables": map[string]interface{}{
-				"properties":           map[string]interface{}{},
+			"queryables": map[string]any{
+				"properties":           map[string]any{},
 				"additionalProperties": false,
 			},
 		}
@@ -33,20 +33,20 @@ func TestFeaturesAPI_E2E(t *testing.T) {
 		defer resp.Body.Close()
 
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 		collectionID = result["id"].(string)
 	})
 
 	t.Run("POST /collections/{id}/items - create feature", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"type": "Feature",
-			"properties": map[string]interface{}{
+			"properties": map[string]any{
 				"name":        "Test Feature",
 				"description": "A test feature",
 			},
-			"geometry": map[string]interface{}{
+			"geometry": map[string]any{
 				"type":        "Point",
 				"coordinates": []float64{-117.1625, 32.715},
 			},
@@ -78,7 +78,7 @@ func TestFeaturesAPI_E2E(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "application/geo+json", resp.Header.Get("Content-Type"))
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 		assert.Equal(t, "FeatureCollection", result["type"])
@@ -96,7 +96,7 @@ func TestFeaturesAPI_E2E(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "application/geo+json", resp.Header.Get("Content-Type"))
 
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 		assert.Equal(t, "Feature", result["type"])

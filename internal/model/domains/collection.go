@@ -1,8 +1,8 @@
 package domains
 
 import (
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/google/uuid"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
 type Collection struct {

@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/resourcevalidation"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/resourcevalidation"
 )
 
 func validConfig(mode string) Config {

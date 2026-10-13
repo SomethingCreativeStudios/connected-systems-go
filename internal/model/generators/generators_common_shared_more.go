@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // FakeDocument returns a Document with link
@@ -59,7 +59,7 @@ func FakeProperties() common_shared.Properties {
 // FakeSecurityConstraints returns one SecurityConstraint
 func FakeSecurityConstraints() common_shared.SecurityConstraints {
 	sc := common_shared.SecurityConstraint{Type: f.Internet().URL()}
-	sc.Extra = map[string]interface{}{"level": "public"}
+	sc.Extra = map[string]any{"level": "public"}
 	return common_shared.SecurityConstraints{sc}
 }
 

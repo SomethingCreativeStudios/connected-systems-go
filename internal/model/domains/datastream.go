@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // Datastream represents an OGC Connected Systems datastream resource.
@@ -39,7 +40,7 @@ type Datastream struct {
 	ResultTime             *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:result_time_" json:"resultTime"`
 	ResultTimeInterval     *string                  `gorm:"type:varchar(64)" json:"resultTimeInterval,omitempty"`
 
-	Type       string  `gorm:"type:varchar(32)" json:"type,omitempty"`
+	Type string `gorm:"type:varchar(32)" json:"type,omitempty"`
 	// Required per spec: resultType is nullable, live defaults to false.
 	ResultType *string `gorm:"type:varchar(32)" json:"resultType"`
 	Live       *bool   `gorm:"type:boolean" json:"live"`
@@ -63,8 +64,6 @@ type Datastream struct {
 	DeploymentID        *string `gorm:"type:varchar(255);index" json:"-"`
 	FeatureOfInterestID *string `gorm:"type:varchar(255);index" json:"-"`
 	SamplingFeatureID   *string `gorm:"type:varchar(255);index" json:"-"`
-
-	Systems []System `gorm:"many2many:system_datastreams;" json:"-"`
 }
 
 // TableName specifies the table name.
@@ -130,7 +129,7 @@ type DatastreamResultLink struct {
 type DatastreamSchemas []DatastreamSchema
 
 // NormalizeMediaType lowercases a media type and strips any parameters
-// (e.g. "Application/JSON; charset=utf-8" -> "application/json").
+// (e.g. "Application/JSON; charset=utf-8" -> mediatype.JSON).
 func NormalizeMediaType(mediaType string) string {
 	mediaType, _, _ = strings.Cut(mediaType, ";")
 	return strings.ToLower(strings.TrimSpace(mediaType))
@@ -138,10 +137,10 @@ func NormalizeMediaType(mediaType string) string {
 
 // Upsert replaces the schema registered for the same observation format, or
 // appends the schema when its format is new. An empty ObsFormat is treated as
-// "application/json".
+// mediatype.JSON.
 func (s DatastreamSchemas) Upsert(schema DatastreamSchema) DatastreamSchemas {
 	if schema.ObsFormat == "" {
-		schema.ObsFormat = "application/json"
+		schema.ObsFormat = mediatype.JSON
 	}
 	format := NormalizeMediaType(schema.ObsFormat)
 	for i := range s {
@@ -173,7 +172,7 @@ func (s DatastreamSchemas) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval.
-func (s *DatastreamSchemas) Scan(value interface{}) error {
+func (s *DatastreamSchemas) Scan(value any) error {
 	if value == nil {
 		*s = nil
 		return nil
@@ -193,7 +192,7 @@ func (s DatastreamSchema) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval.
-func (s *DatastreamSchema) Scan(value interface{}) error {
+func (s *DatastreamSchema) Scan(value any) error {
 	if value == nil {
 		*s = DatastreamSchema{}
 		return nil
@@ -409,7 +408,7 @@ func (o DatastreamObservedProperties) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval.
-func (o *DatastreamObservedProperties) Scan(value interface{}) error {
+func (o *DatastreamObservedProperties) Scan(value any) error {
 	if value == nil {
 		*o = nil
 		return nil

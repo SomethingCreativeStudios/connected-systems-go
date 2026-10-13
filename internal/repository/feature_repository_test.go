@@ -1,12 +1,14 @@
 package repository
 
 import (
+	"encoding/json"
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository/testutil"
 )
 
 func TestFeatureRepository_Create(t *testing.T) {
@@ -52,7 +54,7 @@ func TestFeatureRepository_Create(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := repo.Create(tt.feature)
+			err := repo.Create(t.Context(), tt.feature)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -75,7 +77,7 @@ func TestFeatureRepository_GetByID(t *testing.T) {
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:get1", Name: "Feature 1"},
 		CollectionID: "collection1",
 	}
-	require.NoError(t, repo.Create(feat1))
+	require.NoError(t, repo.Create(t.Context(), feat1))
 
 	tests := []struct {
 		name     string
@@ -99,7 +101,7 @@ func TestFeatureRepository_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := repo.GetByID(tt.id)
+			got, err := repo.GetByID(t.Context(), tt.id)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -120,13 +122,13 @@ func TestFeatureRepository_GetByCollectionAndID(t *testing.T) {
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:feat1", Name: "Feature 1"},
 		CollectionID: "collection1",
 	}
-	require.NoError(t, repo.Create(feat1))
+	require.NoError(t, repo.Create(t.Context(), feat1))
 
 	feat2 := &domains.Feature{
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:feat2", Name: "Feature 2"},
 		CollectionID: "collection2",
 	}
-	require.NoError(t, repo.Create(feat2))
+	require.NoError(t, repo.Create(t.Context(), feat2))
 
 	tests := []struct {
 		name         string
@@ -160,7 +162,7 @@ func TestFeatureRepository_GetByCollectionAndID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := repo.GetByCollectionAndID(tt.collectionID, tt.featureID)
+			got, err := repo.GetByCollectionAndID(t.Context(), tt.collectionID, tt.featureID)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -182,20 +184,20 @@ func TestFeatureRepository_List(t *testing.T) {
 		Geometry:     testutil.MakePoint(-122.4194, 37.7749),
 		CollectionID: "collection1",
 	}
-	require.NoError(t, repo.Create(feat1))
+	require.NoError(t, repo.Create(t.Context(), feat1))
 
 	feat2 := &domains.Feature{
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:f2", Name: "Feature Beta"},
 		Geometry:     testutil.MakeLineString([]float64{-122.0, 37.0, -121.5, 37.5}),
 		CollectionID: "collection1",
 	}
-	require.NoError(t, repo.Create(feat2))
+	require.NoError(t, repo.Create(t.Context(), feat2))
 
 	feat3 := &domains.Feature{
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:f3", Name: "Feature Gamma", Description: "Special feature"},
 		CollectionID: "collection2",
 	}
-	require.NoError(t, repo.Create(feat3))
+	require.NoError(t, repo.Create(t.Context(), feat3))
 
 	tests := []struct {
 		name      string
@@ -276,7 +278,7 @@ func TestFeatureRepository_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			features, total, err := repo.List(tt.params)
+			features, total, err := repo.List(t.Context(), tt.params)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantTotal, total, "total count mismatch")
 			require.Len(t, features, tt.wantCount, "result count mismatch")
@@ -297,19 +299,19 @@ func TestFeatureRepository_ListByCollection(t *testing.T) {
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:f1", Name: "Collection1 Feature 1"},
 		CollectionID: "collection1",
 	}
-	require.NoError(t, repo.Create(feat1))
+	require.NoError(t, repo.Create(t.Context(), feat1))
 
 	feat2 := &domains.Feature{
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:f2", Name: "Collection1 Feature 2"},
 		CollectionID: "collection1",
 	}
-	require.NoError(t, repo.Create(feat2))
+	require.NoError(t, repo.Create(t.Context(), feat2))
 
 	feat3 := &domains.Feature{
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:f3", Name: "Collection2 Feature 1"},
 		CollectionID: "collection2",
 	}
-	require.NoError(t, repo.Create(feat3))
+	require.NoError(t, repo.Create(t.Context(), feat3))
 
 	tests := []struct {
 		name         string
@@ -363,7 +365,7 @@ func TestFeatureRepository_ListByCollection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			features, total, err := repo.ListByCollection(tt.collectionID, tt.params)
+			features, total, err := repo.ListByCollection(t.Context(), tt.collectionID, tt.params)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantTotal, total, "total count mismatch")
 			require.Len(t, features, tt.wantCount, "result count mismatch")
@@ -384,7 +386,7 @@ func TestFeatureRepository_Update(t *testing.T) {
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:update1", Name: "Original Name"},
 		CollectionID: "collection1",
 	}
-	require.NoError(t, repo.Create(original))
+	require.NoError(t, repo.Create(t.Context(), original))
 
 	tests := []struct {
 		name       string
@@ -427,14 +429,14 @@ func TestFeatureRepository_Update(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Get fresh copy for each test
-			feat, err := repo.GetByID(original.ID)
+			feat, err := repo.GetByID(t.Context(), original.ID)
 			require.NoError(t, err)
 
 			// Apply update
 			tt.updateFunc(feat)
 
 			// Save
-			err = repo.Update(feat)
+			err = repo.Update(t.Context(), feat)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -442,7 +444,7 @@ func TestFeatureRepository_Update(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify
-			updated, err := repo.GetByID(feat.ID)
+			updated, err := repo.GetByID(t.Context(), feat.ID)
 			require.NoError(t, err)
 			if tt.checkFunc != nil {
 				tt.checkFunc(t, updated)
@@ -468,11 +470,11 @@ func TestFeatureRepository_Delete(t *testing.T) {
 					Base:         domains.Base{},
 					CollectionID: "collection1",
 				}
-				require.NoError(t, repo.Create(feat))
+				require.NoError(t, repo.Create(t.Context(), feat))
 				return feat.ID
 			},
 			checkFunc: func(t *testing.T, id string) {
-				_, err := repo.GetByID(id)
+				_, err := repo.GetByID(t.Context(), id)
 				require.Error(t, err)
 			},
 		},
@@ -481,9 +483,54 @@ func TestFeatureRepository_Delete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id := tt.setupFunc()
-			err := repo.Delete(id)
+			err := repo.Delete(t.Context(), id)
 			require.NoError(t, err)
 			tt.checkFunc(t, id)
 		})
 	}
+}
+
+func TestFeatureRepository_ListByBBox(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	repo := NewFeatureRepository(db)
+
+	for uid, point := range map[string][2]float64{"urn:test:sf": {-122.4194, 37.7749}, "urn:test:la": {-118.2437, 34.0522}} {
+		require.NoError(t, repo.Create(t.Context(), &domains.Feature{
+			CommonSSN:    domains.CommonSSN{UniqueIdentifier: domains.UniqueID(uid), Name: uid},
+			Geometry:     testutil.MakePoint(point[0], point[1]),
+			CollectionID: "collection1",
+		}))
+	}
+
+	params := &queryparams.FeatureQueryParams{
+		QueryParams: queryparams.QueryParams{Limit: 10},
+		BBox:        &common_shared.BoundingBox{MinX: -123, MinY: 37, MaxX: -122, MaxY: 38},
+	}
+	features, total, err := repo.List(t.Context(), params)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Len(t, features, 1)
+	require.Equal(t, "urn:test:sf", features[0].Name)
+}
+
+// Stored geometries keep their altitude and full coordinate precision.
+func TestFeatureRepository_GeometryKeepsAltitude(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	repo := NewFeatureRepository(db)
+
+	var geometry common_shared.GoGeom
+	require.NoError(t, json.Unmarshal([]byte(`{"type":"Point","coordinates":[-122.41941234567,37.77491234567,52.25]}`), &geometry))
+	feature := &domains.Feature{
+		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:3d", Name: "3D"},
+		Geometry:     &geometry,
+		CollectionID: "collection1",
+	}
+	require.NoError(t, repo.Create(t.Context(), feature))
+
+	stored, err := repo.GetByID(t.Context(), feature.ID)
+	require.NoError(t, err)
+	require.Equal(t, []float64{-122.41941234567, 37.77491234567, 52.25}, stored.Geometry.T.FlatCoords())
+	require.Equal(t, common_shared.DefaultGeometrySRID, stored.Geometry.T.SRID())
 }

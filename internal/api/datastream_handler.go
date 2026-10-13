@@ -5,15 +5,16 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -58,32 +59,18 @@ func NewDatastreamHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 func (h *DatastreamHandler) ListDatastreams(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	datastreams, _, err := h.repo.List(params, nil)
+	datastreams, _, err := h.repo.List(r.Context(), params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list datastreams", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	items, err := h.fc.SerializeAll(acceptHeader, datastreams)
-	if err != nil {
-		h.logger.Error("Failed to serialize datastreams", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize datastreams"})
-		return
-	}
-
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, DatastreamCollectionResponse{Items: items, Links: links})
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, datastreams, 0, params.QueryParams)
 }
 
 // ListSystemDatastreams returns datastreams for a system
@@ -105,38 +92,21 @@ func (h *DatastreamHandler) ListDatastreams(w http.ResponseWriter, r *http.Reque
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/datastreams [get]
 func (h *DatastreamHandler) ListSystemDatastreams(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "systemId")
-	if systemID == "" {
-		systemID = chi.URLParam(r, "id")
-	}
+	systemID := chi.URLParam(r, "id")
 	params, err := queryparams.DatastreamsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	datastreams, _, err := h.repo.List(params, &systemID)
+	datastreams, _, err := h.repo.List(r.Context(), params, &systemID)
 	if err != nil {
 		h.logger.Error("Failed to list datastreams for system", zap.String("systemId", systemID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	items, err := h.fc.SerializeAll(acceptHeader, datastreams)
-	if err != nil {
-		h.logger.Error("Failed to serialize datastreams", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize datastreams"})
-		return
-	}
-
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, DatastreamCollectionResponse{Items: items, Links: links})
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, datastreams, 0, params.QueryParams)
 }
 
 // GetDatastream returns a single datastream by ID
@@ -153,25 +123,13 @@ func (h *DatastreamHandler) ListSystemDatastreams(w http.ResponseWriter, r *http
 func (h *DatastreamHandler) GetDatastream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
 
-	datastream, err := h.repo.GetByID(id)
+	datastream, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get datastream", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Datastream not found"})
+		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to load datastream")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, datastream)
-	if err != nil {
-		h.logger.Error("Failed to serialize datastream", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize datastream"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, serialized)
+	writeResource(w, r, h.logger, h.fc, datastream)
 }
 
 // CreateDatastream creates a new datastream under a system
@@ -187,13 +145,10 @@ func (h *DatastreamHandler) GetDatastream(w http.ResponseWriter, r *http.Request
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/datastreams [post]
 func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "systemId")
-	if systemID == "" {
-		systemID = chi.URLParam(r, "id")
-	}
+	systemID := chi.URLParam(r, "id")
 
 	contentType := r.Header.Get("Content-Type")
-	datastream, err := h.fc.Deserialize(contentType, r.Body)
+	datastream, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize datastream", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -214,10 +169,8 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 		datastream.SystemID = &systemID
 	}
 
-	if err := h.repo.Create(datastream); err != nil {
-		h.logger.Error("Failed to create datastream", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create datastream"})
+	if err := h.repo.Create(r.Context(), datastream); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to create datastream")
 		return
 	}
 
@@ -241,16 +194,14 @@ func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Requ
 // @Router      /datastreams/{dataStreamId} [put]
 func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
-	existing, err := h.repo.GetByID(id)
+	existing, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get datastream before update", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Datastream not found"})
+		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to load datastream")
 		return
 	}
 
 	contentType := r.Header.Get("Content-Type")
-	datastream, err := h.fc.Deserialize(contentType, r.Body)
+	datastream, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize datastream", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -265,10 +216,8 @@ func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Requ
 	datastream.ID = id
 	// system@link is read-only per spec: a datastream cannot be reparented.
 	datastream.SystemID = existing.SystemID
-	if err := h.repo.Update(datastream); err != nil {
-		h.logger.Error("Failed to update datastream", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update datastream"})
+	if err := h.repo.Update(r.Context(), datastream); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to update datastream")
 		return
 	}
 
@@ -290,19 +239,8 @@ func (h *DatastreamHandler) UpdateDatastream(w http.ResponseWriter, r *http.Requ
 func (h *DatastreamHandler) DeleteDatastream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
 	cascade := r.URL.Query().Get("cascade") == "true"
-	if err := h.repo.Delete(id, cascade); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Datastream not found"})
-		case errors.Is(err, repository.ErrHasChildren):
-			render.Status(r, http.StatusConflict)
-			render.JSON(w, r, map[string]string{"error": "Datastream has dependent records; use ?cascade=true to delete"})
-		default:
-			h.logger.Error("Failed to delete datastream", zap.String("id", id), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete datastream"})
-		}
+	if err := h.repo.Delete(r.Context(), id, cascade); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to delete datastream")
 		return
 	}
 
@@ -324,30 +262,26 @@ func (h *DatastreamHandler) DeleteDatastream(w http.ResponseWriter, r *http.Requ
 // @Router      /datastreams/{dataStreamId}/schema [get]
 func (h *DatastreamHandler) GetDatastreamSchema(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "dataStreamId")
-	schema, schemas, err := h.repo.GetSchema(id)
+	schema, schemas, err := h.repo.GetSchema(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get datastream schema", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Datastream not found"})
+		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to load datastream")
 		return
 	}
 
 	if obsFormat := r.URL.Query().Get("obsFormat"); obsFormat != "" {
 		schema = schemas.ForFormat(obsFormat)
 		if schema == nil {
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Datastream has no schema for format " + obsFormat})
+			writeError(w, r, http.StatusNotFound, "Datastream has no schema for format "+obsFormat)
 			return
 		}
 	}
 
 	if schema == nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Datastream schema not found"})
+		writeError(w, r, http.StatusNotFound, "Datastream schema not found")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, schema)
 }
 
@@ -385,10 +319,8 @@ func (h *DatastreamHandler) UpdateDatastreamSchema(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if err := h.repo.UpdateSchema(id, &schema); err != nil {
-		h.logger.Error("Failed to update datastream schema", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update datastream schema"})
+	if err := h.repo.UpdateSchema(r.Context(), id, &schema); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to update datastream schema")
 		return
 	}
 

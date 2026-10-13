@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
 
 // Empty validTime is omitted; empty phenomenonTime/resultTime serialize as

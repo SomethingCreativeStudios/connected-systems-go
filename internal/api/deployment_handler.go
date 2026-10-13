@@ -1,17 +1,15 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -57,24 +55,18 @@ func NewDeploymentHandler(cfg *config.Config, logger *zap.Logger, repo *reposito
 func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	deployments, total, err := h.repo.List(params, nil)
+	deployments, total, err := h.repo.List(r.Context(), params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list deployments", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, deployments, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, deployments, total, params.QueryParams)
 }
 
 // GetDeployment returns a single deployment by ID
@@ -91,26 +83,13 @@ func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Reque
 func (h *DeploymentHandler) GetDeployment(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	deployment, err := h.repo.GetByID(id)
+	deployment, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get deployment", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Deployment not found"})
+		writeRepositoryError(w, r, h.logger, err, "Deployment", "Failed to load deployment")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, deployment)
-	if err != nil {
-		h.logger.Error("Failed to serialize deployment", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize deployment"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	writeNegotiated(w, serialized)
+	writeResource(w, r, h.logger, h.fc, deployment)
 }
 
 // CreateDeployment creates a new deployment
@@ -126,17 +105,15 @@ func (h *DeploymentHandler) GetDeployment(w http.ResponseWriter, r *http.Request
 // @Router      /deployments [post]
 func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
-	deployment, err := h.fc.Deserialize(contentType, r.Body)
+	deployment, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize deployment", zap.Error(err))
 		writeDeserializeError(w, r, err)
 		return
 	}
 
-	if err := h.repo.Create(deployment); err != nil {
-		h.logger.Error("Failed to create deployment", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create deployment"})
+	if err := h.repo.Create(r.Context(), deployment); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Deployment", "Failed to create deployment")
 		return
 	}
 
@@ -161,7 +138,7 @@ func (h *DeploymentHandler) UpdateDeployment(w http.ResponseWriter, r *http.Requ
 	id := chi.URLParam(r, "id")
 
 	contentType := r.Header.Get("Content-Type")
-	deployment, err := h.fc.Deserialize(contentType, r.Body)
+	deployment, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize deployment", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -169,10 +146,8 @@ func (h *DeploymentHandler) UpdateDeployment(w http.ResponseWriter, r *http.Requ
 	}
 
 	deployment.ID = id
-	if err := h.repo.Update(deployment); err != nil {
-		h.logger.Error("Failed to update deployment", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update deployment"})
+	if err := h.repo.Update(r.Context(), deployment); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Deployment", "Failed to update deployment")
 		return
 	}
 
@@ -195,19 +170,8 @@ func (h *DeploymentHandler) DeleteDeployment(w http.ResponseWriter, r *http.Requ
 	id := chi.URLParam(r, "id")
 	cascade := r.URL.Query().Get("cascade") == "true"
 
-	if err := h.repo.Delete(id, cascade); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Deployment not found"})
-		case errors.Is(err, repository.ErrHasChildren):
-			render.Status(r, http.StatusConflict)
-			render.JSON(w, r, map[string]string{"error": "Deployment has dependent records; use ?cascade=true to delete"})
-		default:
-			h.logger.Error("Failed to delete deployment", zap.String("id", id), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete deployment"})
-		}
+	if err := h.repo.Delete(r.Context(), id, cascade); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Deployment", "Failed to delete deployment")
 		return
 	}
 
@@ -240,24 +204,18 @@ func (h *DeploymentHandler) ListSubdeployments(w http.ResponseWriter, r *http.Re
 	parentID := chi.URLParam(r, "id")
 	params, err := queryparams.DeploymentsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	deployments, total, err := h.repo.List(params, &parentID)
+	deployments, total, err := h.repo.List(r.Context(), params, &parentID)
 	if err != nil {
 		h.logger.Error("Failed to list subdeployments", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, deployments, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	writeNegotiated(w, collection)
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, deployments, total, params.QueryParams)
 }
 
 // AddSubdeployment adds a subdeployment to a deployment
@@ -276,20 +234,17 @@ func (h *DeploymentHandler) AddSubdeployment(w http.ResponseWriter, r *http.Requ
 	parentID := chi.URLParam(r, "id")
 
 	contentType := r.Header.Get("Content-Type")
-	subdeployment, err := h.fc.Deserialize(contentType, r.Body)
+	subdeployment, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize subdeployment", zap.Error(err))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": "Invalid request body"})
+		writeError(w, r, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	subdeployment.ParentDeploymentID = &parentID
 
-	if err := h.repo.Create(subdeployment); err != nil {
-		h.logger.Error("Failed to create subdeployment", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create subdeployment"})
+	if err := h.repo.Create(r.Context(), subdeployment); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Subdeployment", "Failed to create subdeployment")
 		return
 	}
 

@@ -7,20 +7,20 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/json_formatters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mqtt"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters/json_formatters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/mqtt"
-	"github.com/yourusername/connected-systems-go/internal/pubsub"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -96,32 +96,18 @@ func NewCommandHandler(
 func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	commands, _, err := h.repo.List(params, nil)
+	commands, _, err := h.repo.List(r.Context(), params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list commands", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	items, err := h.fc.SerializeAll(acceptHeader, commands)
-	if err != nil {
-		h.logger.Error("Failed to serialize commands", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize commands"})
-		return
-	}
-
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, CommandCollectionResponse{Items: items, Links: links})
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, commands, 0, params.QueryParams)
 }
 
 // ListControlStreamCommands handles GET /controlstreams/{id}/commands
@@ -146,40 +132,25 @@ func (h *CommandHandler) ListCommands(w http.ResponseWriter, r *http.Request) {
 // @Router      /controlstreams/{controlStreamId}/commands [get]
 func (h *CommandHandler) ListControlStreamCommands(w http.ResponseWriter, r *http.Request) {
 	controlStreamID := chi.URLParam(r, "controlStreamId")
-	if _, err := h.controlStreamRepo.GetByID(controlStreamID); err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Control stream not found"})
+	if _, err := h.controlStreamRepo.GetByID(r.Context(), controlStreamID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to load control stream")
 		return
 	}
 
 	params, err := queryparams.CommandsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	commands, _, err := h.repo.ListByControlStream(controlStreamID, params)
+	commands, _, err := h.repo.ListByControlStream(r.Context(), controlStreamID, params)
 	if err != nil {
 		h.logger.Error("Failed to list commands", zap.String("controlStreamId", controlStreamID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	items, err := h.fc.SerializeAll(acceptHeader, commands)
-	if err != nil {
-		h.logger.Error("Failed to serialize commands", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize commands"})
-		return
-	}
-
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, CommandCollectionResponse{Items: items, Links: links})
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, commands, 0, params.QueryParams)
 }
 
 // GetCommand handles GET /commands/{id}
@@ -196,25 +167,13 @@ func (h *CommandHandler) ListControlStreamCommands(w http.ResponseWriter, r *htt
 func (h *CommandHandler) GetCommand(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "cmdId")
 
-	cmd, err := h.repo.GetByID(id)
+	cmd, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get command", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command not found"})
+		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to load command")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, cmd)
-	if err != nil {
-		h.logger.Error("Failed to serialize command", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize command"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.JSON(w, r, serialized)
+	writeResource(w, r, h.logger, h.fc, cmd)
 }
 
 // CreateControlStreamCommand handles POST /controlstreams/{id}/commands
@@ -232,13 +191,12 @@ func (h *CommandHandler) GetCommand(w http.ResponseWriter, r *http.Request) {
 // @Router      /controlstreams/{controlStreamId}/commands [post]
 func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *http.Request) {
 	controlStreamID := chi.URLParam(r, "controlStreamId")
-	if _, err := h.controlStreamRepo.GetByID(controlStreamID); err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Control stream not found"})
+	if _, err := h.controlStreamRepo.GetByID(r.Context(), controlStreamID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to load control stream")
 		return
 	}
 
-	cmd, err := h.fc.Deserialize(r.Header.Get("Content-Type"), r.Body)
+	cmd, err := h.fc.DeserializeContext(r.Context(), r.Header.Get("Content-Type"), r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize command", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -246,14 +204,8 @@ func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *ht
 	}
 
 	cmd.ControlStreamID = controlStreamID
-	// currentStatus and executionTime are read-only per spec: status starts at
-	// PENDING and execution time is reported by the system via status reports.
-	cmd.CurrentStatus = ""
-	cmd.ExecutionTime = nil
-	if err := h.repo.Create(cmd); err != nil {
-		h.logger.Error("Failed to create command", zap.String("controlStreamId", controlStreamID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create command"})
+	if err := h.repo.Create(r.Context(), cmd); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to create command")
 		return
 	}
 
@@ -281,15 +233,13 @@ func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *ht
 func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "cmdId")
 
-	existing, err := h.repo.GetByID(id)
+	existing, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Command not found", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command not found"})
+		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to load command")
 		return
 	}
 
-	cmd, err := h.fc.Deserialize(r.Header.Get("Content-Type"), r.Body)
+	cmd, err := h.fc.DeserializeContext(r.Context(), r.Header.Get("Content-Type"), r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize command", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -303,10 +253,8 @@ func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 	cmd.IssueTime = existing.IssueTime
 	cmd.CurrentStatus = existing.CurrentStatus
 	cmd.ExecutionTime = existing.ExecutionTime
-	if err := h.repo.Update(cmd); err != nil {
-		h.logger.Error("Failed to update command", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update command"})
+	if err := h.repo.Update(r.Context(), cmd); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to update command")
 		return
 	}
 
@@ -329,16 +277,8 @@ func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 func (h *CommandHandler) DeleteCommand(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "cmdId")
 
-	if err := h.repo.Delete(id); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Command not found"})
-		default:
-			h.logger.Error("Failed to delete command", zap.String("id", id), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete command"})
-		}
+	if err := h.repo.Delete(r.Context(), id); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to delete command")
 		return
 	}
 
@@ -361,24 +301,21 @@ func (h *CommandHandler) DeleteCommand(w http.ResponseWriter, r *http.Request) {
 // @Router      /commands/{cmdId}/status [get]
 func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
-	if _, err := h.repo.GetByID(commandID); err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command not found"})
+	if _, err := h.repo.GetByID(r.Context(), commandID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to load command")
 		return
 	}
 
 	params, err := queryparams.CommandStatusQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	statuses, _, err := h.repo.ListStatuses(commandID, params)
+	statuses, _, err := h.repo.ListStatuses(r.Context(), commandID, params)
 	if err != nil {
 		h.logger.Error("Failed to list command status reports", zap.String("cmdId", commandID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -387,9 +324,9 @@ func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http
 		items = append(items, commandStatusResponse(status))
 	}
 
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
+	links := params.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, CommandStatusCollectionResponse{Items: items, Links: links})
 }
 
@@ -408,10 +345,9 @@ func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http
 // @Router      /commands/{cmdId}/status [post]
 func (h *CommandHandler) CreateCommandStatusReport(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
-	_, err := h.repo.GetByID(commandID)
+	_, err := h.repo.GetByID(r.Context(), commandID)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command not found"})
+		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to load command")
 		return
 	}
 
@@ -427,10 +363,9 @@ func (h *CommandHandler) CreateCommandStatusReport(w http.ResponseWriter, r *htt
 	}
 
 	status.CommandID = commandID
-	if err := h.repo.CreateStatus(status); err != nil {
-		h.logger.Error("Failed to create command status report", zap.String("cmdId", commandID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create command status report"})
+	status.ID = ""
+	if err := h.repo.CreateStatus(r.Context(), status); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command status report", "Failed to create command status report")
 		return
 	}
 
@@ -445,14 +380,13 @@ func (h *CommandHandler) GetCommandStatusReport(w http.ResponseWriter, r *http.R
 	commandID := chi.URLParam(r, "cmdId")
 	statusID := chi.URLParam(r, "statusId")
 
-	status, err := h.repo.GetStatusByID(commandID, statusID)
+	status, err := h.repo.GetStatusByID(r.Context(), commandID, statusID)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command status report not found"})
+		writeRepositoryError(w, r, h.logger, err, "Command status report", "Failed to load command status report")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, commandStatusResponse(status))
 }
 
@@ -474,10 +408,9 @@ func (h *CommandHandler) UpdateCommandStatusReport(w http.ResponseWriter, r *htt
 	commandID := chi.URLParam(r, "cmdId")
 	statusID := chi.URLParam(r, "statusId")
 
-	existing, err := h.repo.GetStatusByID(commandID, statusID)
+	existing, err := h.repo.GetStatusByID(r.Context(), commandID, statusID)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command status report not found"})
+		writeRepositoryError(w, r, h.logger, err, "Command status report", "Failed to load command status report")
 		return
 	}
 
@@ -494,13 +427,9 @@ func (h *CommandHandler) UpdateCommandStatusReport(w http.ResponseWriter, r *htt
 
 	status.ID = existing.ID
 	status.CommandID = existing.CommandID
-	if status.ReportTime.IsZero() {
-		status.ReportTime = existing.ReportTime
-	}
-	if err := h.repo.UpdateStatus(status); err != nil {
-		h.logger.Error("Failed to update command status report", zap.String("statusId", statusID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update command status report"})
+	status.ReportTime = existing.ReportTime
+	if err := h.repo.UpdateStatusREST(r.Context(), status); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command status report", "Failed to update command status report")
 		return
 	}
 
@@ -513,16 +442,8 @@ func (h *CommandHandler) DeleteCommandStatusReport(w http.ResponseWriter, r *htt
 	commandID := chi.URLParam(r, "cmdId")
 	statusID := chi.URLParam(r, "statusId")
 
-	if err := h.repo.DeleteStatus(commandID, statusID); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Command status report not found"})
-		default:
-			h.logger.Error("Failed to delete command status report", zap.String("statusId", statusID), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete command status report"})
-		}
+	if err := h.repo.DeleteStatus(r.Context(), commandID, statusID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command status report", "Failed to delete command status report")
 		return
 	}
 
@@ -545,23 +466,20 @@ func (h *CommandHandler) DeleteCommandStatusReport(w http.ResponseWriter, r *htt
 // @Router      /commands/{cmdId}/result [get]
 func (h *CommandHandler) ListCommandResults(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
-	if _, err := h.repo.GetByID(commandID); err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command not found"})
+	if _, err := h.repo.GetByID(r.Context(), commandID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to load command")
 		return
 	}
 
 	params, err := queryparams.CommandResultQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
-	results, _, err := h.repo.ListResults(commandID, params)
+	results, _, err := h.repo.ListResults(r.Context(), commandID, params)
 	if err != nil {
 		h.logger.Error("Failed to list command results", zap.String("cmdId", commandID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -570,9 +488,9 @@ func (h *CommandHandler) ListCommandResults(w http.ResponseWriter, r *http.Reque
 		items = append(items, result)
 	}
 
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
+	links := params.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, CommandResultCollectionResponse{Items: items, Links: links})
 }
 
@@ -591,9 +509,8 @@ func (h *CommandHandler) ListCommandResults(w http.ResponseWriter, r *http.Reque
 // @Router      /commands/{cmdId}/result [post]
 func (h *CommandHandler) CreateCommandResult(w http.ResponseWriter, r *http.Request) {
 	commandID := chi.URLParam(r, "cmdId")
-	if _, err := h.repo.GetByID(commandID); err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command not found"})
+	if _, err := h.repo.GetByID(r.Context(), commandID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to load command")
 		return
 	}
 
@@ -609,10 +526,9 @@ func (h *CommandHandler) CreateCommandResult(w http.ResponseWriter, r *http.Requ
 	}
 
 	result.CommandID = commandID
-	if err := h.repo.CreateResult(result); err != nil {
-		h.logger.Error("Failed to create command result", zap.String("cmdId", commandID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create command result"})
+	result.ID = ""
+	if err := h.repo.CreateResult(r.Context(), result); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command result", "Failed to create command result")
 		return
 	}
 
@@ -626,14 +542,13 @@ func (h *CommandHandler) GetCommandResult(w http.ResponseWriter, r *http.Request
 	commandID := chi.URLParam(r, "cmdId")
 	resultID := chi.URLParam(r, "resultId")
 
-	result, err := h.repo.GetResultByID(commandID, resultID)
+	result, err := h.repo.GetResultByID(r.Context(), commandID, resultID)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command result not found"})
+		writeRepositoryError(w, r, h.logger, err, "Command result", "Failed to load command result")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, result)
 }
 
@@ -655,10 +570,9 @@ func (h *CommandHandler) UpdateCommandResult(w http.ResponseWriter, r *http.Requ
 	commandID := chi.URLParam(r, "cmdId")
 	resultID := chi.URLParam(r, "resultId")
 
-	existing, err := h.repo.GetResultByID(commandID, resultID)
+	existing, err := h.repo.GetResultByID(r.Context(), commandID, resultID)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Command result not found"})
+		writeRepositoryError(w, r, h.logger, err, "Command result", "Failed to load command result")
 		return
 	}
 
@@ -675,10 +589,8 @@ func (h *CommandHandler) UpdateCommandResult(w http.ResponseWriter, r *http.Requ
 
 	result.ID = existing.ID
 	result.CommandID = existing.CommandID
-	if err := h.repo.UpdateResult(result); err != nil {
-		h.logger.Error("Failed to update command result", zap.String("resultId", resultID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update command result"})
+	if err := h.repo.UpdateResult(r.Context(), result); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command result", "Failed to update command result")
 		return
 	}
 
@@ -690,82 +602,12 @@ func (h *CommandHandler) DeleteCommandResult(w http.ResponseWriter, r *http.Requ
 	commandID := chi.URLParam(r, "cmdId")
 	resultID := chi.URLParam(r, "resultId")
 
-	if err := h.repo.DeleteResult(commandID, resultID); err != nil {
-		switch {
-		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Command result not found"})
-		default:
-			h.logger.Error("Failed to delete command result", zap.String("resultId", resultID), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete command result"})
-		}
+	if err := h.repo.DeleteResult(r.Context(), commandID, resultID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Command result", "Failed to delete command result")
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func decodeCommandPayload(r *http.Request) (*domains.Command, error) {
-	var raw map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		return nil, err
-	}
-
-	cmd := &domains.Command{}
-
-	if sfID, ok := raw["samplingFeature@id"].(string); ok && sfID != "" {
-		cmd.SamplingFeatureID = &sfID
-	}
-
-	if sender, ok := raw["sender"].(string); ok {
-		cmd.Sender = sender
-	}
-
-	if status, ok := raw["currentStatus"].(string); ok && status != "" {
-		cmd.CurrentStatus = domains.CommandStatus(status)
-	}
-
-	if issueTimeStr, ok := raw["issueTime"].(string); ok && issueTimeStr != "" {
-		if t, err := time.Parse(time.RFC3339, issueTimeStr); err == nil {
-			cmd.IssueTime = &t
-		}
-	}
-
-	if execTimeArr, ok := raw["executionTime"].([]interface{}); ok && len(execTimeArr) == 2 {
-		tr := &common_shared.TimeRange{}
-		if s, ok := execTimeArr[0].(string); ok {
-			if t, err := time.Parse(time.RFC3339, s); err == nil {
-				tr.Start = &t
-			}
-		}
-		if e, ok := execTimeArr[1].(string); ok {
-			if t, err := time.Parse(time.RFC3339, e); err == nil {
-				tr.End = &t
-			}
-		}
-		cmd.ExecutionTime = common_shared.NonEmptyTimeRange(tr)
-	}
-
-	if procLink, ok := raw["procedure@link"].(map[string]any); ok {
-		link := &common_shared.Link{}
-		if href, ok := procLink["href"].(string); ok {
-			link.Href = href
-		}
-		if rel, ok := procLink["rel"].(string); ok {
-			link.Rel = rel
-		}
-		cmd.ProcedureLink = link
-	}
-
-	if params, ok := raw["parameters"]; ok {
-		paramBytes, err := json.Marshal(params)
-		if err == nil {
-			cmd.Parameters = paramBytes
-		}
-	}
-
-	return cmd, nil
 }
 
 func decodeCommandStatusPayload(reader io.Reader) (*domains.CommandStatusReport, error) {
@@ -811,7 +653,7 @@ func decodeCommandResultPayload(reader io.Reader) (*domains.CommandResult, error
 		}
 		valueBytes, err := json.Marshal(value)
 		if err != nil {
-			return nil, errors.New("Invalid command result payload")
+			return nil, errors.New("invalid command result payload")
 		}
 		*variant.target = valueBytes
 		present++
@@ -864,7 +706,7 @@ func (h *CommandHandler) publishCommandToMQTT(controlStreamID string, cmd *domai
 		return
 	}
 
-	payload, err := h.fc.Serialize("application/json", cmd)
+	payload, err := h.fc.Serialize(mediatype.JSON, cmd)
 	if err != nil {
 		h.logger.Error("Failed to serialize command for MQTT", zap.Error(err))
 		return

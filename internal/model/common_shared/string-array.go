@@ -25,7 +25,7 @@ func (s StringArray) Value() (driver.Value, error) {
 }
 
 // Scan unmarshals JSON/byte/string from the DB into the slice.
-func (s *StringArray) Scan(value interface{}) error {
+func (s *StringArray) Scan(value any) error {
 	if value == nil {
 		*s = nil
 		return nil

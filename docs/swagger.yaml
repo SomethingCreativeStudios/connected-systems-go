@@ -1786,6 +1786,176 @@ paths:
       summary: Update deployment
       tags:
       - Deployments
+  /deployments/{id}/controlstreams:
+    get:
+      description: Controlstreams associated with this deployment and its subdeployments,
+        including streams of deployed subsystems.
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      - description: CQL2 filter
+        in: query
+        name: filter
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ControlStreamCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ValidationErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List deployment controlstreams
+      tags:
+      - Deployments
+  /deployments/{id}/datastreams:
+    get:
+      description: Datastreams associated with this deployment and its subdeployments,
+        including streams of deployed subsystems.
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      - description: CQL2 filter
+        in: query
+        name: filter
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.DatastreamCollectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ValidationErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List deployment datastreams
+      tags:
+      - Deployments
+  /deployments/{id}/featuresOfInterest:
+    get:
+      description: Local generic and native features observed or controlled during
+        this deployment and its subdeployments.
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      - description: CQL2 filter over common feature fields
+        in: query
+        name: filter
+        type: string
+      produces:
+      - application/geo+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ValidationErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List deployment features of interest
+      tags:
+      - Deployments
+  /deployments/{id}/samplingFeatures:
+    get:
+      description: Sampling features associated with this deployment and its subdeployments.
+      parameters:
+      - description: Deployment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Maximum number of results
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      - description: CQL2 filter
+        in: query
+        name: filter
+        type: string
+      produces:
+      - application/geo+json
+      - application/sml+json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ValidationErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List deployment sampling features
+      tags:
+      - Deployments
   /deployments/{id}/subdeployments:
     get:
       description: Returns child deployments of the given deployment

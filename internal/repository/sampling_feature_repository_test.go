@@ -3,10 +3,10 @@ package repository
 import (
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository/testutil"
 )
 
 func TestSamplingFeatureRepository_Create(t *testing.T) {
@@ -70,7 +70,7 @@ func TestSamplingFeatureRepository_Create(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := repo.Create(tt.samplingFeature)
+			err := repo.Create(t.Context(), tt.samplingFeature)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -93,7 +93,7 @@ func TestSamplingFeatureRepository_GetByID(t *testing.T) {
 		CommonSSN:   domains.CommonSSN{UniqueIdentifier: "urn:test:get1", Name: "SamplingFeature 1"},
 		FeatureType: "Point",
 	}
-	require.NoError(t, repo.Create(sf1))
+	require.NoError(t, repo.Create(t.Context(), sf1))
 
 	tests := []struct {
 		name     string
@@ -117,7 +117,7 @@ func TestSamplingFeatureRepository_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := repo.GetByID(tt.id)
+			got, err := repo.GetByID(t.Context(), tt.id)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -139,21 +139,21 @@ func TestSamplingFeatureRepository_List(t *testing.T) {
 		FeatureType: "Point",
 		Geometry:    testutil.MakePoint(-122.4194, 37.7749),
 	}
-	require.NoError(t, repo.Create(sf1))
+	require.NoError(t, repo.Create(t.Context(), sf1))
 
 	sf2 := &domains.SamplingFeature{
 		CommonSSN:   domains.CommonSSN{UniqueIdentifier: "urn:test:sf2", Name: "Curve Feature 1"},
 		FeatureType: "Curve",
 		Geometry:    testutil.MakeLineString([]float64{-118.3, 34.0, -118.2, 34.1}),
 	}
-	require.NoError(t, repo.Create(sf2))
+	require.NoError(t, repo.Create(t.Context(), sf2))
 
 	sf3 := &domains.SamplingFeature{
 		CommonSSN:   domains.CommonSSN{UniqueIdentifier: "urn:test:sf3", Name: "Surface Feature 1", Description: "Test surface"},
 		FeatureType: "Surface",
 		Geometry:    testutil.MakePolygon([]float64{-122.4, 47.5, -122.2, 47.5, -122.2, 47.7, -122.4, 47.7, -122.4, 47.5}),
 	}
-	require.NoError(t, repo.Create(sf3))
+	require.NoError(t, repo.Create(t.Context(), sf3))
 
 	tests := []struct {
 		name      string
@@ -273,7 +273,7 @@ func TestSamplingFeatureRepository_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			features, total, err := repo.List(tt.params)
+			features, total, err := repo.List(t.Context(), tt.params)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantTotal, total, "total count mismatch")
 			require.Len(t, features, tt.wantCount, "result count mismatch")
@@ -294,7 +294,7 @@ func TestSamplingFeatureRepository_Update(t *testing.T) {
 		CommonSSN:   domains.CommonSSN{UniqueIdentifier: "urn:test:update1", Name: "Original Name"},
 		FeatureType: "Point",
 	}
-	require.NoError(t, repo.Create(original))
+	require.NoError(t, repo.Create(t.Context(), original))
 
 	tests := []struct {
 		name       string
@@ -338,14 +338,14 @@ func TestSamplingFeatureRepository_Update(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Get fresh copy for each test
-			sf, err := repo.GetByID(original.ID)
+			sf, err := repo.GetByID(t.Context(), original.ID)
 			require.NoError(t, err)
 
 			// Apply update
 			tt.updateFunc(sf)
 
 			// Save
-			err = repo.Update(sf)
+			err = repo.Update(t.Context(), sf)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -353,7 +353,7 @@ func TestSamplingFeatureRepository_Update(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify
-			updated, err := repo.GetByID(sf.ID)
+			updated, err := repo.GetByID(t.Context(), sf.ID)
 			require.NoError(t, err)
 			if tt.checkFunc != nil {
 				tt.checkFunc(t, updated)
@@ -379,11 +379,11 @@ func TestSamplingFeatureRepository_Delete(t *testing.T) {
 					CommonSSN:   domains.CommonSSN{UniqueIdentifier: "urn:test:del1", Name: "Delete Me"},
 					FeatureType: "Point",
 				}
-				require.NoError(t, repo.Create(sf))
+				require.NoError(t, repo.Create(t.Context(), sf))
 				return sf.ID
 			},
 			checkFunc: func(t *testing.T, id string) {
-				_, err := repo.GetByID(id)
+				_, err := repo.GetByID(t.Context(), id)
 				require.Error(t, err)
 			},
 		},
@@ -392,7 +392,7 @@ func TestSamplingFeatureRepository_Delete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id := tt.setupFunc()
-			err := repo.Delete(id)
+			err := repo.Delete(t.Context(), id)
 			require.NoError(t, err)
 			tt.checkFunc(t, id)
 		})

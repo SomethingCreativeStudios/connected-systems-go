@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func getJSONResource(t *testing.T, path, accept string) map[string]interface{} {
+func getJSONResource(t *testing.T, path, accept string) map[string]any {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodGet, testServer.URL+path, nil)
 	require.NoError(t, err)
@@ -22,32 +22,32 @@ func getJSONResource(t *testing.T, path, accept string) map[string]interface{} {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var body map[string]interface{}
+	var body map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	return body
 }
 
-func requireObjectMember(t *testing.T, obj map[string]interface{}, name string) map[string]interface{} {
+func requireObjectMember(t *testing.T, obj map[string]any, name string) map[string]any {
 	t.Helper()
 	value, ok := obj[name]
 	require.True(t, ok, "expected %s member", name)
 	require.NotNil(t, value, "expected %s member to be non-null", name)
-	member, ok := value.(map[string]interface{})
+	member, ok := value.(map[string]any)
 	require.True(t, ok, "%s must be an object", name)
 	return member
 }
 
-func requireGeoJSONPoint(t *testing.T, geom map[string]interface{}, lon, lat float64) {
+func requireGeoJSONPoint(t *testing.T, geom map[string]any, lon, lat float64) {
 	t.Helper()
 	require.Equal(t, "Point", geom["type"])
-	coords, ok := geom["coordinates"].([]interface{})
+	coords, ok := geom["coordinates"].([]any)
 	require.True(t, ok, "Point coordinates must be an array")
 	require.Len(t, coords, 2)
 	assert.InDelta(t, lon, coords[0], 0.000001)
 	assert.InDelta(t, lat, coords[1], 0.000001)
 }
 
-func createSamplingFeatureSMLViaAPI(t *testing.T, systemID string, payload map[string]interface{}) string {
+func createSamplingFeatureSMLViaAPI(t *testing.T, systemID string, payload map[string]any) string {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -81,12 +81,12 @@ func TestSystemSensorML_PositionDerivedFromGeoJSONGeometry(t *testing.T) {
 func TestSystemGeoJSON_GeometryDerivedFromSensorMLPosition(t *testing.T) {
 	cleanupDB(t)
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"type":       "PhysicalSystem",
 		"label":      "SML Position To GeoJSON Geometry",
 		"uniqueId":   "urn:uuid:" + uuid.NewString(),
 		"definition": "http://www.w3.org/ns/sosa/Sensor",
-		"position": map[string]interface{}{
+		"position": map[string]any{
 			"type":        "Point",
 			"coordinates": []float64{-118.25, 34.05},
 		},
@@ -122,15 +122,15 @@ func TestSamplingFeatureGeoJSON_GeometryDerivedFromSensorMLPosition(t *testing.T
 	cleanupDB(t)
 
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Sampling Feature Geometry System"))
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"type":       "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
 		"label":      "SF SML Position To GeoJSON Geometry",
 		"uniqueId":   "urn:uuid:" + uuid.NewString(),
 		"definition": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
-		"sampledFeature": map[string]interface{}{
+		"sampledFeature": map[string]any{
 			"href": "http://example.org/features/test-foi",
 		},
-		"position": map[string]interface{}{
+		"position": map[string]any{
 			"type":        "Point",
 			"coordinates": []float64{-119, 35},
 		},

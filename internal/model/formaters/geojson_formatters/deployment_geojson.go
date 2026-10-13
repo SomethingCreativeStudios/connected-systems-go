@@ -6,42 +6,31 @@ import (
 	"io"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // DeploymentGeoJSONFormatter handles serialization and deserialization of Deployment objects in GeoJSON format
 type DeploymentGeoJSONFormatter struct {
 	formaters.Formatter[domains.DeploymentGeoJSONFeature, *domains.Deployment]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewDeploymentGeoJSONFormatter constructs a formatter with required repository readers
-func NewDeploymentGeoJSONFormatter(repos *repository.Repositories) *DeploymentGeoJSONFormatter {
-	return &DeploymentGeoJSONFormatter{repos: repos}
+func NewDeploymentGeoJSONFormatter(links *formaters.LinkResolver) *DeploymentGeoJSONFormatter {
+	return &DeploymentGeoJSONFormatter{links: links}
 }
 
 func (f *DeploymentGeoJSONFormatter) ContentType() string {
-	return GeoJSONContentType
+	return mediatype.GeoJSON
 }
 
 // --- Serialization ---
 
 func (f *DeploymentGeoJSONFormatter) Serialize(ctx context.Context, deployment *domains.Deployment) (domains.DeploymentGeoJSONFeature, error) {
-	if deployment == nil {
-		return domains.DeploymentGeoJSONFeature{}, fmt.Errorf("deployment cannot be nil")
-	}
-
-	features, err := f.SerializeAll(ctx, []*domains.Deployment{deployment})
-	if err != nil {
-		return domains.DeploymentGeoJSONFeature{}, err
-	}
-	if len(features) == 0 {
-		return domains.DeploymentGeoJSONFeature{}, fmt.Errorf("deployment serialization produced no features")
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, deployment, f.SerializeAll)
 }
 
 func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deployments []*domains.Deployment) ([]domains.DeploymentGeoJSONFeature, error) {
@@ -49,30 +38,9 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 		return []domains.DeploymentGeoJSONFeature{}, nil
 	}
 
-	// Collect system IDs for batch enrichment (platform + deployedSystems)
-	systemIDs := make([]string, 0, len(deployments)*2)
-	for _, deployment := range deployments {
-		if deployment == nil {
-			continue
-		}
-		if deployment.Platform != nil {
-			id := deployment.Platform.System.GetId("systems")
-			if id != nil && *id != "" {
-				systemIDs = append(systemIDs, *id)
-			}
-		}
-		for _, ds := range deployment.DeployedSystems {
-			id := ds.System.GetId("systems")
-			if id != nil && *id != "" {
-				systemIDs = append(systemIDs, *id)
-			}
-		}
-	}
-
-	// Build resource cache for enriching inline links
-	cache := formaters.NewResourceCache()
-	if f.repos != nil && len(systemIDs) > 0 {
-		_ = cache.FetchParentSystems(ctx, f.repos.System, systemIDs)
+	cache, err := f.links.Lookup(ctx, formaters.DeploymentReferences(deployments))
+	if err != nil {
+		return nil, err
 	}
 
 	var features []domains.DeploymentGeoJSONFeature
@@ -82,21 +50,17 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 		}
 
 		var systemLinks common_shared.Links
-		for _, ds := range deployment.DeployedSystems {
+		for _, ds := range cache.DeployedSystems(deployment) {
 			link := ds.System
-			link.Href = formaters.ToFunctionalAssociationHref(link.Href)
+			link.Href = f.links.Href(link.Href)
 			if link.Type == "" {
-				link.Type = formaters.GeoJSONContentType
+				link.Type = mediatype.GeoJSON
 			}
 			// Enrich deployedSystems@link from cache
-			sysID := link.GetId("systems")
+			sysID := f.links.LocalID(link, "systems")
 			if sysID != nil {
 				if sys, ok := cache.Systems[*sysID]; ok {
-					link.Title = sys.Name
-					uid := string(sys.UniqueIdentifier)
-					if uid != "" {
-						link.UID = &uid
-					}
+					link.Describe(sys.Name, string(sys.UniqueIdentifier))
 				}
 			}
 			systemLinks = append(systemLinks, link)
@@ -105,19 +69,15 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 		var platformLink *common_shared.Link
 		if deployment.Platform != nil {
 			platform := deployment.Platform.System
-			platform.Href = formaters.ToFunctionalAssociationHref(platform.Href)
+			platform.Href = f.links.Href(platform.Href)
 			if platform.Type == "" {
-				platform.Type = formaters.GeoJSONContentType
+				platform.Type = mediatype.GeoJSON
 			}
 			// Enrich platform@link from cache
-			platID := platform.GetId("systems")
+			platID := f.links.LocalID(platform, "systems")
 			if platID != nil {
 				if sys, ok := cache.Systems[*platID]; ok {
-					platform.Title = sys.Name
-					uid := string(sys.UniqueIdentifier)
-					if uid != "" {
-						platform.UID = &uid
-					}
+					platform.Describe(sys.Name, string(sys.UniqueIdentifier))
 				}
 			}
 			platformLink = &platform
@@ -137,7 +97,7 @@ func (f *DeploymentGeoJSONFormatter) SerializeAll(ctx context.Context, deploymen
 				Platform:        platformLink,
 				DeployedSystems: systemLinks,
 			},
-			Links: formaters.AppendDeploymentAssociationLinks(deployment),
+			Links: f.links.DeploymentLinks(deployment, cache),
 		}
 		features = append(features, feature)
 	}
@@ -163,8 +123,8 @@ func (f *DeploymentGeoJSONFormatter) Deserialize(ctx context.Context, reader io.
 		return nil, err
 	}
 
-	associationLinks := formaters.DeploymentAssociationLinks(geoJSON.Links)
-
+	// ogc-rel links are server-generated, so they are ignored on write; the
+	// parent deployment is only ever set through /deployments/{id}/subdeployments.
 	deployment := &domains.Deployment{
 		Links: common_shared.StripAssociationLinks(geoJSON.Links),
 	}
@@ -224,8 +184,6 @@ func (f *DeploymentGeoJSONFormatter) Deserialize(ctx context.Context, reader io.
 			deployment.SystemIds = &systemIDs
 		}
 	}
-
-	formaters.ApplyDeploymentAssociationLinks(deployment, associationLinks)
 
 	return deployment, nil
 }

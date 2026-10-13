@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository/testutil"
 )
 
 func TestPropertyRepository_Create(t *testing.T) {
@@ -27,7 +26,7 @@ func TestPropertyRepository_Create(t *testing.T) {
 			property: &domains.Property{
 				CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:property1", Name: "Temperature"},
 				PropertyType: "ObservableProperty",
-				ObjectType:   testutil.PtrStr("sensor"),
+				ObjectType:   new("sensor"),
 			},
 			wantErr: false,
 			checkFunc: func(t *testing.T, created *domains.Property) {
@@ -43,7 +42,7 @@ func TestPropertyRepository_Create(t *testing.T) {
 			property: &domains.Property{
 				CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:property2", Name: "Valve Position", Description: "Control valve position"},
 				PropertyType: "ActuableProperty",
-				ObjectType:   testutil.PtrStr("actuator"),
+				ObjectType:   new("actuator"),
 			},
 			wantErr: false,
 			checkFunc: func(t *testing.T, created *domains.Property) {
@@ -78,8 +77,8 @@ func TestPropertyRepository_Create(t *testing.T) {
 						Label:      "Some basic boolean value",
 						Definition: "http://vocab.example.org/humidity",
 						Value:      json.RawMessage(`true`),
-						Updatable:  testutil.PtrBool(true),
-						Optional:   testutil.PtrBool(false),
+						Updatable:  new(true),
+						Optional:   new(false),
 					},
 				},
 			},
@@ -105,7 +104,7 @@ func TestPropertyRepository_Create(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := repo.Create(tt.property)
+			err := repo.Create(t.Context(), tt.property)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -128,7 +127,7 @@ func TestPropertyRepository_GetByID(t *testing.T) {
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:get1", Name: "Property 1"},
 		PropertyType: "ObservableProperty",
 	}
-	require.NoError(t, repo.Create(prop1))
+	require.NoError(t, repo.Create(t.Context(), prop1))
 
 	tests := []struct {
 		name     string
@@ -152,7 +151,7 @@ func TestPropertyRepository_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := repo.GetByID(tt.id)
+			got, err := repo.GetByID(t.Context(), tt.id)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -172,23 +171,23 @@ func TestPropertyRepository_List(t *testing.T) {
 	prop1 := &domains.Property{
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:prop1", Name: "Temperature"},
 		PropertyType: "ObservableProperty",
-		ObjectType:   testutil.PtrStr("sensor"),
+		ObjectType:   new("sensor"),
 	}
-	require.NoError(t, repo.Create(prop1))
+	require.NoError(t, repo.Create(t.Context(), prop1))
 
 	prop2 := &domains.Property{
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:prop2", Name: "Humidity"},
 		PropertyType: "ObservableProperty",
-		ObjectType:   testutil.PtrStr("sensor"),
+		ObjectType:   new("sensor"),
 	}
-	require.NoError(t, repo.Create(prop2))
+	require.NoError(t, repo.Create(t.Context(), prop2))
 
 	prop3 := &domains.Property{
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:prop3", Name: "Valve State", Description: "Binary valve control"},
 		PropertyType: "ActuableProperty",
-		ObjectType:   testutil.PtrStr("actuator"),
+		ObjectType:   new("actuator"),
 	}
-	require.NoError(t, repo.Create(prop3))
+	require.NoError(t, repo.Create(t.Context(), prop3))
 
 	tests := []struct {
 		name      string
@@ -313,7 +312,7 @@ func TestPropertyRepository_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			properties, total, err := repo.List(tt.params)
+			properties, total, err := repo.List(t.Context(), tt.params)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantTotal, total, "total count mismatch")
 			require.Len(t, properties, tt.wantCount, "result count mismatch")
@@ -334,7 +333,7 @@ func TestPropertyRepository_Update(t *testing.T) {
 		CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:update1", Name: "Original Name"},
 		PropertyType: "ObservableProperty",
 	}
-	require.NoError(t, repo.Create(original))
+	require.NoError(t, repo.Create(t.Context(), original))
 
 	tests := []struct {
 		name       string
@@ -365,7 +364,7 @@ func TestPropertyRepository_Update(t *testing.T) {
 		{
 			name: "update object type",
 			updateFunc: func(p *domains.Property) {
-				p.ObjectType = testutil.PtrStr("sensor")
+				p.ObjectType = new("sensor")
 			},
 			checkFunc: func(t *testing.T, updated *domains.Property) {
 				require.NotNil(t, updated.ObjectType)
@@ -378,14 +377,14 @@ func TestPropertyRepository_Update(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Get fresh copy for each test
-			prop, err := repo.GetByID(original.ID)
+			prop, err := repo.GetByID(t.Context(), original.ID)
 			require.NoError(t, err)
 
 			// Apply update
 			tt.updateFunc(prop)
 
 			// Save
-			err = repo.Update(prop)
+			err = repo.Update(t.Context(), prop)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -393,7 +392,7 @@ func TestPropertyRepository_Update(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify
-			updated, err := repo.GetByID(prop.ID)
+			updated, err := repo.GetByID(t.Context(), prop.ID)
 			require.NoError(t, err)
 			if tt.checkFunc != nil {
 				tt.checkFunc(t, updated)
@@ -419,11 +418,11 @@ func TestPropertyRepository_Delete(t *testing.T) {
 					CommonSSN:    domains.CommonSSN{UniqueIdentifier: "urn:test:del1", Name: "Delete Me"},
 					PropertyType: "ObservableProperty",
 				}
-				require.NoError(t, repo.Create(prop))
+				require.NoError(t, repo.Create(t.Context(), prop))
 				return prop.ID
 			},
 			checkFunc: func(t *testing.T, id string) {
-				_, err := repo.GetByID(id)
+				_, err := repo.GetByID(t.Context(), id)
 				require.Error(t, err)
 			},
 		},
@@ -432,7 +431,7 @@ func TestPropertyRepository_Delete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id := tt.setupFunc()
-			err := repo.Delete(id)
+			err := repo.Delete(t.Context(), id)
 			require.NoError(t, err)
 			tt.checkFunc(t, id)
 		})

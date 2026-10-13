@@ -140,7 +140,7 @@ func (c ContactWrappers) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (c *ContactWrappers) Scan(value interface{}) error {
+func (c *ContactWrappers) Scan(value any) error {
 	if value == nil {
 		*c = nil
 		return nil

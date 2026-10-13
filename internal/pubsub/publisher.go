@@ -9,8 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
 	"github.com/google/uuid"
-	"github.com/yourusername/connected-systems-go/internal/config"
 	"go.uber.org/zap"
 )
 
@@ -224,7 +225,7 @@ func (p *Publisher) NewResourceEvent(change Change) (CloudEvent, error) {
 		Data:        change.Data,
 	}
 	if len(change.Data) > 0 {
-		event.DataContentType = "application/json"
+		event.DataContentType = mediatype.JSON
 	}
 	return event, nil
 }
@@ -453,7 +454,7 @@ func (p *Publisher) publishBatch(entry *batch, windowEnd, publishedAt time.Time)
 		ID:              p.newID(),
 		ParentID:        p.absoluteURL(entry.key.parentPath),
 		Time:            publishedAt.Format(time.RFC3339Nano),
-		DataContentType: "application/json",
+		DataContentType: mediatype.JSON,
 		Data: map[string]any{
 			"timerange": []string{
 				entry.key.windowStart.Format(time.RFC3339Nano),

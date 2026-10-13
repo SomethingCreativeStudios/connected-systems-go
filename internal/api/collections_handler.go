@@ -3,10 +3,11 @@ package api
 import (
 	"net/http"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 	"go.uber.org/zap"
 )
 
@@ -40,7 +41,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 		Collections []model.CollectionMetadata `json:"collections"`
 	}{
 		Links: common_shared.Links{
-			{Href: baseURL + "/collections", Rel: "self", Type: "application/json"},
+			{Href: baseURL + "/collections", Rel: "self", Type: mediatype.JSON},
 		},
 		Collections: []model.CollectionMetadata{
 			{
@@ -51,7 +52,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				FeatureType: "sosa:System",
 				Links: common_shared.Links{
 					{Href: baseURL + "/collections/systems", Rel: "self"},
-					{Href: baseURL + "/systems", Rel: "items", Type: "application/geo+json"},
+					{Href: baseURL + "/systems", Rel: "items", Type: mediatype.GeoJSON},
 				},
 			},
 			{
@@ -62,7 +63,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				FeatureType: "sosa:Deployment",
 				Links: common_shared.Links{
 					{Href: baseURL + "/collections/deployments", Rel: "self"},
-					{Href: baseURL + "/deployments", Rel: "items", Type: "application/geo+json"},
+					{Href: baseURL + "/deployments", Rel: "items", Type: mediatype.GeoJSON},
 				},
 			},
 			{
@@ -73,7 +74,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				FeatureType: "sosa:Procedure",
 				Links: common_shared.Links{
 					{Href: baseURL + "/collections/procedures", Rel: "self"},
-					{Href: baseURL + "/procedures", Rel: "items", Type: "application/geo+json"},
+					{Href: baseURL + "/procedures", Rel: "items", Type: mediatype.GeoJSON},
 				},
 			},
 			{
@@ -84,7 +85,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				FeatureType: "sosa:Sample",
 				Links: common_shared.Links{
 					{Href: baseURL + "/collections/samplingFeatures", Rel: "self"},
-					{Href: baseURL + "/samplingFeatures", Rel: "items", Type: "application/geo+json"},
+					{Href: baseURL + "/samplingFeatures", Rel: "items", Type: mediatype.GeoJSON},
 				},
 			},
 			{
@@ -94,7 +95,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 				ItemType:    "sosa:Property",
 				Links: common_shared.Links{
 					{Href: baseURL + "/collections/properties", Rel: "self"},
-					{Href: baseURL + "/properties", Rel: "items", Type: "application/json"},
+					{Href: baseURL + "/properties", Rel: "items", Type: mediatype.JSON},
 				},
 			},
 		},
@@ -112,8 +113,7 @@ func (h *CollectionsHandler) GetCollections(w http.ResponseWriter, r *http.Reque
 // @Router      /collections/{collectionId} [get]
 func (h *CollectionsHandler) GetCollection(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement single collection retrieval
-	render.Status(r, http.StatusNotImplemented)
-	render.JSON(w, r, map[string]string{"error": "Not implemented"})
+	writeError(w, r, http.StatusNotImplemented, "Not implemented")
 }
 
 // GetCollectionItems returns items from a collection
@@ -125,6 +125,5 @@ func (h *CollectionsHandler) GetCollection(w http.ResponseWriter, r *http.Reques
 // @Router      /collections/{collectionId}/items [get]
 func (h *CollectionsHandler) GetCollectionItems(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement collection items retrieval
-	render.Status(r, http.StatusNotImplemented)
-	render.JSON(w, r, map[string]string{"error": "Not implemented"})
+	writeError(w, r, http.StatusNotImplemented, "Not implemented")
 }

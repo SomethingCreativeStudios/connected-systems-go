@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/moby/moby/api/types/network"
 	"github.com/stretchr/testify/require"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	geom "github.com/twpayne/go-geom"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -78,7 +78,7 @@ type OpenTestDBOptions struct {
 	// EnableLogging enables SQL query logging (useful for debugging)
 	EnableLogging bool
 	// Models to auto-migrate (in order)
-	Models []interface{}
+	Models []any
 }
 
 // OpenTestDB opens a GORM database connection with TimescaleDB and PostGIS
@@ -132,8 +132,8 @@ func OpenTestDB(t *testing.T, dsn string, opts OpenTestDBOptions) *gorm.DB {
 }
 
 // DefaultSystemModels returns the standard migration order for System-related tests
-func DefaultSystemModels() []interface{} {
-	return []interface{}{
+func DefaultSystemModels() []any {
+	return []any{
 		&domains.System{},
 		&domains.Deployment{},
 		&domains.Procedure{},
@@ -143,7 +143,6 @@ func DefaultSystemModels() []interface{} {
 		&domains.Datastream{},
 		&domains.Observation{},
 		&domains.Collection{},
-		&domains.DeploymentClosure{},
 		&domains.ControlStream{},
 		&domains.Command{},
 		&domains.CommandStatusReport{},
@@ -154,8 +153,8 @@ func DefaultSystemModels() []interface{} {
 }
 
 // AllModels returns all domain models in proper migration order
-func AllModels() []interface{} {
-	return []interface{}{
+func AllModels() []any {
+	return []any{
 		&domains.System{},
 		&domains.Deployment{},
 		&domains.Procedure{},
@@ -165,7 +164,6 @@ func AllModels() []interface{} {
 		&domains.Datastream{},
 		&domains.Observation{},
 		&domains.Collection{},
-		&domains.DeploymentClosure{},
 		&domains.ControlStream{},
 		&domains.Command{},
 		&domains.CommandStatusReport{},
@@ -173,18 +171,6 @@ func AllModels() []interface{} {
 		&domains.SystemEvent{},
 		&domains.SystemHistoryRevision{},
 	}
-}
-
-func PtrTime(t time.Time) *time.Time {
-	return &t
-}
-
-func PtrStr(s string) *string {
-	return &s
-}
-
-func PtrBool(b bool) *bool {
-	return &b
 }
 
 // Geometry maker functions for tests
@@ -274,7 +260,9 @@ func MakeGeometryCollection(geoms ...*common_shared.GoGeom) *common_shared.GoGeo
 	gc := geom.NewGeometryCollection().SetSRID(4326)
 	// GeometryCollection uses Push to add geometries
 	for _, gt := range gts {
-		gc.Push(gt)
+		if err := gc.Push(gt); err != nil {
+			panic(err)
+		}
 	}
 	return &common_shared.GoGeom{T: gc}
 }

@@ -7,13 +7,11 @@ import (
 	"io"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
-
-const SensorMLContentType = "application/sml+json"
 
 // getSMLType returns the SensorML process type for a system.
 // Defaults to "PhysicalSystem" if not explicitly set.
@@ -27,16 +25,16 @@ func getSMLType(system *domains.System) string {
 // SystemSensorMLFormatter handles serialization and deserialization of System objects in SensorML format
 type SystemSensorMLFormatter struct {
 	formaters.Formatter[domains.SystemSensorMLFeature, *domains.System]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewSystemSensorMLFormatter constructs a formatter with required repository readers
-func NewSystemSensorMLFormatter(repos *repository.Repositories) *SystemSensorMLFormatter {
-	return &SystemSensorMLFormatter{repos: repos}
+func NewSystemSensorMLFormatter(links *formaters.LinkResolver) *SystemSensorMLFormatter {
+	return &SystemSensorMLFormatter{links: links}
 }
 
 func (f *SystemSensorMLFormatter) ContentType() string {
-	return SensorMLContentType
+	return mediatype.SensorML
 }
 
 func nonNullRawMessage(raw json.RawMessage) json.RawMessage {
@@ -64,11 +62,7 @@ func systemSensorMLPosition(system *domains.System) json.RawMessage {
 // --- Serialization ---
 
 func (f *SystemSensorMLFormatter) Serialize(ctx context.Context, system *domains.System) (domains.SystemSensorMLFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.System{system})
-	if err != nil {
-		return domains.SystemSensorMLFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, system, f.SerializeAll)
 }
 
 func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*domains.System) ([]domains.SystemSensorMLFeature, error) {
@@ -76,25 +70,9 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 		return []domains.SystemSensorMLFeature{}, nil
 	}
 
-	// Collect IDs for batch loading
-	kindIDs := make([]string, 0, len(systems))
-	parentIDs := make([]string, 0, len(systems))
-	for _, s := range systems {
-		if s.TypeOfID != nil && *s.TypeOfID != "" {
-			kindIDs = append(kindIDs, *s.TypeOfID)
-		}
-		if s.ParentSystemID != nil && strings.TrimSpace(*s.ParentSystemID) != "" {
-			parentIDs = append(parentIDs, strings.TrimSpace(*s.ParentSystemID))
-		}
-	}
-
-	// Build resource cache for enriching association links
-	cache := formaters.NewResourceCache()
-	if len(kindIDs) > 0 && f.repos != nil {
-		_ = cache.FetchProcedures(ctx, f.repos.Procedure, kindIDs)
-	}
-	if len(parentIDs) > 0 && f.repos != nil {
-		_ = cache.FetchParentSystems(ctx, f.repos.System, parentIDs)
+	cache, err := f.links.Lookup(ctx, formaters.SystemReferences(systems))
+	if err != nil {
+		return nil, err
 	}
 
 	var features []domains.SystemSensorMLFeature
@@ -105,17 +83,13 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 		if system.ParentSystemID != nil && strings.TrimSpace(*system.ParentSystemID) != "" {
 			parentID := strings.TrimSpace(*system.ParentSystemID)
 			attachedTo = &common_shared.Link{
-				Href: formaters.ToFunctionalAssociationHref("/systems/" + parentID),
+				Href: f.links.Href("/systems/" + parentID),
 				Rel:  common_shared.OGCRel("attachedTo"),
-				Type: formaters.GeoJSONContentType,
+				Type: mediatype.GeoJSON,
 			}
 			// Enrich attachedTo from cache
 			if parent, ok := cache.Systems[parentID]; ok {
-				attachedTo.Title = parent.Name
-				uid := string(parent.UniqueIdentifier)
-				if uid != "" {
-					attachedTo.UID = &uid
-				}
+				attachedTo.Describe(parent.Name, string(parent.UniqueIdentifier))
 			}
 		}
 
@@ -125,17 +99,13 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 		if typeOf == nil && system.TypeOfID != nil && strings.TrimSpace(*system.TypeOfID) != "" {
 			kindID := strings.TrimSpace(*system.TypeOfID)
 			typeOf = &common_shared.Link{
-				Href: formaters.ToFunctionalAssociationHref("/procedures/" + kindID),
+				Href: f.links.Href("/procedures/" + kindID),
 				Rel:  common_shared.OGCRel("systemKind"),
-				Type: formaters.SensorMLContentType,
+				Type: mediatype.SensorML,
 			}
 			// Enrich typeOf from cache
 			if proc, ok := cache.Procedures[kindID]; ok {
-				typeOf.Title = proc.Name
-				uid := string(proc.UniqueIdentifier)
-				if uid != "" {
-					typeOf.UID = &uid
-				}
+				typeOf.Describe(proc.Name, string(proc.UniqueIdentifier))
 			}
 		}
 
@@ -179,7 +149,7 @@ func (f *SystemSensorMLFormatter) SerializeAll(ctx context.Context, systems []*d
 			AttachedTo:           attachedTo,
 			LocalReferenceFrames: system.LocalReferenceFrames,
 			LocalTimeFrames:      system.LocalTimeFrames,
-			Links:                formaters.AppendSensorMLSystemAssociationLinks(system, cache),
+			Links:                f.links.SystemLinks(system, cache, mediatype.SensorML),
 		}
 		features = append(features, feature)
 	}
@@ -194,45 +164,23 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 		return nil, err
 	}
 
-	var raw map[string]interface{}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, err
-	}
-
 	sml, err := common_shared.DecodeWithFieldErrors[domains.SystemSensorMLFeature](body)
 	if err != nil {
 		return nil, err
 	}
 
 	system := &domains.System{
-		Links: common_shared.StripAssociationLinks(sml.Links),
+		CommonSSN: domains.CommonSSN{
+			UniqueIdentifier: domains.UniqueID(sml.UniqueID),
+			Name:             sml.Label,
+			Description:      sml.Description,
+		},
+		SystemType: sml.Definition,
+		Links:      common_shared.StripAssociationLinks(sml.Links),
 	}
-
-	if v, ok := raw["label"].(string); ok && v != "" {
-		system.Name = v
-	} else if v, ok := raw["name"].(string); ok && v != "" {
-		system.Name = v
-	}
-
-	if v, ok := raw["description"].(string); ok {
-		system.Description = v
-	}
-
-	if v, ok := raw["uniqueId"].(string); ok && v != "" {
-		system.UniqueIdentifier = domains.UniqueID(v)
-	} else if v, ok := raw["uid"].(string); ok && v != "" {
-		system.UniqueIdentifier = domains.UniqueID(v)
-	}
-
-	if sml.Definition != "" {
-		system.SystemType = sml.Definition
-	} else if v, ok := raw["definition"].(string); ok {
-		system.SystemType = v
-	}
-
 	// type is the SML process type, not the semantic definition
-	if v, ok := raw["type"].(string); ok && v != "" {
-		system.SMLType = &v
+	if sml.Type != "" {
+		system.SMLType = &sml.Type
 	}
 
 	// Required root fields per OGC CS Part 1 system SensorML schema
@@ -250,26 +198,8 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 	}
 
 	system.ValidTime = common_shared.NonEmptyTimeRange(sml.ValidTime)
-	if system.ValidTime == nil {
-		if vt, ok := raw["validTime"]; ok {
-			tr := common_shared.ParseTimeRange(vt)
-			system.ValidTime = common_shared.NonEmptyTimeRange(&tr)
-		}
-	}
-
-	var geomObj interface{}
-	if p, ok := raw["position"]; ok {
-		geomObj = p
-	} else if g, ok := raw["geometry"]; ok {
-		geomObj = g
-	}
-	if geomObj != nil {
-		if gb, err := json.Marshal(geomObj); err == nil {
-			var gg common_shared.GoGeom
-			if err := json.Unmarshal(gb, &gg); err == nil {
-				system.Geometry = &gg
-			}
-		}
+	if system.Geometry, err = positionGeometry(sml.Position); err != nil {
+		return nil, err
 	}
 
 	// typeOf is the SensorML equivalent of systemKind@link — extract the procedure ID
@@ -307,14 +237,33 @@ func (f *SystemSensorMLFormatter) Deserialize(ctx context.Context, reader io.Rea
 	system.LocalReferenceFrames = sml.LocalReferenceFrames
 	system.LocalTimeFrames = sml.LocalTimeFrames
 	system.Position = sml.Position
-	// Derive ParentSystemID from ogc-rel:parentSystem link; fall back to attachedTo for incoming SensorML
-	formaters.ApplyGeoJSONSystemAssociationLinks(system, sml.Links)
-	if system.ParentSystemID == nil && sml.AttachedTo != nil {
-		system.ParentSystemID = sml.AttachedTo.GetId("systems")
-	}
+	// ogc-rel links and attachedTo are server-generated, so they are ignored on
+	// write; the parent system is only ever set through /systems/{id}/subsystems.
 	system.Contacts = sml.Contacts
 	system.Documentation = sml.Documentation
 	system.History = sml.History
 
 	return system, nil
+}
+
+// positionGeometry reads a SensorML position as the system's geometry when it
+// is a GeoJSON geometry. Other position encodings (a pose, a SWE vector or
+// record, a link) are kept only in the raw position.
+func positionGeometry(position json.RawMessage) (*common_shared.GoGeom, error) {
+	var probe struct {
+		Type string `json:"type"`
+	}
+	if len(position) == 0 || json.Unmarshal(position, &probe) != nil {
+		return nil, nil
+	}
+	switch probe.Type {
+	case "Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon", "GeometryCollection":
+	default:
+		return nil, nil
+	}
+	var geometry common_shared.GoGeom
+	if err := json.Unmarshal(position, &geometry); err != nil {
+		return nil, fmt.Errorf("position: %w", err)
+	}
+	return &geometry, nil
 }

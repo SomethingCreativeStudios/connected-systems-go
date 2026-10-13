@@ -7,15 +7,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/twpayne/go-geom/encoding/wkt"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
 // buildSpatialQueryParams parses the Part 1 spatial collection filters. The
-// API currently stores resource geometries in CRS84/EPSG:4326 and performs
+// API stores resource geometries in CRS84/EPSG:4326 and performs
 // two-dimensional intersection tests. A six-value bbox is accepted per the
-// contract; its vertical bounds are validated while the XY bounds are used for
-// the intersection because the stored geometries are two-dimensional.
+// contract; its vertical bounds are validated while only the XY bounds are
+// used for the intersection, so altitudes never exclude a resource.
 func buildSpatialQueryParams(r *http.Request) (*common_shared.BoundingBox, string, error) {
 	var bbox *common_shared.BoundingBox
 	if raw := strings.TrimSpace(r.URL.Query().Get("bbox")); raw != "" {

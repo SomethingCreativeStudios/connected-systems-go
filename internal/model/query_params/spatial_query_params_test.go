@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
 type spatialBuildResult struct {

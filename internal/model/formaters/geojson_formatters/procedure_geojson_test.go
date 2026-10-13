@@ -5,19 +5,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 func TestProcedureGeoJSONSerialize_AssociationLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewProcedureGeoJSONFormatter(nil)
+	formatter := NewProcedureGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL, ProcedureChildren: stubChildren{"proc-1": {"implementingSystems"}}})
 	procedure := &domains.Procedure{
 		Base: domains.Base{ID: "proc-1"},
-		Systems: []domains.System{
-			{Base: domains.Base{ID: "sys-1"}},
-		},
 		Links: common_shared.Links{
 			{Href: "/docs/spec", Rel: "alternate"},
 		},
@@ -28,7 +25,7 @@ func TestProcedureGeoJSONSerialize_AssociationLinks(t *testing.T) {
 		t.Fatalf("serialize failed: %v", err)
 	}
 
-	assertHasHref(t, feature.Links, common_shared.OGCRel("implementingSystems"), "http://example.test/systems?procedure=proc-1")
+	assertHasHref(t, feature.Links, common_shared.OGCRel("implementingSystems"), "http://example.test/systems?procedure=proc-1&recursive=true")
 	assertHasRel(t, feature.Links, "alternate")
 }
 
@@ -42,7 +39,7 @@ func TestProcedureGeoJSONDeserialize_StripsAssociationLinks(t *testing.T) {
 			"featureType": "http://www.w3.org/ns/sosa/Procedure"
 		},
 		"links": [
-			{"href": "/systems?procedure=proc-1", "rel": "ogc-rel:implementingSystems"},
+			{"href": "/systems?procedure=proc-1&recursive=true", "rel": "ogc-rel:implementingSystems"},
 			{"href": "/docs/spec", "rel": "alternate"}
 		]
 	}`

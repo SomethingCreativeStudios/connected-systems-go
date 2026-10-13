@@ -3,7 +3,7 @@ package domains
 import (
 	"encoding/json"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // Procedure represents a sosa:Procedure feature (datasheet, methodology)
@@ -58,7 +58,6 @@ type Procedure struct {
 	Properties common_shared.Properties `gorm:"type:jsonb" json:"properties,omitempty"`
 
 	ValidTime *common_shared.TimeRange `gorm:"embedded;embeddedPrefix:valid_time_" json:"validTime,omitempty"`
-	Systems   []System                 `gorm:"many2many:system_procedures;"`
 }
 
 // TableName specifies the table name

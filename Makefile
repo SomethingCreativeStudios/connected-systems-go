@@ -4,7 +4,7 @@ RELEASE_DIR ?= dist
 RELEASE_PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 DOCKER_IMAGE ?= ericlo417/connected-systems
 
-.PHONY: help build run test test-coverage clean deps lint swag migrate docker-build docker-push docker-run docker-stop viewer-docker-build release-build validate-tag release
+.PHONY: help build run test test-coverage clean deps lint vuln swag migrate buildx-builder docker-build docker-push docker-run docker-stop viewer-docker-build release-build validate-tag release
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -34,18 +34,34 @@ deps: ## Download dependencies
 	go mod download
 	go mod tidy
 
-lint: ## Run linter
-	golangci-lint run
+GOLANGCI_LINT_VERSION ?= v2.14.0
+
+# go run pkg@version ignores this module's toolchain line; build the linter
+# with the module's Go version so it can analyze the code.
+lint: ## Run golangci-lint (pinned version, see .golangci.yml)
+	GOTOOLCHAIN=$$(go env GOVERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...
+
+vuln: ## Report known vulnerabilities reachable from the code
+	go tool govulncheck ./...
 
 swag: ## Regenerate OpenAPI 3.0 spec from handler annotations
-	swag init -g cmd/server/main.go -o docs/
+	go tool swag init -g cmd/server/main.go -o docs/
 	swagger2openapi docs/swagger.json -o docs/openapi.json
 
-migrate: ## Run database migrations
-	@echo "Database migrations not yet implemented"
+migrate: ## Apply pending database migrations
+	go run ./cmd/server migrate
 
-docker-build: ## Build and push multi-arch Docker image (linux/amd64 + linux/arm64)
+BUILDX_BUILDER ?= cs-multiarch
+
+# The default "docker" buildx driver cannot build multi-platform images, so
+# multi-arch targets use a docker-container builder, created on first use.
+buildx-builder:
+	@docker buildx inspect $(BUILDX_BUILDER) >/dev/null 2>&1 || \
+		docker buildx create --name $(BUILDX_BUILDER) --driver docker-container --bootstrap
+
+docker-build: buildx-builder ## Build and push multi-arch Docker image (linux/amd64 + linux/arm64)
 	docker buildx build \
+		--builder $(BUILDX_BUILDER) \
 		--platform linux/amd64,linux/arm64 \
 		--tag docker.monogatari.dev/connected-systems/cs-api-server \
 		--push \
@@ -85,8 +101,9 @@ release: validate-tag test release-build ## Create/push a git tag and GitHub rel
 
 # ── cs-api-viewer ──────────────────────────────────────────────────────────────
 
-viewer-docker-build: ## Build and push multi-arch Docker image for cs-api-viewer (linux/amd64 + linux/arm64)
+viewer-docker-build: buildx-builder ## Build and push multi-arch Docker image for cs-api-viewer (linux/amd64 + linux/arm64)
 	docker buildx build \
+		--builder $(BUILDX_BUILDER) \
 		--no-cache \
 		--platform linux/amd64,linux/arm64 \
 		--tag docker.monogatari.dev/connected-systems/cs-api-viewer \

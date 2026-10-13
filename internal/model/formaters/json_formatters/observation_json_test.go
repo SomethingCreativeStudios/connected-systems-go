@@ -7,16 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 func TestObservationJSONFormatter_Serialize_NormalizesRelativeHrefs(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewObservationJSONFormatter(nil)
+	formatter := NewObservationJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	obs := &domains.Observation{
 		Base: domains.Base{ID: "obs-1"},
@@ -49,10 +48,8 @@ func TestObservationJSONFormatter_Serialize_NormalizesRelativeHrefs(t *testing.T
 }
 
 func TestObservationJSONFormatter_Serialize_PreservesAbsoluteHrefs(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewObservationJSONFormatter(nil)
+	formatter := NewObservationJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	obs := &domains.Observation{
 		Base: domains.Base{ID: "obs-1"},
@@ -78,10 +75,8 @@ func TestObservationJSONFormatter_Serialize_PreservesAbsoluteHrefs(t *testing.T)
 }
 
 func TestObservationJSONFormatter_Serialize_NilLinks(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewObservationJSONFormatter(nil)
+	formatter := NewObservationJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	obs := &domains.Observation{
 		Base: domains.Base{ID: "obs-1"},
@@ -101,10 +96,8 @@ func TestObservationJSONFormatter_Serialize_NilLinks(t *testing.T) {
 }
 
 func TestObservationJSONFormatter_Serialize_EmptyHrefs(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewObservationJSONFormatter(nil)
+	formatter := NewObservationJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	obs := &domains.Observation{
 		Base: domains.Base{ID: "obs-1"},
@@ -130,10 +123,8 @@ func TestObservationJSONFormatter_Serialize_EmptyHrefs(t *testing.T) {
 }
 
 func TestObservationJSONFormatter_SerializeAll_NormalizesLinks(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewObservationJSONFormatter(nil)
+	formatter := NewObservationJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	observations := []*domains.Observation{
 		{
@@ -186,17 +177,17 @@ func TestObservationJSONFormatter_SerializeAll_NormalizesLinks(t *testing.T) {
 func TestObservationJSONFormatter_Deserialize(t *testing.T) {
 	formatter := NewObservationJSONFormatter(nil)
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"id":            "obs-1",
 		"datastream@id": "ds-1",
 		"resultTime":    "2026-01-01T00:00:00Z",
-		"procedure@link": map[string]interface{}{
+		"procedure@link": map[string]any{
 			"href": "/procedures/proc-1",
 		},
-		"result@link": map[string]interface{}{
+		"result@link": map[string]any{
 			"href": "/results/result-1",
 		},
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"temperature": 21.4,
 		},
 	}
@@ -209,12 +200,20 @@ func TestObservationJSONFormatter_Deserialize(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.ID != "obs-1" {
-		t.Errorf("expected ID 'obs-1', got %q", result.ID)
+	// id and datastream@id are read-only in a request body.
+	if result.ID != "" || result.DatastreamID != "" {
+		t.Errorf("expected client-supplied id and datastream@id to be ignored, got %q and %q", result.ID, result.DatastreamID)
 	}
-	if result.DatastreamID != "ds-1" {
-		t.Errorf("expected DatastreamID 'ds-1', got %q", result.DatastreamID)
+
+	// A complete Pub/Sub Resource Data Message carries them.
+	published, err := formatter.DeserializeResourceData(context.Background(), bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
+	if published.ID != "obs-1" || published.DatastreamID != "ds-1" {
+		t.Errorf("expected id 'obs-1' and datastream@id 'ds-1', got %q and %q", published.ID, published.DatastreamID)
+	}
+
 	if result.ProcedureLink == nil {
 		t.Fatal("expected ProcedureLink to be non-nil")
 	}
@@ -231,10 +230,8 @@ func TestObservationJSONFormatter_Deserialize(t *testing.T) {
 
 // Phase 1: inline @link Type enrichment
 func TestObservationJSONFormatter_Serialize_SetsTypeOnProcedureLink(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewObservationJSONFormatter(nil)
+	formatter := NewObservationJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	obs := &domains.Observation{
 		Base: domains.Base{ID: "obs-1"},
@@ -254,8 +251,8 @@ func TestObservationJSONFormatter_Serialize_SetsTypeOnProcedureLink(t *testing.T
 	if result.ProcedureLink == nil {
 		t.Fatal("expected ProcedureLink to be non-nil")
 	}
-	if result.ProcedureLink.Type != formaters.SensorMLContentType {
-		t.Errorf("expected ProcedureLink.Type %q, got %q", formaters.SensorMLContentType, result.ProcedureLink.Type)
+	if result.ProcedureLink.Type != mediatype.SensorML {
+		t.Errorf("expected ProcedureLink.Type %q, got %q", mediatype.SensorML, result.ProcedureLink.Type)
 	}
 
 	// result@link Type is deliberately omitted (MIME varies by encoding)
@@ -269,10 +266,8 @@ func TestObservationJSONFormatter_Serialize_SetsTypeOnProcedureLink(t *testing.T
 
 // Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
 func TestObservationJSONFormatter_SerializeAll_EnrichesInlineLinks(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewObservationJSONFormatter(nil)
+	formatter := NewObservationJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	observations := []*domains.Observation{
 		{
@@ -293,8 +288,8 @@ func TestObservationJSONFormatter_SerializeAll_EnrichesInlineLinks(t *testing.T)
 	}
 
 	// Type is always set (Phase 1)
-	if results[0].ProcedureLink.Type != formaters.SensorMLContentType {
-		t.Errorf("expected ProcedureLink.Type %q, got %q", formaters.SensorMLContentType, results[0].ProcedureLink.Type)
+	if results[0].ProcedureLink.Type != mediatype.SensorML {
+		t.Errorf("expected ProcedureLink.Type %q, got %q", mediatype.SensorML, results[0].ProcedureLink.Type)
 	}
 
 	// Title/UID are empty with nil repos (no cache population)

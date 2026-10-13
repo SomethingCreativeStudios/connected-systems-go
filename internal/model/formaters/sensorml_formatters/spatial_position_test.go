@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
 
 func mustTestGoGeom(t *testing.T, raw string) *common_shared.GoGeom {
@@ -21,14 +21,14 @@ func mustTestGoGeom(t *testing.T, raw string) *common_shared.GoGeom {
 
 func requirePointJSON(t *testing.T, raw []byte, lon, lat float64) {
 	t.Helper()
-	var point map[string]interface{}
+	var point map[string]any
 	if err := json.Unmarshal(raw, &point); err != nil {
 		t.Fatalf("unmarshal point failed: %v", err)
 	}
 	if point["type"] != "Point" {
 		t.Fatalf("expected Point, got %#v", point["type"])
 	}
-	coords, ok := point["coordinates"].([]interface{})
+	coords, ok := point["coordinates"].([]any)
 	if !ok || len(coords) != 2 {
 		t.Fatalf("expected two point coordinates, got %#v", point["coordinates"])
 	}

@@ -20,9 +20,9 @@ func setupSamplingFeatureConformanceData(t *testing.T) (string, []string) {
 	t.Helper()
 
 	// Create a parent system to host sampling features
-	sysPayload := map[string]interface{}{
+	sysPayload := map[string]any{
 		"type": "Feature",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"uid":         "urn:ogc:conf:system:sf-parent-001",
 			"name":        "Parent System for SF Conformance Tests",
 			"description": "System used as parent for sampling feature conformance tests",
@@ -41,39 +41,39 @@ func setupSamplingFeatureConformanceData(t *testing.T) (string, []string) {
 	require.NotEmpty(t, systemID, "unable to parse system id from Location header: %s", location)
 
 	// Test sampling features with different geometry types
-	testSamplingFeatures := []map[string]interface{}{
+	testSamplingFeatures := []map[string]any{
 		{
 			"type": "Feature",
-			"properties": map[string]interface{}{
+			"properties": map[string]any{
 				"uid":         "urn:ogc:conf:sf:point-001",
 				"name":        "Weather Station Sampling Point",
 				"description": "Primary measurement location at weather station",
 				"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
-				"sampledFeature@link": map[string]interface{}{
+				"sampledFeature@link": map[string]any{
 					"href":  "http://example.org/features/central-park",
 					"type":  "application/geo+json",
 					"title": "Central Park Feature of Interest",
 				},
 			},
-			"geometry": map[string]interface{}{
+			"geometry": map[string]any{
 				"type":        "Point",
 				"coordinates": []float64{-117.1625, 32.715, 125.0},
 			},
 		},
 		{
 			"type": "Feature",
-			"properties": map[string]interface{}{
+			"properties": map[string]any{
 				"uid":         "urn:ogc:conf:sf:curve-001",
 				"name":        "River Cross-Section Transect",
 				"description": "Sampling line across river for flow measurements",
 				"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingCurve",
-				"sampledFeature@link": map[string]interface{}{
+				"sampledFeature@link": map[string]any{
 					"href":  "http://example.org/features/colorado-river",
 					"type":  "application/geo+json",
 					"title": "Colorado River",
 				},
 			},
-			"geometry": map[string]interface{}{
+			"geometry": map[string]any{
 				"type": "LineString",
 				"coordinates": [][]float64{
 					{-114.5678, 36.1234, 320.5},
@@ -84,18 +84,18 @@ func setupSamplingFeatureConformanceData(t *testing.T) (string, []string) {
 		},
 		{
 			"type": "Feature",
-			"properties": map[string]interface{}{
+			"properties": map[string]any{
 				"uid":         "urn:ogc:conf:sf:surface-001",
 				"name":        "Satellite Image Footprint",
 				"description": "Satellite image footprint representing sampled surface area",
 				"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingSurface",
-				"sampledFeature@link": map[string]interface{}{
+				"sampledFeature@link": map[string]any{
 					"href":  "http://example.org/features/agricultural-region",
 					"type":  "application/geo+json",
 					"title": "Agricultural Region 7A",
 				},
 			},
-			"geometry": map[string]interface{}{
+			"geometry": map[string]any{
 				"type": "Polygon",
 				"coordinates": [][][]float64{
 					{
@@ -110,18 +110,18 @@ func setupSamplingFeatureConformanceData(t *testing.T) (string, []string) {
 		},
 		{
 			"type": "Feature",
-			"properties": map[string]interface{}{
+			"properties": map[string]any{
 				"uid":         "urn:ogc:conf:sf:point-002",
 				"name":        "Soil Sample Location",
 				"description": "Soil sampling point for agricultural analysis",
 				"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
-				"sampledFeature@link": map[string]interface{}{
+				"sampledFeature@link": map[string]any{
 					"href":  "http://example.org/features/agricultural-region",
 					"type":  "application/geo+json",
 					"title": "Agricultural Region 7A",
 				},
 			},
-			"geometry": map[string]interface{}{
+			"geometry": map[string]any{
 				"type":        "Point",
 				"coordinates": []float64{-122.4, 37.8},
 			},
@@ -138,7 +138,7 @@ func setupSamplingFeatureConformanceData(t *testing.T) (string, []string) {
 
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusCreated, resp.StatusCode, "failed to create sampling feature: %s", sf["properties"].(map[string]interface{})["name"])
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "failed to create sampling feature: %s", sf["properties"].(map[string]any)["name"])
 
 		location := resp.Header.Get("Location")
 		resp.Body.Close()
@@ -198,7 +198,7 @@ func TestSamplingFeatureConformance(t *testing.T) {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				var collection map[string]interface{}
+				var collection map[string]any
 				err = json.Unmarshal(body, &collection)
 				require.NoError(t, err, "Response must be valid JSON")
 
@@ -206,7 +206,7 @@ func TestSamplingFeatureConformance(t *testing.T) {
 				assert.Equal(t, "FeatureCollection", collection["type"], "Response must be a FeatureCollection")
 
 				// Must contain features array
-				features, ok := collection["features"].([]interface{})
+				features, ok := collection["features"].([]any)
 				assert.True(t, ok, "Response must contain 'features' array")
 				assert.GreaterOrEqual(t, len(features), 1, "Collection must contain at least one sampling feature")
 			},
@@ -257,7 +257,7 @@ func TestSamplingFeatureConformance(t *testing.T) {
 
 						assert.Equal(t, http.StatusOK, resp.StatusCode, "GET /samplingFeatures/{id} must return 200 OK")
 
-						var sf map[string]interface{}
+						var sf map[string]any
 						err = json.NewDecoder(resp.Body).Decode(&sf)
 						require.NoError(t, err)
 
@@ -289,14 +289,14 @@ func TestSamplingFeatureConformance(t *testing.T) {
 
 				assert.Equal(t, http.StatusOK, resp.StatusCode, "GET /systems/{sysId}/samplingFeatures must return 200 OK")
 
-				var collection map[string]interface{}
+				var collection map[string]any
 				err = json.NewDecoder(resp.Body).Decode(&collection)
 				require.NoError(t, err)
 
 				// Must be a FeatureCollection
 				assert.Equal(t, "FeatureCollection", collection["type"], "Response must be a FeatureCollection")
 
-				features, ok := collection["features"].([]interface{})
+				features, ok := collection["features"].([]any)
 				assert.True(t, ok, "Response must contain 'features' array")
 
 				// Should contain all the sampling features created for this system
@@ -382,11 +382,11 @@ func TestGeoJSONSamplingFeatureSchema(t *testing.T) {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				var collection map[string]interface{}
+				var collection map[string]any
 				err = json.Unmarshal(body, &collection)
 				require.NoError(t, err)
 
-				features, ok := collection["features"].([]interface{})
+				features, ok := collection["features"].([]any)
 				require.True(t, ok, "Collection must have features array")
 
 				for i, item := range features {
@@ -431,7 +431,7 @@ func TestGeoJSONSamplingFeatureSchema(t *testing.T) {
 
 						require.Equal(t, http.StatusOK, resp.StatusCode)
 
-						var sf map[string]interface{}
+						var sf map[string]any
 						err = json.NewDecoder(resp.Body).Decode(&sf)
 						require.NoError(t, err)
 
@@ -441,7 +441,7 @@ func TestGeoJSONSamplingFeatureSchema(t *testing.T) {
 						assert.NotNil(t, sf["geometry"], "Sampling feature must have geometry")
 
 						// Verify properties
-						props, ok := sf["properties"].(map[string]interface{})
+						props, ok := sf["properties"].(map[string]any)
 						require.True(t, ok, "Sampling feature must have properties object")
 
 						assert.NotEmpty(t, props["uid"], "Properties must have uid")
@@ -452,7 +452,7 @@ func TestGeoJSONSamplingFeatureSchema(t *testing.T) {
 						sampledFeatureLink, ok := props["sampledFeature@link"]
 						assert.True(t, ok, "Properties must have sampledFeature@link")
 						if ok {
-							link, ok := sampledFeatureLink.(map[string]interface{})
+							link, ok := sampledFeatureLink.(map[string]any)
 							assert.True(t, ok, "sampledFeature@link must be an object")
 							if ok {
 								assert.NotEmpty(t, link["href"], "sampledFeature@link must have href")
@@ -460,7 +460,7 @@ func TestGeoJSONSamplingFeatureSchema(t *testing.T) {
 						}
 
 						// Verify geometry has valid type
-						geometry, ok := sf["geometry"].(map[string]interface{})
+						geometry, ok := sf["geometry"].(map[string]any)
 						require.True(t, ok, "Geometry must be an object")
 						geomType, ok := geometry["type"].(string)
 						require.True(t, ok, "Geometry must have type")
@@ -493,48 +493,48 @@ func TestSamplingFeatureCRUD_Create(t *testing.T) {
 	defer cleanupSamplingFeatureConformanceData(t, createdSFIDs)
 
 	testCases := map[string]struct {
-		createPayload map[string]interface{}
-		validateFunc  func(created map[string]interface{})
+		createPayload map[string]any
+		validateFunc  func(created map[string]any)
 	}{
 		"Create Sampling Feature": {
-			createPayload: map[string]interface{}{
+			createPayload: map[string]any{
 				"type": "Feature",
-				"properties": map[string]interface{}{
+				"properties": map[string]any{
 					"uid":         "urn:ogc:conf:sf:crud-create-001",
 					"name":        "CRUD Test Point",
 					"description": "Sampling feature created for CRUD test",
 					"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
-					"sampledFeature@link": map[string]interface{}{
+					"sampledFeature@link": map[string]any{
 						"href":  "http://example.org/features/test-foi",
 						"type":  "application/geo+json",
 						"title": "Test Feature of Interest",
 					},
 				},
-				"geometry": map[string]interface{}{
+				"geometry": map[string]any{
 					"type":        "Point",
 					"coordinates": []float64{-118.0, 34.0},
 				},
 			},
-			validateFunc: func(created map[string]interface{}) {
+			validateFunc: func(created map[string]any) {
 				// Validate created resource
 				assert.Equal(t, "Feature", created["type"], "Created resource must be a GeoJSON Feature")
 
-				props, ok := created["properties"].(map[string]interface{})
+				props, ok := created["properties"].(map[string]any)
 				require.True(t, ok, "Created resource must have properties object")
 
 				assert.Equal(t, "urn:ogc:conf:sf:crud-create-001", props["uid"], "Created resource must have correct uid")
 				assert.Equal(t, "CRUD Test Point", props["name"], "Created resource must have correct name")
 				assert.Equal(t, "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint", props["featureType"], "Created resource must have correct featureType")
 
-				sampledFeatureLink, ok := props["sampledFeature@link"].(map[string]interface{})
+				sampledFeatureLink, ok := props["sampledFeature@link"].(map[string]any)
 				require.True(t, ok, "Created resource must have sampledFeature@link")
 				assert.Equal(t, "http://example.org/features/test-foi", sampledFeatureLink["href"], "sampledFeature@link must have correct href")
 
-				geometry, ok := created["geometry"].(map[string]interface{})
+				geometry, ok := created["geometry"].(map[string]any)
 				require.True(t, ok, "Created resource must have geometry object")
 				assert.Equal(t, "Point", geometry["type"], "Geometry type must be Point")
 
-				coords, ok := geometry["coordinates"].([]interface{})
+				coords, ok := geometry["coordinates"].([]any)
 				require.True(t, ok, "Geometry must have coordinates array")
 				assert.Equal(t, -118.0, coords[0], "Geometry longitude must match")
 				assert.Equal(t, 34.0, coords[1], "Geometry latitude must match")
@@ -572,53 +572,56 @@ func TestSamplingFeatureCRUD_Create(t *testing.T) {
 // A.73: Replace
 // =============================================================================
 
-func testSamplingFeatureCRUD_Replace(t *testing.T, systemID string) {
+func TestSamplingFeatureCRUD_Replace(t *testing.T) {
 	cleanupDB(t)
 
+	systemID, createdSFIDs := setupSamplingFeatureConformanceData(t)
+	defer cleanupSamplingFeatureConformanceData(t, createdSFIDs)
+
 	testcases := map[string]struct {
-		createPayload  map[string]interface{}
-		replacePayload map[string]interface{}
-		validateFunc   func(updated map[string]interface{})
+		createPayload  map[string]any
+		replacePayload map[string]any
+		validateFunc   func(updated map[string]any)
 	}{
 		"Replace Sampling Feature": {
 			// Create a sampling feature first
-			createPayload: map[string]interface{}{
+			createPayload: map[string]any{
 				"type": "Feature",
-				"properties": map[string]interface{}{
+				"properties": map[string]any{
 					"uid":         "urn:ogc:conf:sf:crud-replace-001",
 					"name":        "Original Name",
 					"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
-					"sampledFeature@link": map[string]interface{}{
+					"sampledFeature@link": map[string]any{
 						"href":  "http://example.org/features/test-foi",
 						"type":  "application/geo+json",
 						"title": "Test Feature of Interest",
 					},
 				},
-				"geometry": map[string]interface{}{
+				"geometry": map[string]any{
 					"type":        "Point",
 					"coordinates": []float64{-118.0, 34.0},
 				},
 			},
-			replacePayload: map[string]interface{}{
+			replacePayload: map[string]any{
 				"type": "Feature",
-				"properties": map[string]interface{}{
+				"properties": map[string]any{
 					"uid":         "urn:ogc:conf:sf:crud-replace-001",
 					"name":        "Updated Name",
 					"description": "Updated description",
 					"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
-					"sampledFeature@link": map[string]interface{}{
+					"sampledFeature@link": map[string]any{
 						"href":  "http://example.org/features/test-foi",
 						"type":  "application/geo+json",
 						"title": "Test Feature of Interest",
 					},
 				},
-				"geometry": map[string]interface{}{
+				"geometry": map[string]any{
 					"type":        "Point",
 					"coordinates": []float64{-119.0, 35.0},
 				},
 			},
-			validateFunc: func(updated map[string]interface{}) {
-				props, ok := updated["properties"].(map[string]interface{})
+			validateFunc: func(updated map[string]any) {
+				props, ok := updated["properties"].(map[string]any)
 				require.True(t, ok, "Updated resource must have properties object")
 
 				assert.Equal(t, "urn:ogc:conf:sf:crud-replace-001", props["uid"], "Updated resource must have correct uid")
@@ -626,15 +629,15 @@ func testSamplingFeatureCRUD_Replace(t *testing.T, systemID string) {
 				assert.Equal(t, "Updated description", props["description"], "Updated resource must have correct description")
 				assert.Equal(t, "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint", props["featureType"], "Updated resource must have correct featureType")
 
-				sampledFeatureLink, ok := props["sampledFeature@link"].(map[string]interface{})
+				sampledFeatureLink, ok := props["sampledFeature@link"].(map[string]any)
 				require.True(t, ok, "Updated resource must have sampledFeature@link")
-				assert.Equal(t, "http://example.org/features/updated-foi", sampledFeatureLink["href"], "sampledFeature@link must have correct href")
+				assert.Equal(t, "http://example.org/features/test-foi", sampledFeatureLink["href"], "sampledFeature@link must have correct href")
 
-				geometry, ok := updated["geometry"].(map[string]interface{})
+				geometry, ok := updated["geometry"].(map[string]any)
 				require.True(t, ok, "Updated resource must have geometry object")
 				assert.Equal(t, "Point", geometry["type"], "Geometry type must be Point")
 
-				coords, ok := geometry["coordinates"].([]interface{})
+				coords, ok := geometry["coordinates"].([]any)
 				require.True(t, ok, "Geometry must have coordinates array")
 				assert.Equal(t, -119.0, coords[0], "Geometry longitude must match")
 				assert.Equal(t, 35.0, coords[1], "Geometry latitude must match")
@@ -685,7 +688,7 @@ func testSamplingFeatureCRUD_Replace(t *testing.T, systemID string) {
 			require.NoError(t, err)
 			defer getResp.Body.Close()
 
-			var updated map[string]interface{}
+			var updated map[string]any
 			err = json.NewDecoder(getResp.Body).Decode(&updated)
 			require.NoError(t, err)
 
@@ -747,9 +750,9 @@ func TestSamplingFeatureSystemLinks(t *testing.T) {
 	cleanupDB(t)
 
 	// Create a parent system to host the sampling feature
-	sysPayload := map[string]interface{}{
+	sysPayload := map[string]any{
 		"type": "Feature",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"uid":         "urn:ogc:conf:system:sf-link-parent-001",
 			"name":        "Parent System for Link Tests",
 			"description": "System used as parent for sampling feature link tests",
@@ -773,24 +776,24 @@ func TestSamplingFeatureSystemLinks(t *testing.T) {
 	}()
 
 	tests := map[string]struct {
-		createPayload map[string]interface{}
+		createPayload map[string]any
 		description   string
 	}{
 		"simple-parent-system": {
-			createPayload: map[string]interface{}{
+			createPayload: map[string]any{
 				"type": "Feature",
-				"properties": map[string]interface{}{
+				"properties": map[string]any{
 					"uid":         "urn:ogc:conf:sf:link-test-001",
 					"name":        "Link Test Point",
 					"description": "Sampling feature to test parentSystem link",
 					"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
-					"sampledFeature@link": map[string]interface{}{
+					"sampledFeature@link": map[string]any{
 						"href":  "http://example.org/features/link-test-foi",
 						"type":  "application/geo+json",
 						"title": "Link Test Feature of Interest",
 					},
 				},
-				"geometry": map[string]interface{}{
+				"geometry": map[string]any{
 					"type":        "Point",
 					"coordinates": []float64{-117.0, 33.0},
 				},
@@ -816,12 +819,12 @@ func TestSamplingFeatureSystemLinks(t *testing.T) {
 			createdResource, err := FollowLocation(resp, "application/geo+json")
 			require.NoError(t, err)
 
-			links, ok := (*createdResource)["links"].([]interface{})
+			links, ok := (*createdResource)["links"].([]any)
 			require.True(t, ok, "Created resource must have links array")
 
 			var foundParentSystemLink bool
 			for _, linkIface := range links {
-				link, ok := linkIface.(map[string]interface{})
+				link, ok := linkIface.(map[string]any)
 				if !ok {
 					continue
 				}
@@ -845,9 +848,9 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 	cleanupDB(t)
 
 	// Create a parent system to host the sampling features
-	sysPayload := map[string]interface{}{
+	sysPayload := map[string]any{
 		"type": "Feature",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"uid":         "urn:ogc:conf:system:sf-sampleof-parent-001",
 			"name":        "Parent System for SampleOf Tests",
 			"description": "System used as parent for sampleOf relationship tests",
@@ -871,24 +874,24 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 	}()
 
 	testcases := map[string]struct {
-		parentFeature map[string]interface{}
-		childFeature  map[string]interface{}
+		parentFeature map[string]any
+		childFeature  map[string]any
 		description   string
 	}{
 		"point-sample-of-surface": {
-			parentFeature: map[string]interface{}{
+			parentFeature: map[string]any{
 				"type": "Feature",
-				"properties": map[string]interface{}{
+				"properties": map[string]any{
 					"uid":         "urn:ogc:conf:sf:sampleof-parent-001",
 					"name":        "Parent Surface Feature",
 					"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingSurface",
-					"sampledFeature@link": map[string]interface{}{
+					"sampledFeature@link": map[string]any{
 						"href":  "http://example.org/features/parent-foi",
 						"type":  "application/geo+json",
 						"title": "Parent Feature of Interest",
 					},
 				},
-				"geometry": map[string]interface{}{
+				"geometry": map[string]any{
 					"type": "Polygon",
 					"coordinates": [][][]float64{
 						{
@@ -901,19 +904,19 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 					},
 				},
 			},
-			childFeature: map[string]interface{}{
+			childFeature: map[string]any{
 				"type": "Feature",
-				"properties": map[string]interface{}{
+				"properties": map[string]any{
 					"uid":         "urn:ogc:conf:sf:sampleof-child-001",
 					"name":        "Child Point Feature",
 					"featureType": "http://www.opengis.net/def/samplingFeatureType/OGC-OM/2.0/SF_SamplingPoint",
-					"sampledFeature@link": map[string]interface{}{
+					"sampledFeature@link": map[string]any{
 						"href":  "http://example.org/features/child-foi",
 						"type":  "application/geo+json",
 						"title": "Child Feature of Interest",
 					},
 				},
-				"geometry": map[string]interface{}{
+				"geometry": map[string]any{
 					"type":        "Point",
 					"coordinates": []float64{-119.5, 35.5},
 				},
@@ -941,20 +944,28 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 			require.NoError(t, err)
 			parentID := (*parentResource)["id"].(string)
 
-			// Create child feature with sampleOf link to parent
-			childFeatureWithLink := tc.childFeature
-			sampleOfLink := map[string]interface{}{
-				"href":  fmt.Sprintf("samplingFeatures/%s", parentID),
-				"type":  "application/geo+json",
-				"title": "Parent Surface Feature",
-				"rel":   "ogc-rel:sampleOf",
+			// Create the child with sampleOf pointing at the parent. ogc-rel
+			// links are server-generated and ignored on write, so the
+			// relationship goes in the SensorML sampleOf property.
+			childProperties := tc.childFeature["properties"].(map[string]any)
+			childFeature := map[string]any{
+				"type":           "Feature",
+				"label":          childProperties["name"],
+				"uniqueId":       childProperties["uid"],
+				"definition":     childProperties["featureType"],
+				"sampledFeature": childProperties["sampledFeature@link"],
+				"position":       tc.childFeature["geometry"],
+				"sampleOf": []map[string]any{{
+					"href":  fmt.Sprintf("samplingFeatures/%s", parentID),
+					"type":  "application/geo+json",
+					"title": "Parent Surface Feature",
+				}},
 			}
-			childFeatureWithLink["links"] = []map[string]interface{}{sampleOfLink}
 
-			childBody, _ := json.Marshal(childFeatureWithLink)
+			childBody, _ := json.Marshal(childFeature)
 			childReq, err := http.NewRequest(http.MethodPost, testServer.URL+"/systems/"+systemID+"/samplingFeatures", bytes.NewReader(childBody))
 			require.NoError(t, err)
-			childReq.Header.Set("Content-Type", "application/geo+json")
+			childReq.Header.Set("Content-Type", "application/sml+json")
 			childReq.Header.Set("Accept", "application/geo+json")
 
 			childResp, err := http.DefaultClient.Do(childReq)
@@ -967,12 +978,12 @@ func TestSamplingFeatureSampleOfRelationships(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify sampleOf@link in child feature
-			childLinks, ok := (*childResource)["links"].([]interface{})
+			childLinks, ok := (*childResource)["links"].([]any)
 			require.True(t, ok, "Child resource must have links array")
 
-			var sampleOfLinkRetrieved map[string]interface{}
+			var sampleOfLinkRetrieved map[string]any
 			for _, link := range childLinks {
-				linkMap, ok := link.(map[string]interface{})
+				linkMap, ok := link.(map[string]any)
 				if ok && (linkMap["rel"] == "ogc-rel:sampleOf" || linkMap["rel"] == "sampleOf") {
 					sampleOfLinkRetrieved = linkMap
 					break
@@ -995,9 +1006,9 @@ func TestSamplingFeature_List_LatestDateTime_ReturnsMostRecent(t *testing.T) {
 
 	sysID := createSystemViaAPI(t, "/systems", baseSystemPayload("SF Latest System"))
 
-	sfWithValidTime := func(name, start, end string) map[string]interface{} {
+	sfWithValidTime := func(name, start, end string) map[string]any {
 		p := baseSamplingFeaturePayload(name)
-		p["properties"].(map[string]interface{})["validTime"] = []string{start, end}
+		p["properties"].(map[string]any)["validTime"] = []string{start, end}
 		return p
 	}
 

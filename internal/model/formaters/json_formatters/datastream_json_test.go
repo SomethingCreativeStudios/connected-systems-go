@@ -5,16 +5,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 func TestDatastreamJSONFormatter_Serialize_NormalizesRelativeHrefs(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewDatastreamJSONFormatter(nil)
+	formatter := NewDatastreamJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	sysID := "sys-1"
 	ds := &domains.Datastream{
@@ -77,10 +76,8 @@ func TestDatastreamJSONFormatter_Serialize_NormalizesRelativeHrefs(t *testing.T)
 
 // Phase 1: inline @link Type enrichment
 func TestDatastreamJSONFormatter_Serialize_SetsTypeOnAllInlineLinks(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewDatastreamJSONFormatter(nil)
+	formatter := NewDatastreamJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	sysID := "sys-1"
 	ds := &domains.Datastream{
@@ -105,29 +102,27 @@ func TestDatastreamJSONFormatter_Serialize_SetsTypeOnAllInlineLinks(t *testing.T
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.SystemLink.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected SystemLink.Type %q, got %q", formaters.GeoJSONContentType, result.SystemLink.Type)
+	if result.SystemLink.Type != mediatype.GeoJSON {
+		t.Errorf("expected SystemLink.Type %q, got %q", mediatype.GeoJSON, result.SystemLink.Type)
 	}
-	if result.ProcedureLink.Type != formaters.SensorMLContentType {
-		t.Errorf("expected ProcedureLink.Type %q, got %q", formaters.SensorMLContentType, result.ProcedureLink.Type)
+	if result.ProcedureLink.Type != mediatype.SensorML {
+		t.Errorf("expected ProcedureLink.Type %q, got %q", mediatype.SensorML, result.ProcedureLink.Type)
 	}
-	if result.DeploymentLink.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected DeploymentLink.Type %q, got %q", formaters.GeoJSONContentType, result.DeploymentLink.Type)
+	if result.DeploymentLink.Type != mediatype.GeoJSON {
+		t.Errorf("expected DeploymentLink.Type %q, got %q", mediatype.GeoJSON, result.DeploymentLink.Type)
 	}
-	if result.FeatureOfInterest.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected FeatureOfInterest.Type %q, got %q", formaters.GeoJSONContentType, result.FeatureOfInterest.Type)
+	if result.FeatureOfInterest.Type != mediatype.GeoJSON {
+		t.Errorf("expected FeatureOfInterest.Type %q, got %q", mediatype.GeoJSON, result.FeatureOfInterest.Type)
 	}
-	if result.SamplingFeatureLink.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected SamplingFeatureLink.Type %q, got %q", formaters.GeoJSONContentType, result.SamplingFeatureLink.Type)
+	if result.SamplingFeatureLink.Type != mediatype.GeoJSON {
+		t.Errorf("expected SamplingFeatureLink.Type %q, got %q", mediatype.GeoJSON, result.SamplingFeatureLink.Type)
 	}
 }
 
 // Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
 func TestDatastreamJSONFormatter_SerializeAll_EnrichesInlineLinks(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewDatastreamJSONFormatter(nil)
+	formatter := NewDatastreamJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	sysID := "sys-1"
 	procID := "proc-1"
@@ -165,17 +160,17 @@ func TestDatastreamJSONFormatter_SerializeAll_EnrichesInlineLinks(t *testing.T) 
 	}
 
 	// Type is always set (Phase 1)
-	if results[0].SystemLink.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected SystemLink.Type %q, got %q", formaters.GeoJSONContentType, results[0].SystemLink.Type)
+	if results[0].SystemLink.Type != mediatype.GeoJSON {
+		t.Errorf("expected SystemLink.Type %q, got %q", mediatype.GeoJSON, results[0].SystemLink.Type)
 	}
-	if results[0].ProcedureLink.Type != formaters.SensorMLContentType {
-		t.Errorf("expected ProcedureLink.Type %q, got %q", formaters.SensorMLContentType, results[0].ProcedureLink.Type)
+	if results[0].ProcedureLink.Type != mediatype.SensorML {
+		t.Errorf("expected ProcedureLink.Type %q, got %q", mediatype.SensorML, results[0].ProcedureLink.Type)
 	}
-	if results[0].DeploymentLink.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected DeploymentLink.Type %q, got %q", formaters.GeoJSONContentType, results[0].DeploymentLink.Type)
+	if results[0].DeploymentLink.Type != mediatype.GeoJSON {
+		t.Errorf("expected DeploymentLink.Type %q, got %q", mediatype.GeoJSON, results[0].DeploymentLink.Type)
 	}
-	if results[0].SamplingFeatureLink.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected SamplingFeatureLink.Type %q, got %q", formaters.GeoJSONContentType, results[0].SamplingFeatureLink.Type)
+	if results[0].SamplingFeatureLink.Type != mediatype.GeoJSON {
+		t.Errorf("expected SamplingFeatureLink.Type %q, got %q", mediatype.GeoJSON, results[0].SamplingFeatureLink.Type)
 	}
 
 	// Title/UID are empty with nil repos (no cache population)

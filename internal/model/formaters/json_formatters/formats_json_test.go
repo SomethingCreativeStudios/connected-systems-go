@@ -5,8 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
 
 // formats is read-only and derived from the stream's registered schema;
@@ -21,7 +22,7 @@ func TestDatastreamJSONSerialize_FormatsDerivedFromSchema(t *testing.T) {
 		expected common_shared.StringArray
 	}{
 		{"from schema obsFormat", &domains.DatastreamSchema{ObsFormat: "application/swe+csv"}, nil, common_shared.StringArray{"application/swe+csv"}},
-		{"no schema falls back to json", nil, nil, common_shared.StringArray{JSONContentType}},
+		{"no schema falls back to json", nil, nil, common_shared.StringArray{mediatype.JSON}},
 		{"all registered schemas", &domains.DatastreamSchema{ObsFormat: "application/x-protobuf"},
 			domains.DatastreamSchemas{
 				{ObsFormat: "application/json"},
@@ -60,7 +61,7 @@ func TestControlStreamJSONSerialize_FormatsDerivedFromSchema(t *testing.T) {
 		expected common_shared.StringArray
 	}{
 		{"from schema commandFormat", &domains.ControlStreamSchema{CommandFormat: "application/swe+binary"}, common_shared.StringArray{"application/swe+binary"}},
-		{"no schema falls back to json", nil, common_shared.StringArray{JSONContentType}},
+		{"no schema falls back to json", nil, common_shared.StringArray{mediatype.JSON}},
 	}
 
 	for _, tc := range cases {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/repository/testutil"
 )
 
 func TestEnsureObservationHypertableRejectsLegacyPrimaryKey(t *testing.T) {

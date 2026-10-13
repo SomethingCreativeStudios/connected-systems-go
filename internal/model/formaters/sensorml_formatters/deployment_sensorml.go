@@ -3,38 +3,33 @@ package sensorml_formatters
 import (
 	"context"
 	"fmt"
-	"encoding/json"
 	"io"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // DeploymentSensorMLFormatter handles serialization and deserialization of Deployment objects in SensorML format
 type DeploymentSensorMLFormatter struct {
 	formaters.Formatter[domains.DeploymentSensorMLFeature, *domains.Deployment]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewDeploymentSensorMLFormatter constructs a formatter with required repository readers
-func NewDeploymentSensorMLFormatter(repos *repository.Repositories) *DeploymentSensorMLFormatter {
-	return &DeploymentSensorMLFormatter{repos: repos}
+func NewDeploymentSensorMLFormatter(links *formaters.LinkResolver) *DeploymentSensorMLFormatter {
+	return &DeploymentSensorMLFormatter{links: links}
 }
 
 func (f *DeploymentSensorMLFormatter) ContentType() string {
-	return SensorMLContentType
+	return mediatype.SensorML
 }
 
 // --- Serialization ---
 
 func (f *DeploymentSensorMLFormatter) Serialize(ctx context.Context, deployment *domains.Deployment) (domains.DeploymentSensorMLFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.Deployment{deployment})
-	if err != nil {
-		return domains.DeploymentSensorMLFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, deployment, f.SerializeAll)
 }
 
 func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployments []*domains.Deployment) ([]domains.DeploymentSensorMLFeature, error) {
@@ -42,30 +37,9 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 		return []domains.DeploymentSensorMLFeature{}, nil
 	}
 
-	// Collect system IDs for batch enrichment (platform + deployedSystems)
-	systemIDs := make([]string, 0, len(deployments)*2)
-	for _, deployment := range deployments {
-		if deployment == nil {
-			continue
-		}
-		if deployment.Platform != nil {
-			id := deployment.Platform.System.GetId("systems")
-			if id != nil && *id != "" {
-				systemIDs = append(systemIDs, *id)
-			}
-		}
-		for _, ds := range deployment.DeployedSystems {
-			id := ds.System.GetId("systems")
-			if id != nil && *id != "" {
-				systemIDs = append(systemIDs, *id)
-			}
-		}
-	}
-
-	// Build resource cache for enriching inline links
-	cache := formaters.NewResourceCache()
-	if f.repos != nil && len(systemIDs) > 0 {
-		_ = cache.FetchParentSystems(ctx, f.repos.System, systemIDs)
+	cache, err := f.links.Lookup(ctx, formaters.DeploymentReferences(deployments))
+	if err != nil {
+		return nil, err
 	}
 
 	var features []domains.DeploymentSensorMLFeature
@@ -74,39 +48,31 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 		var platform *domains.DeployedSystemItem
 		if deployment.Platform != nil {
 			cp := *deployment.Platform
-			cp.System.Href = formaters.ToFunctionalAssociationHref(cp.System.Href)
+			cp.System.Href = f.links.Href(cp.System.Href)
 			if cp.System.Type == "" {
-				cp.System.Type = formaters.GeoJSONContentType
+				cp.System.Type = mediatype.GeoJSON
 			}
 			// Enrich platform system link from cache
-			sysID := cp.System.GetId("systems")
+			sysID := f.links.LocalID(cp.System, "systems")
 			if sysID != nil {
 				if sys, ok := cache.Systems[*sysID]; ok {
-					cp.System.Title = sys.Name
-					uid := string(sys.UniqueIdentifier)
-					if uid != "" {
-						cp.System.UID = &uid
-					}
+					cp.System.Describe(sys.Name, string(sys.UniqueIdentifier))
 				}
 			}
 			platform = &cp
 		}
 		var deployedSystems []domains.DeployedSystemItem
-		for _, ds := range deployment.DeployedSystems {
+		for _, ds := range cache.DeployedSystems(deployment) {
 			cp := ds
-			cp.System.Href = formaters.ToFunctionalAssociationHref(cp.System.Href)
+			cp.System.Href = f.links.Href(cp.System.Href)
 			if cp.System.Type == "" {
-				cp.System.Type = formaters.GeoJSONContentType
+				cp.System.Type = mediatype.GeoJSON
 			}
 			// Enrich deployedSystems system link from cache
-			sysID := cp.System.GetId("systems")
+			sysID := f.links.LocalID(cp.System, "systems")
 			if sysID != nil {
 				if sys, ok := cache.Systems[*sysID]; ok {
-					cp.System.Title = sys.Name
-					uid := string(sys.UniqueIdentifier)
-					if uid != "" {
-						cp.System.UID = &uid
-					}
+					cp.System.Describe(sys.Name, string(sys.UniqueIdentifier))
 				}
 			}
 			deployedSystems = append(deployedSystems, cp)
@@ -123,7 +89,7 @@ func (f *DeploymentSensorMLFormatter) SerializeAll(ctx context.Context, deployme
 			Location:        deployment.Geometry,
 			Platform:        platform,
 			DeployedSystems: deployedSystems,
-			Links:           formaters.AppendDeploymentAssociationLinks(deployment),
+			Links:           f.links.DeploymentLinks(deployment, cache),
 
 			Lang:                deployment.Lang,
 			Keywords:            deployment.Keywords,
@@ -150,18 +116,13 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 		return nil, err
 	}
 
-	var raw map[string]interface{}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, err
-	}
-
 	sensorML, err := common_shared.DecodeWithFieldErrors[domains.DeploymentSensorMLFeature](body)
 	if err != nil {
 		return nil, err
 	}
 
-	associationLinks := formaters.DeploymentAssociationLinks(sensorML.Links)
-
+	// ogc-rel links are server-generated, so they are ignored on write; the
+	// parent deployment is only ever set through /deployments/{id}/subdeployments.
 	deployment := &domains.Deployment{
 		Links: common_shared.StripAssociationLinks(sensorML.Links),
 	}
@@ -216,22 +177,7 @@ func (f *DeploymentSensorMLFormatter) Deserialize(ctx context.Context, reader io
 	deployment.Contacts = sensorML.Contacts
 	deployment.Documentation = sensorML.Documentation
 	deployment.History = sensorML.History
-
-	// Handle geometry from "location" (OGC CS spec) or "position" field
-	geomRaw, ok := raw["location"]
-	if !ok {
-		geomRaw, ok = raw["position"]
-	}
-	if ok {
-		if gb, err := json.Marshal(geomRaw); err == nil {
-			var gg common_shared.GoGeom
-			if err := json.Unmarshal(gb, &gg); err == nil {
-				deployment.Geometry = &gg
-			}
-		}
-	}
-
-	formaters.ApplyDeploymentAssociationLinks(deployment, associationLinks)
+	deployment.Geometry = sensorML.Location
 
 	return deployment, nil
 }

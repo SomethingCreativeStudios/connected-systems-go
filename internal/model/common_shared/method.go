@@ -18,7 +18,7 @@ func (m Method) Value() (driver.Value, error) {
 }
 
 // Scan implementation for Method
-func (m *Method) Scan(value interface{}) error {
+func (m *Method) Scan(value any) error {
 	if value == nil {
 		return nil
 	}

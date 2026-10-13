@@ -7,16 +7,17 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mqtt"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/mqtt"
-	"github.com/yourusername/connected-systems-go/internal/pubsub"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -88,16 +89,14 @@ func decodeSystemEvent(value map[string]any) (*domains.SystemEvent, error) {
 func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	events, _, err := h.repo.List(params, nil)
+	events, _, err := h.repo.List(r.Context(), params, nil)
 	if err != nil {
 		h.logger.Error("Failed to list system events", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -106,9 +105,9 @@ func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Req
 		items = append(items, event)
 	}
 
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
+	links := params.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, SystemEventCollectionResponse{Items: items, Links: links})
 }
 
@@ -131,28 +130,22 @@ func (h *SystemEventHandler) ListSystemEvents(w http.ResponseWriter, r *http.Req
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/events [get]
 func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "systemId")
-	if systemID == "" {
-		systemID = chi.URLParam(r, "id")
-	}
+	systemID := chi.URLParam(r, "id")
 
-	if _, err := h.systemRepo.GetByID(systemID); err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "System not found"})
+	if _, err := h.systemRepo.GetByID(r.Context(), systemID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "System", "Failed to load system")
 		return
 	}
 
 	params, err := queryparams.SystemEventsQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
-	events, _, err := h.repo.List(params, &systemID)
+	events, _, err := h.repo.List(r.Context(), params, &systemID)
 	if err != nil {
 		h.logger.Error("Failed to list system events", zap.String("systemId", systemID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -161,9 +154,9 @@ func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.R
 		items = append(items, event)
 	}
 
-	links := params.QueryParams.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
+	links := params.BuildPaginationLinks(h.cfg.API.BaseURL+r.URL.Path, r.URL.Query())
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, SystemEventCollectionResponse{Items: items, Links: links})
 }
 
@@ -181,14 +174,10 @@ func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.R
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/events [post]
 func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "systemId")
-	if systemID == "" {
-		systemID = chi.URLParam(r, "id")
-	}
+	systemID := chi.URLParam(r, "id")
 
-	if _, err := h.systemRepo.GetByID(systemID); err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "System not found"})
+	if _, err := h.systemRepo.GetByID(r.Context(), systemID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "System", "Failed to load system")
 		return
 	}
 
@@ -252,10 +241,8 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 	createdIDs := make([]string, 0, len(events))
 	for _, event := range events {
 		event.SystemID = systemID
-		if err := h.repo.Create(event); err != nil {
-			h.logger.Error("Failed to create system event", zap.String("systemId", systemID), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to create system event"})
+		if err := h.repo.Create(r.Context(), event); err != nil {
+			writeRepositoryError(w, r, h.logger, err, "System event", "Failed to create system event")
 			return
 		}
 		createdIDs = append(createdIDs, event.ID)
@@ -282,21 +269,16 @@ func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.
 // @Failure     404  {object}  map[string]string
 // @Router      /systems/{id}/events/{eventId} [get]
 func (h *SystemEventHandler) GetEventByID(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "systemId")
-	if systemID == "" {
-		systemID = chi.URLParam(r, "id")
-	}
+	systemID := chi.URLParam(r, "id")
 	eventID := chi.URLParam(r, "eventId")
 
-	event, err := h.repo.GetByID(systemID, eventID)
+	event, err := h.repo.GetByID(r.Context(), systemID, eventID)
 	if err != nil {
-		h.logger.Error("Failed to get system event", zap.String("systemId", systemID), zap.String("eventId", eventID), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "System event not found"})
+		writeRepositoryError(w, r, h.logger, err, "System event", "Failed to load system event")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediatype.JSON)
 	render.JSON(w, r, event)
 }
 
@@ -315,16 +297,12 @@ func (h *SystemEventHandler) GetEventByID(w http.ResponseWriter, r *http.Request
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/events/{eventId} [put]
 func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "systemId")
-	if systemID == "" {
-		systemID = chi.URLParam(r, "id")
-	}
+	systemID := chi.URLParam(r, "id")
 	eventID := chi.URLParam(r, "eventId")
 
-	existing, err := h.repo.GetByID(systemID, eventID)
+	existing, err := h.repo.GetByID(r.Context(), systemID, eventID)
 	if err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "System event not found"})
+		writeRepositoryError(w, r, h.logger, err, "System event", "Failed to load system event")
 		return
 	}
 
@@ -346,10 +324,8 @@ func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Requ
 
 	event.ID = eventID
 	event.SystemID = existing.SystemID
-	if err := h.repo.Update(&event); err != nil {
-		h.logger.Error("Failed to update system event", zap.String("eventId", eventID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update system event"})
+	if err := h.repo.Update(r.Context(), &event); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "System event", "Failed to update system event")
 		return
 	}
 
@@ -371,22 +347,17 @@ func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Requ
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/events/{eventId} [delete]
 func (h *SystemEventHandler) DeleteEventByID(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "systemId")
-	if systemID == "" {
-		systemID = chi.URLParam(r, "id")
-	}
+	systemID := chi.URLParam(r, "id")
 	eventID := chi.URLParam(r, "eventId")
 
-	if _, err := h.repo.GetByID(systemID, eventID); err != nil {
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "System event not found"})
+	if _, err := h.repo.GetByID(r.Context(), systemID, eventID); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "System event", "Failed to load system event")
 		return
 	}
 
-	if err := h.repo.Delete(systemID, eventID); err != nil {
+	if err := h.repo.Delete(r.Context(), systemID, eventID); err != nil {
 		h.logger.Error("Failed to delete system event", zap.String("eventId", eventID), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to delete system event"})
+		writeError(w, r, http.StatusInternalServerError, "Failed to delete system event")
 		return
 	}
 

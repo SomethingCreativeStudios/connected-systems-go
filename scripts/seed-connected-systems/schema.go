@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -108,7 +109,7 @@ func generateSchemaValue(rng *rand.Rand, component *DataComponent) (any, error) 
 		value := make(map[string]any, len(component.Coordinates))
 		for _, coordinate := range component.Coordinates {
 			if coordinate.Name == "" {
-				return nil, fmt.Errorf("Vector coordinate has no name")
+				return nil, errors.New("vector coordinate has no name")
 			}
 			coordinateValue, err := generateSchemaValue(rng, &coordinate.DataComponent)
 			if err != nil {

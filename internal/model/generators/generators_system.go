@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/rand"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/google/uuid"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
 // =============================================================================
@@ -44,10 +44,10 @@ func FakeSystemSensor() domains.System {
 			Description:      "High-precision temperature measurement sensor",
 		},
 		SystemType:    domains.SystemTypeSensor,
-		AssetType:     ptrString(domains.AssetTypeEquipment),
+		AssetType:     new(domains.AssetTypeEquipment),
 		ValidTime:     FakeValidTimeCurrent(),
 		Geometry:      FakeDeploymentPointGeometry(),
-		Lang:          ptrString("en"),
+		Lang:          new("en"),
 		Keywords:      common_shared.StringArray{"sensor", "temperature", "measurement"},
 		Identifiers:   FakeIdentifiers(2),
 		Classifiers:   FakeClassifiers(2),
@@ -75,10 +75,10 @@ func FakeSystemActuator() domains.System {
 			Description:      "Precision valve control actuator",
 		},
 		SystemType:    domains.SystemTypeActuator,
-		AssetType:     ptrString(domains.AssetTypeEquipment),
+		AssetType:     new(domains.AssetTypeEquipment),
 		ValidTime:     FakeValidTimeCurrent(),
 		Geometry:      FakeDeploymentPointGeometry(),
-		Lang:          ptrString("en"),
+		Lang:          new("en"),
 		Keywords:      common_shared.StringArray{"actuator", "valve", "control"},
 		Identifiers:   FakeIdentifiers(2),
 		Classifiers:   FakeClassifiers(1),
@@ -104,10 +104,10 @@ func FakeSystemSampler() domains.System {
 			Description:      "Automated water sampling system",
 		},
 		SystemType:    domains.SystemTypeSampler,
-		AssetType:     ptrString(domains.AssetTypeEquipment),
+		AssetType:     new(domains.AssetTypeEquipment),
 		ValidTime:     FakeValidTimeCurrent(),
 		Geometry:      FakeDeploymentPointGeometry(),
-		Lang:          ptrString("en"),
+		Lang:          new("en"),
 		Keywords:      common_shared.StringArray{"sampler", "water", "collection"},
 		Identifiers:   FakeIdentifiers(1),
 		Classifiers:   FakeClassifiers(1),
@@ -133,10 +133,10 @@ func FakeSystemPlatform() domains.System {
 			Description:      fmt.Sprintf("Multi-sensor %s platform", platformType),
 		},
 		SystemType:           domains.SystemTypePlatform,
-		AssetType:            ptrString(domains.AssetTypeEquipment),
+		AssetType:            new(domains.AssetTypeEquipment),
 		ValidTime:            FakeValidTimeCurrent(),
 		Geometry:             FakeDeploymentPointGeometry(),
-		Lang:                 ptrString("en"),
+		Lang:                 new("en"),
 		Keywords:             common_shared.StringArray{"platform", platformType, "hosting"},
 		Identifiers:          FakeIdentifiers(2),
 		Classifiers:          FakeClassifiers(2),
@@ -164,10 +164,10 @@ func FakeSystemPhysicalSystem() domains.System {
 			Description:      "Integrated environmental monitoring station",
 		},
 		SystemType:           domains.SystemTypeSystem,
-		AssetType:            ptrString(domains.AssetTypeEquipment),
+		AssetType:            new(domains.AssetTypeEquipment),
 		ValidTime:            FakeValidTimeCurrent(),
 		Geometry:             FakeDeploymentPointGeometry(),
-		Lang:                 ptrString("en"),
+		Lang:                 new("en"),
 		Keywords:             common_shared.StringArray{"station", "monitoring", "integrated"},
 		Identifiers:          FakeIdentifiers(3),
 		Classifiers:          FakeClassifiers(2),
@@ -193,7 +193,7 @@ func FakeSystemPhysicalSystem() domains.System {
 func FakeSystemWithPosition() domains.System {
 	sys := FakeSystemSensor()
 
-	positionJSON, _ := json.Marshal(map[string]interface{}{
+	positionJSON, _ := json.Marshal(map[string]any{
 		"type": "Point",
 		"coordinates": []float64{
 			rand.Float64()*360 - 180,
@@ -213,13 +213,13 @@ func FakeSystemFull() domains.System {
 	uid := fmt.Sprintf("urn:uuid:%s", uuid.New().String())
 
 	configJSON, _ := json.Marshal(FakeConfigurationSettingsFull())
-	modesJSON, _ := json.Marshal(map[string]interface{}{
-		"modes": []map[string]interface{}{
+	modesJSON, _ := json.Marshal(map[string]any{
+		"modes": []map[string]any{
 			{
 				"id":    "normal",
 				"label": "Normal Operation",
-				"configuration": map[string]interface{}{
-					"setValues": []map[string]interface{}{
+				"configuration": map[string]any{
+					"setValues": []map[string]any{
 						{"ref": "parameters/samplingRate", "value": 1.0},
 					},
 				},
@@ -227,15 +227,15 @@ func FakeSystemFull() domains.System {
 			{
 				"id":    "highPrecision",
 				"label": "High Precision Mode",
-				"configuration": map[string]interface{}{
-					"setValues": []map[string]interface{}{
+				"configuration": map[string]any{
+					"setValues": []map[string]any{
 						{"ref": "parameters/samplingRate", "value": 10.0},
 					},
 				},
 			},
 		},
 	})
-	positionJSON, _ := json.Marshal(map[string]interface{}{
+	positionJSON, _ := json.Marshal(map[string]any{
 		"type": "Point",
 		"coordinates": []float64{
 			rand.Float64()*360 - 180,
@@ -251,10 +251,10 @@ func FakeSystemFull() domains.System {
 			Description:      f.Lorem().Paragraph(2),
 		},
 		SystemType:           domains.SystemTypeSensor,
-		AssetType:            ptrString(domains.AssetTypeEquipment),
+		AssetType:            new(domains.AssetTypeEquipment),
 		ValidTime:            FakeValidTimeCurrent(),
 		Geometry:             FakeDeploymentPointGeometry(),
-		Lang:                 ptrString("en"),
+		Lang:                 new("en"),
 		Keywords:             common_shared.StringArray{f.Lorem().Word(), f.Lorem().Word(), f.Lorem().Word()},
 		Identifiers:          FakeIdentifiers(3),
 		Classifiers:          FakeClassifiers(2),

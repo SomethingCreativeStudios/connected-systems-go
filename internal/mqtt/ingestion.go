@@ -2,33 +2,33 @@ package mqtt
 
 import (
 	"bytes"
-	"errors"
+	"context"
 	"fmt"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters/json_formatters"
-	"github.com/yourusername/connected-systems-go/internal/pubsub"
-	"github.com/yourusername/connected-systems-go/internal/repository"
-	"github.com/yourusername/connected-systems-go/internal/resourcevalidation"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/json_formatters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/resourcevalidation"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 type datastreamStore interface {
-	GetByID(id string) (*domains.Datastream, error)
+	GetByID(ctx context.Context, id string) (*domains.Datastream, error)
 }
 
 type observationStore interface {
-	Create(observation *domains.Observation) error
-	GetByID(id string) (*domains.Observation, error)
-	Update(observation *domains.Observation) error
+	Create(ctx context.Context, observation *domains.Observation) error
+	GetByID(ctx context.Context, id string) (*domains.Observation, error)
+	Update(ctx context.Context, observation *domains.Observation) error
 }
 
 type commandStore interface {
-	GetByID(id string) (*domains.Command, error)
-	CreateStatus(status *domains.CommandStatusReport) error
-	GetStatusByID(commandID, statusID string) (*domains.CommandStatusReport, error)
-	UpdateStatus(status *domains.CommandStatusReport) error
+	GetByID(ctx context.Context, id string) (*domains.Command, error)
+	CreateStatus(ctx context.Context, status *domains.CommandStatusReport) error
+	GetStatusByID(ctx context.Context, commandID, statusID string) (*domains.CommandStatusReport, error)
+	UpdateStatus(ctx context.Context, status *domains.CommandStatusReport) error
 }
 
 // IngestionHandlers bridges complete Pub/Sub Resource Data Messages to
@@ -71,7 +71,7 @@ func newIngestionHandlers(
 // datastreams/{id}/observations:data. A new ID creates the resource; an existing ID
 // updates it. Partial create payloads are intentionally rejected.
 func (h *IngestionHandlers) HandleObservation(topic string, payload []byte) {
-	if err := h.ingestObservation(topic, payload); err != nil {
+	if err := h.ingestObservation(context.Background(), topic, payload); err != nil {
 		h.logger.Warn("Rejected observation Resource Data Message",
 			zap.String("topic", topic),
 			zap.Error(err),
@@ -79,18 +79,18 @@ func (h *IngestionHandlers) HandleObservation(topic string, payload []byte) {
 	}
 }
 
-func (h *IngestionHandlers) ingestObservation(topic string, payload []byte) error {
+func (h *IngestionHandlers) ingestObservation(ctx context.Context, topic string, payload []byte) error {
 	datastreamID := extractDatastreamID(topic)
 	if datastreamID == "" {
 		return fmt.Errorf("topic must match datastreams/{datastreamId}/observations:data")
 	}
 
-	datastream, err := h.datastream.GetByID(datastreamID)
+	datastream, err := h.datastream.GetByID(ctx, datastreamID)
 	if err != nil {
 		return fmt.Errorf("load datastream %q: %w", datastreamID, err)
 	}
 
-	observation, err := h.observationFormatter.Deserialize(nil, bytes.NewReader(payload))
+	observation, err := h.observationFormatter.DeserializeResourceData(ctx, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("decode complete observation: %w", err)
 	}
@@ -103,23 +103,23 @@ func (h *IngestionHandlers) ingestObservation(topic string, payload []byte) erro
 	if observation.DatastreamID != datastreamID {
 		return fmt.Errorf("datastream@id %q does not match topic datastream %q", observation.DatastreamID, datastreamID)
 	}
-	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(observation, datastream, json_formatters.JSONContentType); err != nil {
+	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(observation, datastream, mediatype.JSON); err != nil {
 		return fmt.Errorf("observation result does not match datastream schema: %w", err)
 	}
 
 	operation := pubsub.OperationCreate
-	existing, err := h.observation.GetByID(observation.ID)
+	existing, err := h.observation.GetByID(ctx, observation.ID)
 	switch {
 	case err == nil:
 		if existing.DatastreamID != datastreamID {
 			return fmt.Errorf("observation %q belongs to datastream %q", observation.ID, existing.DatastreamID)
 		}
-		if err := h.observation.Update(observation); err != nil {
+		if err := h.observation.Update(ctx, observation); err != nil {
 			return fmt.Errorf("update observation %q: %w", observation.ID, err)
 		}
 		operation = pubsub.OperationUpdate
-	case isNotFound(err):
-		if err := h.observation.Create(observation); err != nil {
+	case repository.IsNotFound(err):
+		if err := h.observation.Create(ctx, observation); err != nil {
 			return fmt.Errorf("create observation %q: %w", observation.ID, err)
 		}
 	default:
@@ -147,7 +147,7 @@ func (h *IngestionHandlers) ingestObservation(topic string, payload []byte) erro
 // HandleCommandStatus handles a complete CommandStatus Resource Data Message
 // from commands/{cmdId}/status:data.
 func (h *IngestionHandlers) HandleCommandStatus(topic string, payload []byte) {
-	if err := h.ingestCommandStatus(topic, payload); err != nil {
+	if err := h.ingestCommandStatus(context.Background(), topic, payload); err != nil {
 		h.logger.Warn("Rejected command status Resource Data Message",
 			zap.String("topic", topic),
 			zap.Error(err),
@@ -155,13 +155,13 @@ func (h *IngestionHandlers) HandleCommandStatus(topic string, payload []byte) {
 	}
 }
 
-func (h *IngestionHandlers) ingestCommandStatus(topic string, payload []byte) error {
+func (h *IngestionHandlers) ingestCommandStatus(ctx context.Context, topic string, payload []byte) error {
 	commandID := extractCommandStatusID(topic)
 	if commandID == "" {
 		return fmt.Errorf("topic must match commands/{cmdId}/status:data")
 	}
 
-	command, err := h.command.GetByID(commandID)
+	command, err := h.command.GetByID(ctx, commandID)
 	if err != nil {
 		return fmt.Errorf("load command %q: %w", commandID, err)
 	}
@@ -174,15 +174,15 @@ func (h *IngestionHandlers) ingestCommandStatus(topic string, payload []byte) er
 	}
 
 	operation := pubsub.OperationCreate
-	_, err = h.command.GetStatusByID(commandID, status.ID)
+	_, err = h.command.GetStatusByID(ctx, commandID, status.ID)
 	switch {
 	case err == nil:
-		if err := h.command.UpdateStatus(status); err != nil {
+		if err := h.command.UpdateStatus(ctx, status); err != nil {
 			return fmt.Errorf("update command status %q: %w", status.ID, err)
 		}
 		operation = pubsub.OperationUpdate
-	case isNotFound(err):
-		if err := h.command.CreateStatus(status); err != nil {
+	case repository.IsNotFound(err):
+		if err := h.command.CreateStatus(ctx, status); err != nil {
 			return fmt.Errorf("create command status %q: %w", status.ID, err)
 		}
 	default:
@@ -206,8 +206,4 @@ func (h *IngestionHandlers) ingestCommandStatus(topic string, payload []byte) er
 		zap.String("operation", string(operation)),
 	)
 	return nil
-}
-
-func isNotFound(err error) bool {
-	return errors.Is(err, repository.ErrNotFound) || errors.Is(err, gorm.ErrRecordNotFound)
 }

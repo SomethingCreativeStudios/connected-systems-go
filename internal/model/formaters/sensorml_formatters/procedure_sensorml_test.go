@@ -5,21 +5,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 func TestProcedureSensorMLSerialize_AssociationLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewProcedureSensorMLFormatter(nil)
+	formatter := NewProcedureSensorMLFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL, ProcedureChildren: stubChildren{"proc-1": {"implementingSystems"}}})
 	procedure := &domains.Procedure{
 		Base:        domains.Base{ID: "proc-1"},
 		ProcessType: "SimpleProcess",
-		Systems: []domains.System{
-			{Base: domains.Base{ID: "sys-1"}},
-		},
 		Links: common_shared.Links{
 			{Href: "/docs/spec", Rel: "alternate"},
 		},
@@ -30,7 +27,7 @@ func TestProcedureSensorMLSerialize_AssociationLinks(t *testing.T) {
 		t.Fatalf("serialize failed: %v", err)
 	}
 
-	assertHasHref(t, feature.Links, common_shared.OGCRel("implementingSystems"), "http://example.test/systems?procedure=proc-1")
+	assertHasHref(t, feature.Links, common_shared.OGCRel("implementingSystems"), "http://example.test/systems?procedure=proc-1&recursive=true")
 	assertHasRel(t, feature.Links, "alternate")
 }
 
@@ -43,7 +40,7 @@ func TestProcedureSensorMLDeserialize_StripsAssociationLinks(t *testing.T) {
 		"uniqueId": "urn:procedure:1",
 		"definition": "http://www.w3.org/ns/sosa/Procedure",
 		"links": [
-			{"href": "/systems?procedure=proc-1", "rel": "ogc-rel:implementingSystems"},
+			{"href": "/systems?procedure=proc-1&recursive=true", "rel": "ogc-rel:implementingSystems"},
 			{"href": "/docs/spec", "rel": "alternate"}
 		]
 	}`
@@ -59,9 +56,8 @@ func TestProcedureSensorMLDeserialize_StripsAssociationLinks(t *testing.T) {
 
 // Phase 1: inline @link Type enrichment
 func TestProcedureSensorMLSerialize_SetsTypeOnTypeOfAndAttachedTo(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewProcedureSensorMLFormatter(nil)
+	formatter := NewProcedureSensorMLFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL})
 	procedure := &domains.Procedure{
 		Base:        domains.Base{ID: "proc-1"},
 		ProcessType: "SimpleProcess",
@@ -81,23 +77,22 @@ func TestProcedureSensorMLSerialize_SetsTypeOnTypeOfAndAttachedTo(t *testing.T) 
 	if feature.TypeOf == nil {
 		t.Fatal("expected TypeOf to be non-nil")
 	}
-	if feature.TypeOf.Type != formaters.SensorMLContentType {
-		t.Errorf("expected TypeOf.Type %q, got %q", formaters.SensorMLContentType, feature.TypeOf.Type)
+	if feature.TypeOf.Type != mediatype.SensorML {
+		t.Errorf("expected TypeOf.Type %q, got %q", mediatype.SensorML, feature.TypeOf.Type)
 	}
 
 	if feature.AttachedTo == nil {
 		t.Fatal("expected AttachedTo to be non-nil")
 	}
-	if feature.AttachedTo.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected AttachedTo.Type %q, got %q", formaters.GeoJSONContentType, feature.AttachedTo.Type)
+	if feature.AttachedTo.Type != mediatype.GeoJSON {
+		t.Errorf("expected AttachedTo.Type %q, got %q", mediatype.GeoJSON, feature.AttachedTo.Type)
 	}
 }
 
 // Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
 func TestProcedureSensorMLSerializeAll_EnrichesInlineLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewProcedureSensorMLFormatter(nil)
+	formatter := NewProcedureSensorMLFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL})
 	procedures := []*domains.Procedure{
 		{
 			Base:        domains.Base{ID: "proc-1"},
@@ -121,11 +116,11 @@ func TestProcedureSensorMLSerializeAll_EnrichesInlineLinks(t *testing.T) {
 	}
 
 	// Type is always set (Phase 1)
-	if features[0].TypeOf.Type != formaters.SensorMLContentType {
-		t.Errorf("expected TypeOf.Type %q, got %q", formaters.SensorMLContentType, features[0].TypeOf.Type)
+	if features[0].TypeOf.Type != mediatype.SensorML {
+		t.Errorf("expected TypeOf.Type %q, got %q", mediatype.SensorML, features[0].TypeOf.Type)
 	}
-	if features[0].AttachedTo.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected AttachedTo.Type %q, got %q", formaters.GeoJSONContentType, features[0].AttachedTo.Type)
+	if features[0].AttachedTo.Type != mediatype.GeoJSON {
+		t.Errorf("expected AttachedTo.Type %q, got %q", mediatype.GeoJSON, features[0].AttachedTo.Type)
 	}
 
 	// Title/UID are empty with nil repos (no cache population)

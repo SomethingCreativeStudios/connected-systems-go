@@ -1,13 +1,15 @@
 package repository
 
 import (
+	"context"
 	"errors"
-	"strings"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/resourcevalidation"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CommandRepository handles Command data access.
@@ -21,7 +23,7 @@ func NewCommandRepository(db *gorm.DB) *CommandRepository {
 }
 
 // Create persists a new command. IssueTime is set to now if omitted.
-func (r *CommandRepository) Create(cmd *domains.Command) error {
+func (r *CommandRepository) Create(ctx context.Context, cmd *domains.Command) error {
 	if cmd.IssueTime == nil {
 		now := time.Now().UTC()
 		cmd.IssueTime = &now
@@ -29,7 +31,14 @@ func (r *CommandRepository) Create(cmd *domains.Command) error {
 	if cmd.CurrentStatus == "" {
 		cmd.CurrentStatus = domains.CommandStatusPending
 	}
-	return r.db.Transaction(func(tx *gorm.DB) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var parent domains.ControlStream
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", cmd.ControlStreamID).First(&parent).Error; err != nil {
+			return err
+		}
+		if err := resourcevalidation.ValidateCommandAgainstControlStreamSchema(cmd, &parent); err != nil {
+			return &ValidationError{Err: err}
+		}
 		if err := tx.Create(cmd).Error; err != nil {
 			return err
 		}
@@ -81,9 +90,9 @@ func recomputeControlStreamTimeRanges(tx *gorm.DB, controlStreamID string) error
 }
 
 // GetByID retrieves a command by ID.
-func (r *CommandRepository) GetByID(id string) (*domains.Command, error) {
+func (r *CommandRepository) GetByID(ctx context.Context, id string) (*domains.Command, error) {
 	var cmd domains.Command
-	err := r.db.Where("id = ?", id).First(&cmd).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&cmd).Error
 	if err != nil {
 		return nil, err
 	}
@@ -91,11 +100,10 @@ func (r *CommandRepository) GetByID(id string) (*domains.Command, error) {
 }
 
 // List retrieves commands with filtering.
-func (r *CommandRepository) List(params *queryparams.CommandsQueryParams, controlStreamID *string) ([]*domains.Command, int64, error) {
+func (r *CommandRepository) List(ctx context.Context, params *queryparams.CommandsQueryParams, controlStreamID *string) ([]*domains.Command, int64, error) {
 	var commands []*domains.Command
-	var total int64
 
-	query := r.db.Model(&domains.Command{})
+	query := r.db.WithContext(ctx).Model(&domains.Command{})
 	if controlStreamID != nil {
 		query = query.Where("control_stream_id = ?", *controlStreamID)
 	}
@@ -106,35 +114,43 @@ func (r *CommandRepository) List(params *queryparams.CommandsQueryParams, contro
 		return commands, int64(len(commands)), err
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
-		Columns:     []string{"issue_time", "id"},
+	return listPage(query, &params.QueryParams, CursorOrder{
+		Columns:     []string{"commands.issue_time", "commands.id"},
 		Descending:  true,
 		TimeColumns: map[int]bool{0: true},
-	})
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&commands).Error
-	commands = FinalizeCursorPage(commands, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(commands, func(command *domains.Command) []string {
+	}, func(command *domains.Command) []string {
 		return []string{cursorTimeValue(command.IssueTime), command.ID}
 	})
-	return commands, total, err
 }
 
 // ListByControlStream retrieves all commands for a specific control stream.
-func (r *CommandRepository) ListByControlStream(controlStreamID string, params *queryparams.CommandsQueryParams) ([]*domains.Command, int64, error) {
-	return r.List(params, &controlStreamID)
+func (r *CommandRepository) ListByControlStream(ctx context.Context, controlStreamID string, params *queryparams.CommandsQueryParams) ([]*domains.Command, int64, error) {
+	return r.List(ctx, params, &controlStreamID)
 }
 
 // Update updates a command.
-func (r *CommandRepository) Update(cmd *domains.Command) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(cmd).Error; err != nil {
+func (r *CommandRepository) Update(ctx context.Context, cmd *domains.Command) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var stored domains.Command
+		if err := tx.Where("id = ?", cmd.ID).First(&stored).Error; err != nil {
+			return err
+		}
+		var parent domains.ControlStream
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", stored.ControlStreamID).First(&parent).Error; err != nil {
+			return err
+		}
+		if err := resourcevalidation.ValidateCommandAgainstControlStreamSchema(cmd, &parent); err != nil {
+			return &ValidationError{Err: err}
+		}
+		if err := replaceByID(tx, cmd, func(existing *domains.Command) {
+			// The parent control stream, issueTime, currentStatus and
+			// executionTime are server-owned.
+			cmd.ControlStreamID = existing.ControlStreamID
+			cmd.IssueTime = existing.IssueTime
+			cmd.Sender = existing.Sender
+			cmd.CurrentStatus = existing.CurrentStatus
+			cmd.ExecutionTime = existing.ExecutionTime
+		}); err != nil {
 			return err
 		}
 		return recomputeControlStreamTimeRanges(tx, cmd.ControlStreamID)
@@ -142,8 +158,8 @@ func (r *CommandRepository) Update(cmd *domains.Command) error {
 }
 
 // Delete deletes a command.
-func (r *CommandRepository) Delete(id string) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+func (r *CommandRepository) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var controlStreamID string
 		err := tx.Model(&domains.Command{}).Select("control_stream_id").
 			Where("id = ?", id).First(&controlStreamID).Error
@@ -151,6 +167,9 @@ func (r *CommandRepository) Delete(id string) error {
 			return ErrNotFound
 		}
 		if err != nil {
+			return err
+		}
+		if err := lockControlStream(tx, controlStreamID); err != nil {
 			return err
 		}
 		if err := tx.Delete(&domains.CommandStatusReport{}, "command_id = ?", id).Error; err != nil {
@@ -167,12 +186,15 @@ func (r *CommandRepository) Delete(id string) error {
 }
 
 // CreateStatus persists a command status report and updates the parent command current status.
-func (r *CommandRepository) CreateStatus(status *domains.CommandStatusReport) error {
+func (r *CommandRepository) CreateStatus(ctx context.Context, status *domains.CommandStatusReport) error {
 	if status.ReportTime.IsZero() {
 		status.ReportTime = time.Now().UTC()
 	}
 
-	return r.db.Transaction(func(tx *gorm.DB) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockCommandStream(tx, status.CommandID); err != nil {
+			return err
+		}
 		if err := tx.Create(status).Error; err != nil {
 			return err
 		}
@@ -202,7 +224,7 @@ func applyStatusExecutionTime(tx *gorm.DB, status *domains.CommandStatusReport) 
 	}
 	if err := tx.Model(&domains.Command{}).
 		Where("id = ?", status.CommandID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"execution_time_start": status.ExecutionTime.Start,
 			"execution_time_end":   status.ExecutionTime.End,
 		}).Error; err != nil {
@@ -212,9 +234,9 @@ func applyStatusExecutionTime(tx *gorm.DB, status *domains.CommandStatusReport) 
 }
 
 // GetStatusByID retrieves a command status report by command ID and status ID.
-func (r *CommandRepository) GetStatusByID(commandID, statusID string) (*domains.CommandStatusReport, error) {
+func (r *CommandRepository) GetStatusByID(ctx context.Context, commandID, statusID string) (*domains.CommandStatusReport, error) {
 	var status domains.CommandStatusReport
-	err := r.db.Where("command_id = ? AND id = ?", commandID, statusID).First(&status).Error
+	err := r.db.WithContext(ctx).Where("command_id = ? AND id = ?", commandID, statusID).First(&status).Error
 	if err != nil {
 		return nil, err
 	}
@@ -222,11 +244,10 @@ func (r *CommandRepository) GetStatusByID(commandID, statusID string) (*domains.
 }
 
 // ListStatuses retrieves command status reports with filtering.
-func (r *CommandRepository) ListStatuses(commandID string, params *queryparams.CommandStatusQueryParams) ([]*domains.CommandStatusReport, int64, error) {
+func (r *CommandRepository) ListStatuses(ctx context.Context, commandID string, params *queryparams.CommandStatusQueryParams) ([]*domains.CommandStatusReport, int64, error) {
 	var statuses []*domains.CommandStatusReport
-	var total int64
 
-	query := r.db.Model(&domains.CommandStatusReport{}).Where("command_id = ?", commandID)
+	query := r.db.WithContext(ctx).Model(&domains.CommandStatusReport{}).Where("command_id = ?", commandID)
 	query = r.applyStatusFilters(query, params)
 	query = applyCQLFilter(query, &params.QueryParams)
 
@@ -235,34 +256,41 @@ func (r *CommandRepository) ListStatuses(commandID string, params *queryparams.C
 		return statuses, int64(len(statuses)), err
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+	return listPage(query, &params.QueryParams, CursorOrder{
 		Columns:     []string{"report_time", "id"},
 		Descending:  true,
 		TimeColumns: map[int]bool{0: true},
-	})
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&statuses).Error
-	statuses = FinalizeCursorPage(statuses, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(statuses, func(status *domains.CommandStatusReport) []string {
+	}, func(status *domains.CommandStatusReport) []string {
 		return []string{queryparams.TimeCursorValue(status.ReportTime), status.ID}
 	})
-	return statuses, total, err
 }
 
 // UpdateStatus updates a command status report and the parent command current status.
-func (r *CommandRepository) UpdateStatus(status *domains.CommandStatusReport) error {
+func (r *CommandRepository) UpdateStatus(ctx context.Context, status *domains.CommandStatusReport) error {
+	return r.updateStatus(ctx, status, false)
+}
+
+// UpdateStatusREST preserves reportTime from the locked row. MQTT Resource
+// Data updates use UpdateStatus to retain the complete record's source time.
+func (r *CommandRepository) UpdateStatusREST(ctx context.Context, status *domains.CommandStatusReport) error {
+	return r.updateStatus(ctx, status, true)
+}
+
+func (r *CommandRepository) updateStatus(ctx context.Context, status *domains.CommandStatusReport, preserveReportTime bool) error {
 	if status.ReportTime.IsZero() {
 		status.ReportTime = time.Now().UTC()
 	}
 
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(status).Error; err != nil {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockCommandStream(tx, status.CommandID); err != nil {
+			return err
+		}
+		if err := replaceByID(tx, status, func(existing *domains.CommandStatusReport) {
+			status.CommandID = existing.CommandID
+			if preserveReportTime {
+				status.ReportTime = existing.ReportTime
+			}
+		}); err != nil {
 			return err
 		}
 		if err := tx.Model(&domains.Command{}).
@@ -276,8 +304,8 @@ func (r *CommandRepository) UpdateStatus(status *domains.CommandStatusReport) er
 }
 
 // DeleteStatus deletes a command status report.
-func (r *CommandRepository) DeleteStatus(commandID, statusID string) error {
-	result := r.db.Delete(&domains.CommandStatusReport{}, "command_id = ? AND id = ?", commandID, statusID)
+func (r *CommandRepository) DeleteStatus(ctx context.Context, commandID, statusID string) error {
+	result := r.db.WithContext(ctx).Delete(&domains.CommandStatusReport{}, "command_id = ? AND id = ?", commandID, statusID)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -288,14 +316,14 @@ func (r *CommandRepository) DeleteStatus(commandID, statusID string) error {
 }
 
 // CreateResult persists a command result.
-func (r *CommandRepository) CreateResult(result *domains.CommandResult) error {
-	return r.db.Create(result).Error
+func (r *CommandRepository) CreateResult(ctx context.Context, result *domains.CommandResult) error {
+	return r.db.WithContext(ctx).Create(result).Error
 }
 
 // GetResultByID retrieves a command result by command ID and result ID.
-func (r *CommandRepository) GetResultByID(commandID, resultID string) (*domains.CommandResult, error) {
+func (r *CommandRepository) GetResultByID(ctx context.Context, commandID, resultID string) (*domains.CommandResult, error) {
 	var result domains.CommandResult
-	err := r.db.Where("command_id = ? AND id = ?", commandID, resultID).First(&result).Error
+	err := r.db.WithContext(ctx).Where("command_id = ? AND id = ?", commandID, resultID).First(&result).Error
 	if err != nil {
 		return nil, err
 	}
@@ -303,44 +331,35 @@ func (r *CommandRepository) GetResultByID(commandID, resultID string) (*domains.
 }
 
 // ListResults retrieves command results with filtering.
-func (r *CommandRepository) ListResults(commandID string, params *queryparams.CommandResultQueryParams) ([]*domains.CommandResult, int64, error) {
-	var results []*domains.CommandResult
-	var total int64
+func (r *CommandRepository) ListResults(ctx context.Context, commandID string, params *queryparams.CommandResultQueryParams) ([]*domains.CommandResult, int64, error) {
 
-	query := r.db.Model(&domains.CommandResult{}).Where("command_id = ?", commandID)
+	query := r.db.WithContext(ctx).Model(&domains.CommandResult{}).Where("command_id = ?", commandID)
 	if len(params.IDs) > 0 {
 		query = query.Where("id IN ?", params.IDs)
 	}
 	query = applyCQLFilter(query, &params.QueryParams)
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+	return listPage(query, &params.QueryParams, CursorOrder{
 		Columns:     []string{"created_at", "id"},
 		Descending:  true,
 		TimeColumns: map[int]bool{0: true},
-	})
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&results).Error
-	results = FinalizeCursorPage(results, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(results, func(result *domains.CommandResult) []string {
+	}, func(result *domains.CommandResult) []string {
 		return []string{queryparams.TimeCursorValue(result.CreatedAt), result.ID}
 	})
-	return results, total, err
 }
 
 // UpdateResult updates a command result.
-func (r *CommandRepository) UpdateResult(result *domains.CommandResult) error {
-	return r.db.Save(result).Error
+func (r *CommandRepository) UpdateResult(ctx context.Context, result *domains.CommandResult) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceByID(tx, result, func(existing *domains.CommandResult) {
+			result.CommandID = existing.CommandID
+		})
+	})
 }
 
 // DeleteResult deletes a command result.
-func (r *CommandRepository) DeleteResult(commandID, resultID string) error {
-	result := r.db.Delete(&domains.CommandResult{}, "command_id = ? AND id = ?", commandID, resultID)
+func (r *CommandRepository) DeleteResult(ctx context.Context, commandID, resultID string) error {
+	result := r.db.WithContext(ctx).Delete(&domains.CommandResult{}, "command_id = ? AND id = ?", commandID, resultID)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -351,26 +370,18 @@ func (r *CommandRepository) DeleteResult(commandID, resultID string) error {
 }
 
 func (r *CommandRepository) applyFilters(query *gorm.DB, params *queryparams.CommandsQueryParams, controlStreamFixed bool) *gorm.DB {
-	joinedControlStreams := false
-	joinControlStreams := func(q *gorm.DB) *gorm.DB {
-		if !joinedControlStreams {
-			q = q.Joins("JOIN control_streams ON commands.control_stream_id = control_streams.id")
-			joinedControlStreams = true
-		}
-		return q
-	}
-
 	if len(params.IDs) > 0 {
 		query = query.Where("commands.id IN ?", params.IDs)
 	}
 
 	if !controlStreamFixed && len(params.ControlStream) > 0 {
-		query = query.Where("control_stream_id IN ?", params.ControlStream)
+		query = query.Where("commands.control_stream_id IN ?", params.ControlStream)
 	}
 
+	// A semi-join rather than a JOIN: control_streams shares column names
+	// (id, execution_time_*) with commands.
 	if len(params.System) > 0 {
-		query = joinControlStreams(query)
-		query = query.Where("control_streams.system_id IN ?", params.System)
+		query = query.Where("commands.control_stream_id IN (SELECT id FROM control_streams WHERE system_id IN ?)", params.System)
 	}
 
 	if len(params.FOI) > 0 {
@@ -378,41 +389,14 @@ func (r *CommandRepository) applyFilters(query *gorm.DB, params *queryparams.Com
 	}
 
 	if len(params.CurrentStatus) > 0 {
-		query = query.Where("current_status IN ?", params.CurrentStatus)
+		query = query.Where("commands.current_status IN ?", params.CurrentStatus)
 	}
 
-	if params.IssueTime != nil && !params.IssueTime.Latest {
-		if params.IssueTime.Start != nil && params.IssueTime.End != nil {
-			query = query.Where("issue_time <= ? AND issue_time >= ?", params.IssueTime.End, params.IssueTime.Start)
-		} else if params.IssueTime.Start != nil {
-			query = query.Where("issue_time >= ?", params.IssueTime.Start)
-		} else if params.IssueTime.End != nil {
-			query = query.Where("issue_time <= ?", params.IssueTime.End)
-		}
-	}
+	query = applyInstantFilter(query, "commands.issue_time", params.IssueTime)
 
-	if params.ExecutionTime != nil {
-		if params.ExecutionTime.Start != nil && params.ExecutionTime.End != nil {
-			query = query.Where("execution_time_start <= ? AND (execution_time_end IS NULL OR execution_time_end >= ?)", params.ExecutionTime.End, params.ExecutionTime.Start)
-		} else if params.ExecutionTime.Start != nil {
-			query = query.Where("execution_time_end IS NULL OR execution_time_end >= ?", params.ExecutionTime.Start)
-		} else if params.ExecutionTime.End != nil {
-			query = query.Where("execution_time_start <= ?", params.ExecutionTime.End)
-		}
-	}
+	query = applyRangeFilter(query, "commands.execution_time_start", "commands.execution_time_end", params.ExecutionTime)
 
-	if len(params.Q) > 0 {
-		var clauses []string
-		var args []interface{}
-		for _, term := range params.Q {
-			like := "%" + term + "%"
-			clauses = append(clauses, "CAST(commands.parameters AS text) ILIKE ?")
-			args = append(args, like)
-			clauses = append(clauses, "commands.sender ILIKE ?")
-			args = append(args, like)
-		}
-		query = query.Where(strings.Join(clauses, " OR "), args...)
-	}
+	query = applyKeywordFilter(query, params.Q, "CAST(commands.parameters AS text)", "commands.sender")
 
 	return applyCQLFilter(query, &params.QueryParams)
 }
@@ -426,15 +410,24 @@ func (r *CommandRepository) applyStatusFilters(query *gorm.DB, params *querypara
 		query = query.Where("status_code IN ?", params.StatusCode)
 	}
 
-	if params.ReportTime != nil && !params.ReportTime.Latest {
-		if params.ReportTime.Start != nil && params.ReportTime.End != nil {
-			query = query.Where("report_time <= ? AND report_time >= ?", params.ReportTime.End, params.ReportTime.Start)
-		} else if params.ReportTime.Start != nil {
-			query = query.Where("report_time >= ?", params.ReportTime.Start)
-		} else if params.ReportTime.End != nil {
-			query = query.Where("report_time <= ?", params.ReportTime.End)
-		}
-	}
+	query = applyInstantFilter(query, "command_status_reports.report_time", params.ReportTime)
 
 	return query
+}
+
+func lockControlStream(tx *gorm.DB, id string) error {
+	var stream domains.ControlStream
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").Where("id = ?", id).First(&stream).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrNotFound
+	}
+	return err
+}
+
+func lockCommandStream(tx *gorm.DB, id string) error {
+	var cmd domains.Command
+	if err := tx.Select("id", "control_stream_id").Where("id = ?", id).First(&cmd).Error; err != nil {
+		return err
+	}
+	return lockControlStream(tx, cmd.ControlStreamID)
 }

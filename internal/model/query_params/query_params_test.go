@@ -79,3 +79,32 @@ func TestBuildFromRequest_RejectsCursorForOtherRouteOrFilter(t *testing.T) {
 		}
 	}
 }
+
+// limit must be a positive integer; larger values are clamped to MaxLimit
+// rather than disabling the LIMIT altogether.
+func TestBuildFromRequest_ValidatesLimit(t *testing.T) {
+	for _, raw := range []string{"-1", "0", "ten", "1.5"} {
+		req := httptest.NewRequest("GET", "/systems?limit="+raw, nil)
+		if _, err := (QueryParams{}).BuildFromRequest(req, 10, CursorKindIDAsc); err == nil {
+			t.Fatalf("limit=%s: expected an error", raw)
+		}
+	}
+
+	cases := map[string]int{"": 10, "limit=25": 25, "limit=100000": MaxLimit}
+	for query, want := range cases {
+		req := httptest.NewRequest("GET", "/systems?"+query, nil)
+		params, err := (QueryParams{}).BuildFromRequest(req, 10, CursorKindIDAsc)
+		if err != nil {
+			t.Fatalf("%q: unexpected error: %v", query, err)
+		}
+		if params.Limit != want {
+			t.Fatalf("%q: limit = %d, want %d", query, params.Limit, want)
+		}
+	}
+
+	// An unset default limit is bounded rather than unlimited.
+	params, err := (QueryParams{}).BuildFromRequest(httptest.NewRequest("GET", "/systems", nil), 0, CursorKindIDAsc)
+	if err != nil || params.Limit != MaxLimit {
+		t.Fatalf("default 0: limit = %v (err %v), want %d", params, err, MaxLimit)
+	}
+}

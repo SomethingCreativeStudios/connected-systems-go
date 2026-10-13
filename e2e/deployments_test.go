@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -19,20 +18,20 @@ const (
 	DeploymentGeoSchema = "geojson/deployment-bundled.json"
 )
 
-func baseDeploymentPayload(name, deployedSystemID string) map[string]interface{} {
+func baseDeploymentPayload(name, deployedSystemID string) map[string]any {
 	uid := "urn:uuid:" + uuid.NewString()
-	return map[string]interface{}{
+	return map[string]any{
 		"type": "Feature",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"uid":         uid,
 			"name":        name,
 			"featureType": "http://www.w3.org/ns/sosa/Deployment",
 			"validTime":   []string{"2026-03-01T00:00:00Z", "2026-12-31T23:59:59Z"},
-			"deployedSystems@link": []map[string]interface{}{
+			"deployedSystems@link": []map[string]any{
 				{"href": testServer.URL + "/systems/" + deployedSystemID},
 			},
 		},
-		"geometry": map[string]interface{}{
+		"geometry": map[string]any{
 			"type": "Polygon",
 			"coordinates": [][][]float64{{
 				{-117.2, 32.7},
@@ -45,7 +44,7 @@ func baseDeploymentPayload(name, deployedSystemID string) map[string]interface{}
 	}
 }
 
-func createDeploymentViaAPI(t *testing.T, endpoint string, payload map[string]interface{}) string {
+func createDeploymentViaAPI(t *testing.T, endpoint string, payload map[string]any) string {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -69,15 +68,15 @@ func createDeploymentViaAPI(t *testing.T, endpoint string, payload map[string]in
 
 func getDeploymentCollectionIDs(t *testing.T, body []byte) []string {
 	t.Helper()
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.Unmarshal(body, &collection))
 
-	features, ok := collection["features"].([]interface{})
+	features, ok := collection["features"].([]any)
 	require.True(t, ok, "response must contain features array")
 
 	ids := make([]string, 0, len(features))
 	for _, f := range features {
-		obj, ok := f.(map[string]interface{})
+		obj, ok := f.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -88,12 +87,9 @@ func getDeploymentCollectionIDs(t *testing.T, body []byte) []string {
 	return ids
 }
 
-func requireDeploymentSchemaOrSkip(t *testing.T, body []byte, schema string) {
+func requireDeploymentSchema(t *testing.T, body []byte, schema string) {
 	t.Helper()
 	err := validateAgainstSchema(t, body, schema)
-	if err != nil && strings.Contains(err.Error(), "failed to compile schema") {
-		t.Skipf("skipping schema assertion due invalid bundled schema refs: %v", err)
-	}
 	require.NoError(t, err)
 }
 
@@ -159,7 +155,7 @@ func TestDeploymentConformance_CanonicalURL(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var feature map[string]interface{}
+	var feature map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 	assert.Equal(t, depID, feature["id"])
 }
@@ -183,17 +179,17 @@ func TestDeployment_AssociationLinks_DeployedSystems(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var feature map[string]interface{}
+	var feature map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 
-	properties, ok := feature["properties"].(map[string]interface{})
+	properties, ok := feature["properties"].(map[string]any)
 	require.True(t, ok, "deployment must expose properties")
 
-	deployedSystems, ok := properties["deployedSystems@link"].([]interface{})
+	deployedSystems, ok := properties["deployedSystems@link"].([]any)
 	require.True(t, ok, "deployment must expose deployedSystems@link")
 	require.Len(t, deployedSystems, 1, "expected one deployed system link")
 
-	deployedSystem, ok := deployedSystems[0].(map[string]interface{})
+	deployedSystem, ok := deployedSystems[0].(map[string]any)
 	require.True(t, ok)
 	href, _ := deployedSystem["href"].(string)
 	assert.Contains(t, href, "/systems/"+systemID, "deployedSystems@link href must reference the deployed system")
@@ -219,7 +215,7 @@ func TestDeploymentSchema_GeoJSON(t *testing.T) {
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	requireDeploymentSchemaOrSkip(t, body, DeploymentGeoSchema)
+	requireDeploymentSchema(t, body, DeploymentGeoSchema)
 }
 
 func TestDeploymentSchema_SensorML(t *testing.T) {
@@ -237,7 +233,7 @@ func TestDeploymentSchema_SensorML(t *testing.T) {
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	requireDeploymentSchemaOrSkip(t, body, DeploymentSMLSchema)
+	requireDeploymentSchema(t, body, DeploymentSMLSchema)
 }
 
 // =============================================================================
@@ -385,8 +381,8 @@ func TestDeploymentCRUD_CreateReplaceDelete(t *testing.T) {
 	depID := createDeploymentViaAPI(t, "/deployments", payload)
 
 	updated := baseDeploymentPayload("Deployment CRUD Updated", systemID)
-	updatedProps := updated["properties"].(map[string]interface{})
-	updatedProps["uid"] = payload["properties"].(map[string]interface{})["uid"]
+	updatedProps := updated["properties"].(map[string]any)
+	updatedProps["uid"] = payload["properties"].(map[string]any)["uid"]
 
 	updateBody, err := json.Marshal(updated)
 	require.NoError(t, err)
@@ -407,9 +403,9 @@ func TestDeploymentCRUD_CreateReplaceDelete(t *testing.T) {
 	defer getResp.Body.Close()
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 
-	var got map[string]interface{}
+	var got map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&got))
-	props, ok := got["properties"].(map[string]interface{})
+	props, ok := got["properties"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "Deployment CRUD Updated", props["name"])
 
@@ -444,7 +440,7 @@ func TestSubdeploymentCRUD_CreateAndCanonicalRead(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var feature map[string]interface{}
+	var feature map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&feature))
 	assert.Equal(t, childID, feature["id"])
 }
@@ -460,9 +456,9 @@ func TestDeployment_List_LatestDateTime_ReturnsMostRecent(t *testing.T) {
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Deployment Latest System"))
 
 	// Build a helper for deployments with a custom validTime start.
-	depWithValidTime := func(name, start, end string) map[string]interface{} {
+	depWithValidTime := func(name, start, end string) map[string]any {
 		p := baseDeploymentPayload(name, systemID)
-		p["properties"].(map[string]interface{})["validTime"] = []string{start, end}
+		p["properties"].(map[string]any)["validTime"] = []string{start, end}
 		return p
 	}
 

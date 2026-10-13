@@ -103,8 +103,7 @@ func TestDecodeWithFieldErrors_TimeRangeFieldErrorPrecedence(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	var ufErr *UnknownFieldError
-	if errors.As(err, &ufErr) {
+	if _, ok := errors.AsType[*UnknownFieldError](err); ok {
 		t.Fatalf("did not expect UnknownFieldError; got %v", err)
 	}
 }

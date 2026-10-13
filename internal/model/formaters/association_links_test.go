@@ -1,35 +1,33 @@
 package formaters
 
 import (
-	"reflect"
+	"context"
+	"github.com/stretchr/testify/require"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
 
 const testAssociationBaseURL = "http://example.test"
 
-func useTestAssociationBaseURL(t *testing.T) {
-	t.Helper()
-	SetAssociationLinksBaseURL(testAssociationBaseURL)
-	t.Cleanup(func() {
-		SetAssociationLinksBaseURL("")
-	})
+var testLinks = &LinkResolver{BaseURL: testAssociationBaseURL}
+
+// childrenCache reports the given nested collections of the system as
+// having members, as the repositories' ChildCollections would.
+func childrenCache(systemID string, rels ...string) *ResourceCache {
+	cache := NewResourceCache()
+	cache.SystemChildren[systemID] = rels
+	return cache
 }
 
-func TestAppendGeoJSONSystemAssociationLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
-
+func TestSystemLinks(t *testing.T) {
 	parentID := "parent-1"
 	system := &domains.System{
 		Base:           domains.Base{ID: "sys-1"},
 		ParentSystemID: &parentID,
 		Deployments:    []domains.Deployment{{Base: domains.Base{ID: "dep-1"}}},
-		Procedures: []domains.Procedure{
-			{Base: domains.Base{ID: "proc-2"}},
-			{Base: domains.Base{ID: "proc-1"}},
-		},
 		Links: common_shared.Links{
 			{Href: "/docs/spec", Rel: "alternate"},
 			{Href: "/systems/sys-1/subsystems", Rel: common_shared.OGCRel("subsystems")},
@@ -41,21 +39,22 @@ func TestAppendGeoJSONSystemAssociationLinks(t *testing.T) {
 		},
 	}
 
-	links := AppendGeoJSONSystemAssociationLinks(system, nil)
+	cache := childrenCache("sys-1", "subsystems", "samplingFeatures", "datastreams", "controlstreams")
+	links := testLinks.SystemLinks(system, cache, mediatype.GeoJSON)
 
 	assertHasRel(t, links, "alternate")
 	assertHasRel(t, links, common_shared.OGCRel("parentSystem"))
-	assertHasRel(t, links, common_shared.OGCRel("subsystems"))
+	assertHasHref(t, links, common_shared.OGCRel("subsystems"), "http://example.test/systems/sys-1/subsystems")
 	assertHasRel(t, links, common_shared.OGCRel("samplingFeatures"))
 	assertHasRel(t, links, common_shared.OGCRel("deployments"))
 	assertHasRel(t, links, common_shared.OGCRel("datastreams"))
 	assertHasRel(t, links, common_shared.OGCRel("controlstreams"))
+	// Association links are derived, never echoed from stored links.
 	assertMissingRel(t, links, common_shared.OGCRel("featuresOfInterest"))
+	assertMissingRel(t, links, common_shared.OGCRel("procedures"))
 }
 
-func TestAppendGeoJSONSystemAssociationLinks_DedupesDerivedAndExisting(t *testing.T) {
-	useTestAssociationBaseURL(t)
-
+func TestSystemLinks_DedupesDerivedAndExisting(t *testing.T) {
 	parentID := "parent-1"
 	system := &domains.System{
 		Base:           domains.Base{ID: "sys-1"},
@@ -66,15 +65,13 @@ func TestAppendGeoJSONSystemAssociationLinks_DedupesDerivedAndExisting(t *testin
 		},
 	}
 
-	links := AppendGeoJSONSystemAssociationLinks(system, nil)
+	links := testLinks.SystemLinks(system, childrenCache("sys-1", "subsystems"), mediatype.GeoJSON)
 
 	assertRelCount(t, links, common_shared.OGCRel("parentSystem"), 1)
 	assertRelCount(t, links, common_shared.OGCRel("subsystems"), 1)
 }
 
-func TestAppendGeoJSONSystemAssociationLinks_EnrichesFromCache(t *testing.T) {
-	useTestAssociationBaseURL(t)
-
+func TestSystemLinks_EnrichesFromCache(t *testing.T) {
 	parentID := "parent-1"
 	parentName := "Parent System"
 	parentUID := "urn:system:parent-1"
@@ -90,7 +87,7 @@ func TestAppendGeoJSONSystemAssociationLinks_EnrichesFromCache(t *testing.T) {
 		CommonSSN: domains.CommonSSN{Name: parentName, UniqueIdentifier: domains.UniqueID(parentUID)},
 	}
 
-	links := AppendGeoJSONSystemAssociationLinks(system, cache)
+	links := testLinks.SystemLinks(system, cache, mediatype.GeoJSON)
 
 	// Find the parentSystem link and verify enrichment
 	var parentLink *common_shared.Link
@@ -109,17 +106,15 @@ func TestAppendGeoJSONSystemAssociationLinks_EnrichesFromCache(t *testing.T) {
 	if parentLink.UID == nil || *parentLink.UID != parentUID {
 		t.Fatalf("expected uid %q, got %v", parentUID, parentLink.UID)
 	}
-	if parentLink.Type != GeoJSONContentType {
-		t.Fatalf("expected type %q, got %q", GeoJSONContentType, parentLink.Type)
+	if parentLink.Type != mediatype.GeoJSON {
+		t.Fatalf("expected type %q, got %q", mediatype.GeoJSON, parentLink.Type)
 	}
 	if parentLink.Href != "http://example.test/systems/parent-1" {
 		t.Fatalf("expected absolute href, got %q", parentLink.Href)
 	}
 }
 
-func TestAppendSensorMLSystemAssociationLinksIncludesParentSystem(t *testing.T) {
-	useTestAssociationBaseURL(t)
-
+func TestSystemLinks_SensorMLIncludesParentSystem(t *testing.T) {
 	parentID := "parent-1"
 	system := &domains.System{
 		Base:           domains.Base{ID: "sys-1"},
@@ -134,7 +129,8 @@ func TestAppendSensorMLSystemAssociationLinksIncludesParentSystem(t *testing.T) 
 		},
 	}
 
-	links := AppendSensorMLSystemAssociationLinks(system, nil)
+	cache := childrenCache("sys-1", "subsystems", "samplingFeatures", "deployments", "datastreams", "controlstreams")
+	links := testLinks.SystemLinks(system, cache, mediatype.SensorML)
 
 	assertHasRel(t, links, "alternate")
 	assertHasRel(t, links, common_shared.OGCRel("samplingFeatures"))
@@ -145,9 +141,7 @@ func TestAppendSensorMLSystemAssociationLinksIncludesParentSystem(t *testing.T) 
 	assertHasHref(t, links, common_shared.OGCRel("parentSystem"), "http://example.test/systems/parent-1")
 }
 
-func TestAppendDeploymentAssociationLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
-
+func TestDeploymentLinks(t *testing.T) {
 	parentID := "dep-parent"
 	deployment := &domains.Deployment{
 		Base:               domains.Base{ID: "dep-1"},
@@ -163,7 +157,9 @@ func TestAppendDeploymentAssociationLinks(t *testing.T) {
 		},
 	}
 
-	links := AppendDeploymentAssociationLinks(deployment)
+	cache := NewResourceCache()
+	cache.DeploymentChildren["dep-1"] = []string{"subdeployments"}
+	links := testLinks.DeploymentLinks(deployment, cache)
 
 	assertHasRel(t, links, "alternate")
 	assertHasHref(t, links, common_shared.OGCRel("parentDeployment"), "http://example.test/deployments/dep-parent")
@@ -176,32 +172,27 @@ func TestAppendDeploymentAssociationLinks(t *testing.T) {
 	assertMissingRel(t, links, common_shared.OGCRel("deployedSystems"))
 }
 
-func TestAppendProcedureAssociationLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
-
+func TestProcedureLinks(t *testing.T) {
 	procedure := &domains.Procedure{
 		Base: domains.Base{ID: "proc-1"},
-		Systems: []domains.System{
-			{Base: domains.Base{ID: "sys-1"}},
-		},
 		Links: common_shared.Links{
 			{Href: "/docs/spec", Rel: "alternate"},
 		},
 	}
 
-	links := AppendProcedureAssociationLinks(procedure)
+	cache := NewResourceCache()
+	cache.ProcedureChildren["proc-1"] = []string{"implementingSystems"}
+	links := testLinks.ProcedureLinks(procedure, cache)
 
 	assertHasRel(t, links, "alternate")
-	assertHasHref(t, links, common_shared.OGCRel("implementingSystems"), "http://example.test/systems?procedure=proc-1")
+	assertHasHref(t, links, common_shared.OGCRel("implementingSystems"), "http://example.test/systems?procedure=proc-1&recursive=true")
 }
 
-func TestAppendSamplingFeatureGeoJSONAssociationLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
-
+func TestSamplingFeatureLinks(t *testing.T) {
 	parentID := "sys-10"
 	parentUID := "urn:system:10"
 	sampleOf := common_shared.Links{
-		{Href: "/samplingFeatures/sf-parent-1", Rel: common_shared.OGCRel("sampleOf"), UID: ptrString("urn:sample:1")},
+		{Href: "/samplingFeatures/sf-parent-1", Rel: common_shared.OGCRel("sampleOf"), UID: new("urn:sample:1")},
 	}
 
 	sf := &domains.SamplingFeature{
@@ -217,7 +208,7 @@ func TestAppendSamplingFeatureGeoJSONAssociationLinks(t *testing.T) {
 		},
 	}
 
-	links := AppendSamplingFeatureGeoJSONAssociationLinks(sf)
+	links := testLinks.SamplingFeatureLinks(sf)
 
 	assertHasRel(t, links, "alternate")
 	assertHasHref(t, links, common_shared.OGCRel("parentSystem"), "http://example.test/systems/sys-10")
@@ -227,76 +218,22 @@ func TestAppendSamplingFeatureGeoJSONAssociationLinks(t *testing.T) {
 	// TO-DO
 	// assertHasHref(t, links, common_shared.OGCRel("datastreams"), "http://example.test/datastreams?samplingFeature=sf-10")
 	// assertHasHref(t, links, common_shared.OGCRel("controlstreams"), "http://example.test/controlStreams?samplingFeature=sf-10")
-	assertHasRel(t, links, common_shared.OGCRel("attachedTo"))
+	// A stored ogc-rel link the server does not generate is never echoed back.
+	assertMissingRel(t, links, common_shared.OGCRel("attachedTo"))
 }
 
-func TestApplyGeoJSONSystemAssociationLinks(t *testing.T) {
-	system := &domains.System{}
-	links := common_shared.Links{
-		{Href: "/systems/parent-9", Rel: common_shared.OGCRel("parentSystem")},
-		{Href: "/systems/sys-9/subsystems", Rel: common_shared.OGCRel("subsystems")},
-	}
-
-	ApplyGeoJSONSystemAssociationLinks(system, links)
-
-	if system.ParentSystemID == nil || *system.ParentSystemID != "parent-9" {
-		t.Fatalf("expected parentSystem id parent-9, got %+v", system.ParentSystemID)
-	}
-}
-
-func TestApplyDeploymentAssociationLinks(t *testing.T) {
-	deployment := &domains.Deployment{}
-	links := common_shared.Links{
-		{Href: "/deployments/parent-4", Rel: common_shared.OGCRel("parentDeployment")},
-		{Href: "/deployments/dep-4/subdeployments", Rel: common_shared.OGCRel("subdeployments")},
-	}
-
-	ApplyDeploymentAssociationLinks(deployment, links)
-
-	if deployment.ParentDeploymentID == nil || *deployment.ParentDeploymentID != "parent-4" {
-		t.Fatalf("expected parentDeployment id parent-4, got %+v", deployment.ParentDeploymentID)
-	}
-}
-
-func TestApplySamplingFeatureGeoJSONAssociationLinks(t *testing.T) {
-	sf := &domains.SamplingFeature{}
-	links := common_shared.Links{
-		{Href: "/systems/sys-2", Rel: common_shared.OGCRel("parentSystem"), UID: ptrString("urn:system:2")},
-		{Href: "/samplingFeatures/sample-1", Rel: common_shared.OGCRel("sampleOf"), UID: ptrString("urn:sample:1")},
-		{Href: "/samplingFeatures/sample-2", Rel: common_shared.OGCRel("sampleOf"), UID: ptrString("urn:sample:2")},
-	}
-
-	ApplySamplingFeatureGeoJSONAssociationLinks(sf, links)
-
-	if sf.ParentSystemID == nil || *sf.ParentSystemID != "sys-2" {
-		t.Fatalf("expected parentSystem id sys-2, got %+v", sf.ParentSystemID)
-	}
-	if sf.ParentSystemUID == nil || *sf.ParentSystemUID != "urn:system:2" {
-		t.Fatalf("expected parentSystem uid urn:system:2, got %+v", sf.ParentSystemUID)
-	}
-	if sf.SampleOf == nil || len(*sf.SampleOf) != 2 {
-		t.Fatalf("expected 2 sampleOf links, got %+v", sf.SampleOf)
-	}
-	if sf.SampleOfIDs == nil || !reflect.DeepEqual(*sf.SampleOfIDs, []string{"sample-1", "sample-2"}) {
-		t.Fatalf("unexpected sampleOf IDs: %+v", sf.SampleOfIDs)
-	}
-	if sf.SampleOfUIDs == nil || !reflect.DeepEqual(*sf.SampleOfUIDs, []string{"urn:sample:1", "urn:sample:2"}) {
-		t.Fatalf("unexpected sampleOf UIDs: %+v", sf.SampleOfUIDs)
-	}
-}
-
-func TestBuildProceduresEndpointHref(t *testing.T) {
-	procedures := []domains.Procedure{
-		{Base: domains.Base{ID: "proc-c"}},
-		{Base: domains.Base{ID: "proc-a"}},
-		{Base: domains.Base{ID: "proc-a"}},
-		{Base: domains.Base{ID: ""}},
-		{Base: domains.Base{ID: "proc-b"}},
-	}
-
-	href := buildProceduresEndpointHref(procedures)
-	if href != "/procedures?id=proc-a%2Cproc-b%2Cproc-c" {
-		t.Fatalf("unexpected href: %s", href)
+// ogc-rel links are server-generated, so writes drop them in every spelling
+// while keeping the client's own links.
+func TestStripAssociationLinks_DropsEveryOGCRel(t *testing.T) {
+	links := common_shared.StripAssociationLinks(common_shared.Links{
+		{Href: "/systems/a", Rel: common_shared.OGCRel("parentSystem")},
+		{Href: "/systems/a/events", Rel: common_shared.OGCRel("systemEvents")},
+		{Href: "/collections/x/queryables", Rel: "http://www.opengis.net/def/rel/ogc/1.0/queryables"},
+		{Href: "/systems/a", Rel: "parentSystem"},
+		{Href: "/docs/spec", Rel: "alternate"},
+	})
+	if len(links) != 1 || links[0].Rel != "alternate" {
+		t.Fatalf("expected only the alternate link to remain, got %+v", links)
 	}
 }
 
@@ -342,6 +279,49 @@ func assertRelCount(t *testing.T, links common_shared.Links, rel string, expecte
 	}
 }
 
-func ptrString(v string) *string {
-	return &v
+// A nil resolver leaves hrefs relative.
+func TestLinkResolverHref(t *testing.T) {
+	var nilResolver *LinkResolver
+	if got := nilResolver.Href("/systems/a"); got != "/systems/a" {
+		t.Fatalf("expected relative href, got %q", got)
+	}
+	resolver := &LinkResolver{BaseURL: "http://example.test/api/"}
+	for href, want := range map[string]string{
+		"/systems/a":                 "http://example.test/api/systems/a",
+		"systems/a":                  "http://example.test/api/systems/a",
+		"https://elsewhere.test/x/y": "https://elsewhere.test/x/y",
+		"":                           "",
+	} {
+		if got := resolver.Href(href); got != want {
+			t.Fatalf("Href(%q) = %q, want %q", href, got, want)
+		}
+	}
+}
+
+type failingChildren struct {
+	err error
+	ctx context.Context
+}
+
+func (f *failingChildren) ChildCollections(ctx context.Context, _ []string) (map[string][]string, error) {
+	f.ctx = ctx
+	return nil, f.err
+}
+func TestLookupReturnsFailureAndUsesRequestContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	reader := &failingChildren{err: context.Canceled}
+	resolver := &LinkResolver{SystemChildren: reader}
+	cache, err := resolver.Lookup(ctx, References{SystemChildren: []string{"system"}})
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, cache)
+	require.Equal(t, ctx, reader.ctx)
+}
+
+func TestLocalIDDoesNotResolveRemoteCollisions(t *testing.T) {
+	resolver := &LinkResolver{BaseURL: "https://local.test/api"}
+	require.Nil(t, resolver.LocalID(common_shared.Link{Href: "https://remote.test/api/systems/id"}, "systems"))
+	require.Nil(t, resolver.LocalID(common_shared.Link{Href: "https://local.test/other/systems/id"}, "systems"))
+	require.Equal(t, new("id"), resolver.LocalID(common_shared.Link{Href: "https://local.test/api/systems/id"}, "systems"))
+	require.Equal(t, new("id"), resolver.LocalID(common_shared.Link{Href: "/systems/id"}, "systems"))
 }

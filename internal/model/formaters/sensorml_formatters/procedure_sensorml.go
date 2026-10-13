@@ -2,39 +2,35 @@ package sensorml_formatters
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // ProcedureSensorMLFormatter handles serialization and deserialization of Procedure objects in SensorML format
 type ProcedureSensorMLFormatter struct {
 	formaters.Formatter[domains.ProcedureSensorMLFeature, *domains.Procedure]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewProcedureSensorMLFormatter constructs a formatter with required repository readers
-func NewProcedureSensorMLFormatter(repos *repository.Repositories) *ProcedureSensorMLFormatter {
-	return &ProcedureSensorMLFormatter{repos: repos}
+func NewProcedureSensorMLFormatter(links *formaters.LinkResolver) *ProcedureSensorMLFormatter {
+	return &ProcedureSensorMLFormatter{links: links}
 }
 
 func (f *ProcedureSensorMLFormatter) ContentType() string {
-	return SensorMLContentType
+	return mediatype.SensorML
 }
 
 // --- Serialization ---
 
 func (f *ProcedureSensorMLFormatter) Serialize(ctx context.Context, procedure *domains.Procedure) (domains.ProcedureSensorMLFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.Procedure{procedure})
-	if err != nil {
-		return domains.ProcedureSensorMLFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, procedure, f.SerializeAll)
 }
 
 func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedures []*domains.Procedure) ([]domains.ProcedureSensorMLFeature, error) {
@@ -42,36 +38,21 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 		return []domains.ProcedureSensorMLFeature{}, nil
 	}
 
-	// Collect linked resource IDs for batch enrichment
-	typeOfIDs := make([]string, 0, len(procedures))
-	attachedToIDs := make([]string, 0, len(procedures))
+	refs := formaters.ProcedureReferences(procedures)
 	for _, p := range procedures {
 		if p == nil {
 			continue
 		}
-		if p.TypeOf != nil && p.TypeOf.Href != "" {
-			id := p.TypeOf.GetId("procedures")
-			if id != nil && *id != "" {
-				typeOfIDs = append(typeOfIDs, *id)
-			}
+		if p.TypeOf != nil {
+			refs.Procedures = append(refs.Procedures, trimmed(p.TypeOf.GetId("procedures")))
 		}
-		if p.AttachedTo != nil && p.AttachedTo.Href != "" {
-			id := p.AttachedTo.GetId("systems")
-			if id != nil && *id != "" {
-				attachedToIDs = append(attachedToIDs, *id)
-			}
+		if p.AttachedTo != nil {
+			refs.Systems = append(refs.Systems, trimmed(p.AttachedTo.GetId("systems")))
 		}
 	}
-
-	// Build resource cache for enriching inline links
-	cache := formaters.NewResourceCache()
-	if f.repos != nil {
-		if len(typeOfIDs) > 0 {
-			_ = cache.FetchProcedures(ctx, f.repos.Procedure, typeOfIDs)
-		}
-		if len(attachedToIDs) > 0 {
-			_ = cache.FetchParentSystems(ctx, f.repos.System, attachedToIDs)
-		}
+	cache, err := f.links.Lookup(ctx, refs)
+	if err != nil {
+		return nil, err
 	}
 
 	var features []domains.ProcedureSensorMLFeature
@@ -178,24 +159,24 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 			Contacts:             procedure.Contacts,
 			Documentation:        procedure.Documentation,
 			History:              procedure.History,
-			TypeOf:               absolutizeLink(procedure.TypeOf),
+			TypeOf:               absolutizeLink(f.links, procedure.TypeOf),
 			Configuration:        procedure.Configuration,
-			FeaturesOfInterest:   absolutizeLinksValue(procedure.FeaturesOfInterest),
+			FeaturesOfInterest:   absolutizeLinksValue(f.links, procedure.FeaturesOfInterest),
 			Inputs:               procedure.Inputs,
 			Outputs:              procedure.Outputs,
 			Parameters:           procedure.Parameters,
 			Modes:                procedure.Modes,
 			Method:               procedure.Method,
-			AttachedTo:           absolutizeLink(procedure.AttachedTo),
+			AttachedTo:           absolutizeLink(f.links, procedure.AttachedTo),
 			LocalReferenceFrames: procedure.LocalReferenceFrames,
 			LocalTimeFrames:      procedure.LocalTimeFrames,
 			ValidTime:            common_shared.NonEmptyTimeRange(procedure.ValidTime),
-			Links:                formaters.AppendProcedureAssociationLinks(procedure),
+			Links:                f.links.ProcedureLinks(procedure, cache),
 		}
 
 		// Override typeOf Type: absolutizeLink defaults to GeoJSON, but typeOf is a procedure → SensorML
-		if base.TypeOf != nil && base.TypeOf.Type == formaters.GeoJSONContentType {
-			base.TypeOf.Type = formaters.SensorMLContentType
+		if base.TypeOf != nil && base.TypeOf.Type == mediatype.GeoJSON {
+			base.TypeOf.Type = mediatype.SensorML
 		}
 
 		// Enrich typeOf from cache
@@ -203,11 +184,7 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 			typeOfID := base.TypeOf.GetId("procedures")
 			if typeOfID != nil {
 				if proc, ok := cache.Procedures[*typeOfID]; ok {
-					base.TypeOf.Title = proc.Name
-					uid := string(proc.UniqueIdentifier)
-					if uid != "" {
-						base.TypeOf.UID = &uid
-					}
+					base.TypeOf.Describe(proc.Name, string(proc.UniqueIdentifier))
 				}
 			}
 		}
@@ -217,11 +194,7 @@ func (f *ProcedureSensorMLFormatter) SerializeAll(ctx context.Context, procedure
 			attachedID := base.AttachedTo.GetId("systems")
 			if attachedID != nil {
 				if sys, ok := cache.Systems[*attachedID]; ok {
-					base.AttachedTo.Title = sys.Name
-					uid := string(sys.UniqueIdentifier)
-					if uid != "" {
-						base.AttachedTo.UID = &uid
-					}
+					base.AttachedTo.Describe(sys.Name, string(sys.UniqueIdentifier))
 				}
 			}
 		}
@@ -265,7 +238,7 @@ func (f *ProcedureSensorMLFormatter) Deserialize(ctx context.Context, reader io.
 		return nil, err
 	}
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
 	}
@@ -336,13 +309,12 @@ func (f *ProcedureSensorMLFormatter) Deserialize(ctx context.Context, reader io.
 	procedure.LocalTimeFrames = sensorML.LocalTimeFrames
 	procedure.ValidTime = common_shared.NonEmptyTimeRange(sensorML.ValidTime)
 
-	// Handle validTime from raw if not in structured form
-	if procedure.ValidTime == nil {
-		if vt, ok := raw["validTime"]; ok {
-			tr := common_shared.ParseTimeRange(vt)
-			procedure.ValidTime = common_shared.NonEmptyTimeRange(&tr)
-		}
-	}
-
 	return procedure, nil
+}
+
+func trimmed(id *string) string {
+	if id == nil {
+		return ""
+	}
+	return *id
 }

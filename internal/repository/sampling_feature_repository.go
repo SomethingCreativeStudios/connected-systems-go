@@ -2,10 +2,9 @@ package repository
 
 import (
 	"context"
-	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -20,14 +19,28 @@ func NewSamplingFeatureRepository(db *gorm.DB) *SamplingFeatureRepository {
 }
 
 // Create creates a new sampling feature
-func (r *SamplingFeatureRepository) Create(sf *domains.SamplingFeature) error {
-	return r.db.Create(sf).Error
+func (r *SamplingFeatureRepository) Create(ctx context.Context, sf *domains.SamplingFeature) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if sf.SampledFeatureLink != nil {
+			var err error
+			sf.SampledFeatureID, err = resolveFOILink(ctx, tx, sf.SampledFeatureLink)
+			if err != nil {
+				return err
+			}
+		}
+		if sf.ParentSystemID != nil {
+			if err := requireParent(tx, &domains.System{}, "system", *sf.ParentSystemID); err != nil {
+				return err
+			}
+		}
+		return tx.Create(sf).Error
+	})
 }
 
 // GetByID retrieves a sampling feature by ID
-func (r *SamplingFeatureRepository) GetByID(id string) (*domains.SamplingFeature, error) {
+func (r *SamplingFeatureRepository) GetByID(ctx context.Context, id string) (*domains.SamplingFeature, error) {
 	var sf domains.SamplingFeature
-	err := r.db.Where("id = ?", id).First(&sf).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&sf).Error
 	if err != nil {
 		return nil, err
 	}
@@ -56,16 +69,15 @@ func (r *SamplingFeatureRepository) GetByIDs(ctx context.Context, ids []string) 
 }
 
 // List retrieves sampling features with filtering
-func (r *SamplingFeatureRepository) List(params *queryparams.SamplingFeatureQueryParams) ([]*domains.SamplingFeature, int64, error) {
-	return r.ListSystem(params, nil)
+func (r *SamplingFeatureRepository) List(ctx context.Context, params *queryparams.SamplingFeatureQueryParams) ([]*domains.SamplingFeature, int64, error) {
+	return r.ListSystem(ctx, params, nil)
 }
 
 // List retrieves sampling features with filtering
-func (r *SamplingFeatureRepository) ListSystem(params *queryparams.SamplingFeatureQueryParams, systemID *string) ([]*domains.SamplingFeature, int64, error) {
+func (r *SamplingFeatureRepository) ListSystem(ctx context.Context, params *queryparams.SamplingFeatureQueryParams, systemID *string) ([]*domains.SamplingFeature, int64, error) {
 	var features []*domains.SamplingFeature
-	var total int64
 
-	query := r.db.Model(&domains.SamplingFeature{})
+	query := r.db.WithContext(ctx).Model(&domains.SamplingFeature{})
 	query = r.applyFilters(query, params, systemID)
 
 	if params.DateTime != nil && params.DateTime.Latest {
@@ -73,28 +85,32 @@ func (r *SamplingFeatureRepository) ListSystem(params *queryparams.SamplingFeatu
 		return features, int64(len(features)), err
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&features).Error
-	features = FinalizeCursorPage(features, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(features, func(feature *domains.SamplingFeature) []string { return []string{feature.ID} })
-	return features, total, err
+	return listPage(query, &params.QueryParams, idOrder("sampling_features"), idAnchor[*domains.SamplingFeature])
 }
 
-// Update updates a sampling feature
-func (r *SamplingFeatureRepository) Update(sf *domains.SamplingFeature) error {
-	return r.db.Save(sf).Error
+// Update replaces an existing sampling feature. It returns ErrNotFound rather
+// than creating one, and keeps the parent system, which is only ever set
+// through /systems/{id}/samplingFeatures.
+func (r *SamplingFeatureRepository) Update(ctx context.Context, sf *domains.SamplingFeature) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceByIDChecked(tx, sf, func(existing *domains.SamplingFeature) error {
+			if sf.SampledFeatureLink != nil {
+				var err error
+				sf.SampledFeatureID, err = resolveFOILink(ctx, tx, sf.SampledFeatureLink)
+				if err != nil {
+					return err
+				}
+			}
+			sf.ParentSystemID = existing.ParentSystemID
+			sf.ParentSystemUID = existing.ParentSystemUID
+			return nil
+		})
+	})
 }
 
 // Delete deletes a sampling feature
-func (r *SamplingFeatureRepository) Delete(id string) error {
-	result := r.db.Delete(&domains.SamplingFeature{}, "id = ?", id)
+func (r *SamplingFeatureRepository) Delete(ctx context.Context, id string) error {
+	result := r.db.WithContext(ctx).Delete(&domains.SamplingFeature{}, "id = ?", id)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -109,30 +125,20 @@ func (r *SamplingFeatureRepository) applyFilters(query *gorm.DB, params *querypa
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
 
-	if len(params.Q) > 0 {
-		query = query.Where("name ILIKE ? OR description ILIKE ?", "%"+strings.Join(params.Q, "%")+"%", "%"+strings.Join(params.Q, "%")+"%")
-	}
+	query = applyKeywordFilter(query, params.Q, "sampling_features.name", "sampling_features.description")
 
-	if params.DateTime != nil && !params.DateTime.Latest {
-		// Only add conditions if start/end are not nil
-		if params.DateTime.Start != nil && params.DateTime.End != nil {
-			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.DateTime.End, params.DateTime.Start)
-		} else if params.DateTime.Start != nil {
-			query = query.Where("valid_time_end IS NULL OR valid_time_end >= ?", params.DateTime.Start)
-		} else if params.DateTime.End != nil {
-			query = query.Where("valid_time_start <= ?", params.DateTime.End)
-		}
-	}
+	query = applyValidTimeFilter(query, "sampling_features", params.DateTime)
 
 	query = applySpatialIntersectionFilters(query, "sampling_features.geometry", params.Bbox, params.Geom)
 
 	if len(params.FOI) > 0 {
-		query = query.Joins("JOIN sampling_feature_fois sff ON sff.sampling_feature_id = sampling_features.id").
-			Where("sff.foi_id IN ?", params.FOI)
+		// The feature of interest of a sampling feature is the real-world
+		// feature it samples.
+		query = query.Where("sampling_features.sampled_feature_id IN ?", params.FOI)
 	}
 
 	if systemID != nil {
-		query = query.Where("parent_system_id = ?", *systemID)
+		query = query.Where("parent_system_id IN ("+systemTreeSQL("?")+")", *systemID)
 	}
 
 	return applyCQLFilter(query, &params.QueryParams)

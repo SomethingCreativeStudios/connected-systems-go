@@ -4,201 +4,132 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
+	"slices"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
-const JSONContentType = "application/json"
-
-// DatastreamJSONFeature is the wire-format representation of a datastream.
-// It adds system@link (derived from SystemID) to the domain model.
+// DatastreamJSONFeature is the application/json representation of a
+// datastream. Its fields are listed explicitly so the API shape does not
+// follow the database model. Requests may carry the read-only fields, so a
+// fetched datastream can be sent back unchanged, but only the writable ones
+// are kept (see toDomain).
 type DatastreamJSONFeature struct {
-	domains.Datastream
-	SystemLink *common_shared.Link `json:"system@link,omitempty"`
+	ID                     string                                `json:"id"`
+	Name                   string                                `json:"name"`
+	Description            string                                `json:"description,omitempty"`
+	ValidTime              *common_shared.TimeRange              `json:"validTime,omitempty"`
+	Formats                common_shared.StringArray             `json:"formats,omitempty"`
+	SystemLink             *common_shared.Link                   `json:"system@link,omitempty"`
+	OutputName             string                                `json:"outputName,omitempty"`
+	ProcedureLink          *common_shared.Link                   `json:"procedure@link,omitempty"`
+	DeploymentLink         *common_shared.Link                   `json:"deployment@link,omitempty"`
+	FeatureOfInterest      *common_shared.Link                   `json:"featureOfInterest@link,omitempty"`
+	SamplingFeatureLink    *common_shared.Link                   `json:"samplingFeature@link,omitempty"`
+	ObservedProperties     *domains.DatastreamObservedProperties `json:"observedProperties"`
+	PhenomenonTime         *common_shared.TimeRange              `json:"phenomenonTime"`
+	PhenomenonTimeInterval *string                               `json:"phenomenonTimeInterval,omitempty"`
+	ResultTime             *common_shared.TimeRange              `json:"resultTime"`
+	ResultTimeInterval     *string                               `json:"resultTimeInterval,omitempty"`
+	Type                   string                                `json:"type,omitempty"`
+	ResultType             *string                               `json:"resultType"`
+	Live                   *bool                                 `json:"live"`
+	Schema                 *domains.DatastreamSchema             `json:"schema,omitempty"`
+	Links                  common_shared.Links                   `json:"links,omitempty"`
+}
+
+// toDomain keeps the fields a client may write. The server assigns the id
+// and system, and derives formats, observedProperties, resultType and the
+// phenomenon and result time extents. ogc-rel links are server-generated.
+func (w DatastreamJSONFeature) toDomain() *domains.Datastream {
+	datastream := sanitizeDatastreamTimeRanges(domains.Datastream{
+		Name:                   w.Name,
+		Description:            w.Description,
+		ValidTime:              w.ValidTime,
+		OutputName:             w.OutputName,
+		ProcedureLink:          w.ProcedureLink,
+		DeploymentLink:         w.DeploymentLink,
+		FeatureOfInterest:      w.FeatureOfInterest,
+		SamplingFeatureLink:    w.SamplingFeatureLink,
+		PhenomenonTimeInterval: w.PhenomenonTimeInterval,
+		ResultTimeInterval:     w.ResultTimeInterval,
+		Type:                   w.Type,
+		Live:                   w.Live,
+		Schema:                 w.Schema,
+		Links:                  common_shared.StripAssociationLinks(w.Links),
+	})
+	return &datastream
 }
 
 // DatastreamJSONFormatter handles datastream JSON serialization/deserialization.
 type DatastreamJSONFormatter struct {
-	formaters.Formatter[DatastreamJSONFeature, *domains.Datastream]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
-func NewDatastreamJSONFormatter(repos *repository.Repositories) *DatastreamJSONFormatter {
-	return &DatastreamJSONFormatter{repos: repos}
+var _ formaters.Formatter[DatastreamJSONFeature, *domains.Datastream] = (*DatastreamJSONFormatter)(nil)
+
+func NewDatastreamJSONFormatter(links *formaters.LinkResolver) *DatastreamJSONFormatter {
+	return &DatastreamJSONFormatter{links: links}
 }
 
 func (f *DatastreamJSONFormatter) ContentType() string {
-	return JSONContentType
+	return mediatype.JSON
 }
 
 func (f *DatastreamJSONFormatter) Serialize(ctx context.Context, datastream *domains.Datastream) (DatastreamJSONFeature, error) {
-	if datastream == nil {
-		return DatastreamJSONFeature{}, fmt.Errorf("datastream cannot be nil")
-	}
-	out := DatastreamJSONFeature{Datastream: sanitizeDatastreamTimeRanges(*datastream)}
-	// schema is writeOnly per spec: retrievable only via the schema endpoint.
-	out.Schema = nil
-	out.Links = appendDatastreamAssociationLinks(datastream)
-	if datastream.SystemID != nil {
-		out.SystemLink = &common_shared.Link{
-			Href: formaters.ToFunctionalAssociationHref("/systems/" + *datastream.SystemID),
-			Type: formaters.GeoJSONContentType,
-		}
-	}
-	if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
-		out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
-		if out.ProcedureLink.Type == "" {
-			out.ProcedureLink.Type = formaters.SensorMLContentType
-		}
-	}
-	if out.DeploymentLink != nil && out.DeploymentLink.Href != "" {
-		out.DeploymentLink.Href = formaters.ToFunctionalAssociationHref(out.DeploymentLink.Href)
-		if out.DeploymentLink.Type == "" {
-			out.DeploymentLink.Type = formaters.GeoJSONContentType
-		}
-	}
-	if out.FeatureOfInterest != nil && out.FeatureOfInterest.Href != "" {
-		out.FeatureOfInterest.Href = formaters.ToFunctionalAssociationHref(out.FeatureOfInterest.Href)
-		if out.FeatureOfInterest.Type == "" {
-			out.FeatureOfInterest.Type = formaters.GeoJSONContentType
-		}
-	}
-	if out.SamplingFeatureLink != nil && out.SamplingFeatureLink.Href != "" {
-		out.SamplingFeatureLink.Href = formaters.ToFunctionalAssociationHref(out.SamplingFeatureLink.Href)
-		if out.SamplingFeatureLink.Type == "" {
-			out.SamplingFeatureLink.Type = formaters.GeoJSONContentType
-		}
-	}
-	return out, nil
+	return formaters.SerializeOne(ctx, datastream, f.SerializeAll)
 }
 
 func (f *DatastreamJSONFormatter) SerializeAll(ctx context.Context, datastreams []*domains.Datastream) ([]DatastreamJSONFeature, error) {
-	if len(datastreams) == 0 {
-		return []DatastreamJSONFeature{}, nil
-	}
-
-	// Collect linked resource IDs for batch enrichment
-	systemIDs := make([]string, 0, len(datastreams))
-	procedureIDs := make([]string, 0, len(datastreams))
-	deploymentIDs := make([]string, 0, len(datastreams))
-	sfIDs := make([]string, 0, len(datastreams))
-	for _, ds := range datastreams {
-		if ds == nil {
-			continue
-		}
-		if ds.SystemID != nil && *ds.SystemID != "" {
-			systemIDs = append(systemIDs, *ds.SystemID)
-		}
-		if ds.ProcedureID != nil && *ds.ProcedureID != "" {
-			procedureIDs = append(procedureIDs, *ds.ProcedureID)
-		}
-		if ds.DeploymentID != nil && *ds.DeploymentID != "" {
-			deploymentIDs = append(deploymentIDs, *ds.DeploymentID)
-		}
-		if ds.SamplingFeatureID != nil && *ds.SamplingFeatureID != "" {
-			sfIDs = append(sfIDs, *ds.SamplingFeatureID)
+	datastreams = slices.DeleteFunc(slices.Clone(datastreams), func(ds *domains.Datastream) bool { return ds == nil })
+	refs := make([]streamRefs, len(datastreams))
+	for i, ds := range datastreams {
+		refs[i] = streamRefs{
+			SystemID:          ds.SystemID,
+			ProcedureID:       ds.ProcedureID,
+			DeploymentID:      ds.DeploymentID,
+			SamplingFeatureID: ds.SamplingFeatureID,
+			Procedure:         ds.ProcedureLink,
+			Deployment:        ds.DeploymentLink,
+			FeatureOfInterest: ds.FeatureOfInterest,
+			SamplingFeature:   ds.SamplingFeatureLink,
 		}
 	}
-
-	// Build resource cache for enriching inline links
-	cache := formaters.NewResourceCache()
-	if f.repos != nil {
-		if len(systemIDs) > 0 {
-			_ = cache.FetchParentSystems(ctx, f.repos.System, systemIDs)
-		}
-		if len(procedureIDs) > 0 {
-			_ = cache.FetchProcedures(ctx, f.repos.Procedure, procedureIDs)
-		}
-		if len(deploymentIDs) > 0 {
-			_ = cache.FetchDeployments(ctx, f.repos.Deployment, deploymentIDs)
-		}
-		if len(sfIDs) > 0 {
-			_ = cache.FetchSamplingFeatures(ctx, f.repos.SamplingFeature, sfIDs)
-		}
+	cache, err := f.links.Lookup(ctx, streamReferences(refs))
+	if err != nil {
+		return nil, err
 	}
 
 	items := make([]DatastreamJSONFeature, 0, len(datastreams))
-	for _, ds := range datastreams {
-		if ds == nil {
-			continue
-		}
-		out := DatastreamJSONFeature{Datastream: sanitizeDatastreamTimeRanges(*ds)}
+	for i, ds := range datastreams {
+		derived := sanitizeDatastreamTimeRanges(*ds)
+		links := refs[i].resolve(f.links, cache)
 		// schema is writeOnly per spec: retrievable only via the schema endpoint.
-		out.Schema = nil
-		out.Links = appendDatastreamAssociationLinks(ds)
-		if ds.SystemID != nil {
-			out.SystemLink = &common_shared.Link{
-				Href: formaters.ToFunctionalAssociationHref("/systems/" + *ds.SystemID),
-				Type: formaters.GeoJSONContentType,
-			}
-			// Enrich system@link from cache
-			if sys, ok := cache.Systems[*ds.SystemID]; ok {
-				out.SystemLink.Title = sys.Name
-				uid := string(sys.UniqueIdentifier)
-				if uid != "" {
-					out.SystemLink.UID = &uid
-				}
-			}
-		}
-		if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
-			out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
-			if out.ProcedureLink.Type == "" {
-				out.ProcedureLink.Type = formaters.SensorMLContentType
-			}
-			// Enrich procedure@link from cache
-			if ds.ProcedureID != nil {
-				if proc, ok := cache.Procedures[*ds.ProcedureID]; ok {
-					out.ProcedureLink.Title = proc.Name
-					uid := string(proc.UniqueIdentifier)
-					if uid != "" {
-						out.ProcedureLink.UID = &uid
-					}
-				}
-			}
-		}
-		if out.DeploymentLink != nil && out.DeploymentLink.Href != "" {
-			out.DeploymentLink.Href = formaters.ToFunctionalAssociationHref(out.DeploymentLink.Href)
-			if out.DeploymentLink.Type == "" {
-				out.DeploymentLink.Type = formaters.GeoJSONContentType
-			}
-			// Enrich deployment@link from cache
-			if ds.DeploymentID != nil {
-				if dep, ok := cache.Deployments[*ds.DeploymentID]; ok {
-					out.DeploymentLink.Title = dep.Name
-					uid := string(dep.UniqueIdentifier)
-					if uid != "" {
-						out.DeploymentLink.UID = &uid
-					}
-				}
-			}
-		}
-		if out.FeatureOfInterest != nil && out.FeatureOfInterest.Href != "" {
-			out.FeatureOfInterest.Href = formaters.ToFunctionalAssociationHref(out.FeatureOfInterest.Href)
-			if out.FeatureOfInterest.Type == "" {
-				out.FeatureOfInterest.Type = formaters.GeoJSONContentType
-			}
-		}
-		if out.SamplingFeatureLink != nil && out.SamplingFeatureLink.Href != "" {
-			out.SamplingFeatureLink.Href = formaters.ToFunctionalAssociationHref(out.SamplingFeatureLink.Href)
-			if out.SamplingFeatureLink.Type == "" {
-				out.SamplingFeatureLink.Type = formaters.GeoJSONContentType
-			}
-			// Enrich samplingFeature@link from cache
-			if ds.SamplingFeatureID != nil {
-				if sf, ok := cache.SamplingFeatures[*ds.SamplingFeatureID]; ok {
-					out.SamplingFeatureLink.Title = sf.Name
-					uid := string(sf.UniqueIdentifier)
-					if uid != "" {
-						out.SamplingFeatureLink.UID = &uid
-					}
-				}
-			}
-		}
-		items = append(items, out)
+		items = append(items, DatastreamJSONFeature{
+			ID:                     ds.ID,
+			Name:                   ds.Name,
+			Description:            ds.Description,
+			ValidTime:              derived.ValidTime,
+			Formats:                derived.Formats,
+			SystemLink:             links.System,
+			OutputName:             ds.OutputName,
+			ProcedureLink:          links.Procedure,
+			DeploymentLink:         links.Deployment,
+			FeatureOfInterest:      links.FeatureOfInterest,
+			SamplingFeatureLink:    links.SamplingFeature,
+			ObservedProperties:     derived.ObservedProperties,
+			PhenomenonTime:         derived.PhenomenonTime,
+			PhenomenonTimeInterval: ds.PhenomenonTimeInterval,
+			ResultTime:             derived.ResultTime,
+			ResultTimeInterval:     ds.ResultTimeInterval,
+			Type:                   ds.Type,
+			ResultType:             derived.ResultType,
+			Live:                   derived.Live,
+			Links:                  f.associationLinks(ds),
+		})
 	}
 	return items, nil
 }
@@ -208,32 +139,22 @@ func (f *DatastreamJSONFormatter) Deserialize(ctx context.Context, reader io.Rea
 	if err != nil {
 		return nil, err
 	}
-	wire, err := common_shared.DecodeWithFieldErrors[struct {
-		domains.Datastream
-		SystemLink *common_shared.Link `json:"system@link,omitempty"`
-	}](raw)
+	wire, err := common_shared.DecodeWithFieldErrors[DatastreamJSONFeature](raw)
 	if err != nil {
 		return nil, err
 	}
-	datastream := wire.Datastream
 	// Required root fields per OGC CS Part 2 dataStream schema
-	if datastream.Name == "" {
+	if wire.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	datastream = sanitizeDatastreamTimeRanges(datastream)
-	if wire.SystemLink != nil {
-		datastream.SystemID = wire.SystemLink.GetId("systems")
-	}
-	return &datastream, nil
+	return wire.toDomain(), nil
 }
 
 func sanitizeDatastreamTimeRanges(datastream domains.Datastream) domains.Datastream {
 	datastream.ValidTime = common_shared.NonEmptyTimeRange(datastream.ValidTime)
 	datastream.PhenomenonTime = common_shared.NonEmptyTimeRange(datastream.PhenomenonTime)
 	datastream.ResultTime = common_shared.NonEmptyTimeRange(datastream.ResultTime)
-	datastream.Formats = deriveDatastreamFormats(&datastream)
-	datastream.ObservedProperties = deriveDatastreamObservedProperties(&datastream)
-	datastream.ResultType = deriveDatastreamResultType(&datastream)
+	datastream.RecomputeSchemaMetadata()
 	// live is a required boolean defaulting to false.
 	if datastream.Live == nil {
 		datastream.Live = new(bool)
@@ -241,162 +162,21 @@ func sanitizeDatastreamTimeRanges(datastream domains.Datastream) domains.Datastr
 	return datastream
 }
 
-// definedComponent pairs a schema component carrying a semantic definition
-// with its effective name (DatastreamNamedComponent shadows the embedded Name).
-type definedComponent struct {
-	component *domains.DatastreamDataComponent
-	name      string
-}
-
-// collectDefinedComponents recursively gathers every data component carrying a
-// semantic definition URI from a schema component tree.
-func collectDefinedComponents(component *domains.DatastreamDataComponent, name string, out *[]definedComponent) {
-	if component == nil {
-		return
-	}
-	if component.Name != "" {
-		name = component.Name
-	}
-	if component.Definition != "" {
-		*out = append(*out, definedComponent{component: component, name: name})
-	}
-	for i := range component.Fields {
-		collectDefinedComponents(&component.Fields[i].DatastreamDataComponent, component.Fields[i].Name, out)
-	}
-	for i := range component.Coordinates {
-		collectDefinedComponents(&component.Coordinates[i].DatastreamDataComponent, component.Coordinates[i].Name, out)
-	}
-	for i := range component.Items {
-		collectDefinedComponents(&component.Items[i].DatastreamDataComponent, component.Items[i].Name, out)
-	}
-	if component.ElementType != nil {
-		collectDefinedComponents(&component.ElementType.DatastreamDataComponent, component.ElementType.Name, out)
-	}
-}
-
-// datastreamResultComponent returns the observation result component of a
-// datastream schema (JSON or SWE branch).
-func datastreamResultComponent(schema *domains.DatastreamSchema) *domains.DatastreamDataComponent {
-	if schema == nil {
-		return nil
-	}
-	if schema.ResultSchema != nil {
-		return schema.ResultSchema
-	}
-	return schema.RecordSchema
-}
-
-// deriveDatastreamObservedProperties computes the read-only, required
-// "observedProperties" field from the semantic definitions declared in the
-// result schemas of all registered schemas. Nil (-> null) when none declared.
-func deriveDatastreamObservedProperties(datastream *domains.Datastream) *domains.DatastreamObservedProperties {
-	var components []definedComponent
-	for i := range datastream.Schemas {
-		collectDefinedComponents(datastreamResultComponent(&datastream.Schemas[i]), "", &components)
-	}
-	// Legacy rows predate the schema registry.
-	if len(components) == 0 {
-		collectDefinedComponents(datastreamResultComponent(datastream.Schema), "", &components)
-	}
-
-	var props domains.DatastreamObservedProperties
-	seen := map[string]bool{}
-	for _, dc := range components {
-		c := dc.component
-		if seen[c.Definition] {
-			continue
-		}
-		seen[c.Definition] = true
-		label := c.Label
-		if label == "" {
-			label = dc.name
-		}
-		props = append(props, domains.DatastreamObservedProperty{
-			Definition:  c.Definition,
-			Label:       label,
-			Description: c.Description,
-		})
-	}
-	if len(props) == 0 {
-		return nil
-	}
-	return &props
-}
-
-// deriveDatastreamResultType computes the read-only, required "resultType"
-// field from the root component of the observation result schema.
-// Nil (-> null) when no schema declares a result component.
-func deriveDatastreamResultType(datastream *domains.Datastream) *string {
-	component := datastreamResultComponent(datastream.Schema)
-	for i := range datastream.Schemas {
-		if component != nil {
-			break
-		}
-		component = datastreamResultComponent(&datastream.Schemas[i])
-	}
-	if component == nil {
-		return nil
-	}
-	var resultType string
-	switch strings.ToLower(component.Type) {
-	case "quantity", "count":
-		resultType = "measure"
-	case "vector":
-		resultType = "vector"
-	case "datarecord":
-		resultType = "record"
-	case "dataarray", "matrix":
-		resultType = "coverage"
-	default:
-		resultType = "complex"
-	}
-	return &resultType
-}
-
-// deriveDatastreamFormats computes the read-only, required "formats" field
-// from the observation formats of all registered schemas.
-func deriveDatastreamFormats(datastream *domains.Datastream) common_shared.StringArray {
-	var formats common_shared.StringArray
-	seen := map[string]bool{}
-	add := func(format string) {
-		key := domains.NormalizeMediaType(format)
-		if key == "" || seen[key] {
-			return
-		}
-		seen[key] = true
-		formats = append(formats, format)
-	}
-	for i := range datastream.Schemas {
-		add(datastream.Schemas[i].ObsFormat)
-	}
-	// Legacy rows predate the schema registry.
-	if datastream.Schema != nil {
-		add(datastream.Schema.ObsFormat)
-	}
-	if len(formats) == 0 {
-		formats = common_shared.StringArray{JSONContentType}
-	}
-	return formats
-}
-
-func appendDatastreamAssociationLinks(ds *domains.Datastream) common_shared.Links {
+func (f *DatastreamJSONFormatter) associationLinks(ds *domains.Datastream) common_shared.Links {
 	links := append(common_shared.Links{}, ds.Links...)
 
 	if ds.ID == "" {
 		return links
 	}
 
-	observationLink := common_shared.Link{
+	if ds.SystemID != nil {
+		links = append(links, common_shared.Link{
+			Rel:  common_shared.OGCRel("systems"),
+			Href: f.links.Href("/systems/" + *ds.SystemID),
+		})
+	}
+	return append(links, common_shared.Link{
 		Rel:  common_shared.OGCRel("observations"),
-		Href: formaters.ToFunctionalAssociationHref("/datastreams/" + ds.ID + "/observations"),
-	}
-
-	systemLink := common_shared.Link{
-		Rel:  common_shared.OGCRel("systems"),
-		Href: formaters.ToFunctionalAssociationHref("/systems/" + *ds.SystemID),
-	}
-
-	links = append(links, systemLink)
-
-	return append(links, observationLink)
+		Href: f.links.Href("/datastreams/" + ds.ID + "/observations"),
+	})
 }

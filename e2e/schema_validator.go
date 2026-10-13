@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	"github.com/yourusername/connected-systems-go/internal/contractvalidation"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
 )
 
 // SchemaValidator keeps the E2E conformance tests on the exact schema bundle
@@ -34,7 +34,7 @@ func (v *SchemaValidator) ValidateJSON(schemaName string, data []byte) error {
 	return v.validator.ValidateSchema(schemaName, data)
 }
 
-func (v *SchemaValidator) ValidateInterface(schemaName string, data interface{}) error {
+func (v *SchemaValidator) ValidateInterface(schemaName string, data any) error {
 	encoded, err := json.Marshal(data)
 	if err != nil {
 		return err

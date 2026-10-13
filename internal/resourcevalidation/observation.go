@@ -6,11 +6,13 @@ import (
 	"math"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/emicklei/proto"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
 )
 
 func ValidateObservationAgainstDatastreamSchema(obs *domains.Observation, ds *domains.Datastream, contentType string) error {
@@ -25,7 +27,7 @@ func ValidateObservationAgainstDatastreamSchema(obs *domains.Observation, ds *do
 		schema = ds.Schema
 	}
 	if schema == nil {
-		return nil
+		return fmt.Errorf("result: datastream has no observation schema")
 	}
 
 	obsFormat := strings.TrimSpace(strings.ToLower(schema.ObsFormat))
@@ -35,7 +37,7 @@ func ValidateObservationAgainstDatastreamSchema(obs *domains.Observation, ds *do
 		if strings.Contains(ct, "protobuf") {
 			obsFormat = "application/x-protobuf"
 		} else {
-			obsFormat = "application/json"
+			obsFormat = mediatype.JSON
 		}
 	}
 
@@ -61,7 +63,7 @@ func validateObservationResultWithJSONLikeSchema(obs *domains.Observation, schem
 		component = schema.RecordSchema
 	}
 	if component == nil {
-		return nil
+		return fmt.Errorf("result: datastream has no result schema")
 	}
 
 	var value any
@@ -451,10 +453,8 @@ func validateNumericConstraint(c *domains.DatastreamConstraint, value any, path 
 	if len(c.Values) > 0 {
 		var values []float64
 		if err := json.Unmarshal(c.Values, &values); err == nil {
-			for _, v := range values {
-				if num == v {
-					return nil
-				}
+			if slices.Contains(values, num) {
+				return nil
 			}
 			return fmt.Errorf("%s value %v is not in declared allowed values", path, num)
 		}
@@ -495,10 +495,8 @@ func validateTimeConstraint(c *domains.DatastreamConstraint, value any, path str
 	if len(c.Values) > 0 {
 		var values []string
 		if err := json.Unmarshal(c.Values, &values); err == nil {
-			for _, v := range values {
-				if s == v {
-					return nil
-				}
+			if slices.Contains(values, s) {
+				return nil
 			}
 			return fmt.Errorf("%s value %q is not in declared allowed time values", path, s)
 		}
@@ -518,10 +516,8 @@ func validateTextConstraint(c *domains.DatastreamConstraint, value any, path str
 	if len(c.Values) > 0 {
 		var values []string
 		if err := json.Unmarshal(c.Values, &values); err == nil {
-			for _, v := range values {
-				if s == v {
-					return nil
-				}
+			if slices.Contains(values, s) {
+				return nil
 			}
 			return fmt.Errorf("%s value %q is not in declared allowed tokens", path, s)
 		}

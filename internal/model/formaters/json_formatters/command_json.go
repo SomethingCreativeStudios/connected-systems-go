@@ -2,97 +2,94 @@ package json_formatters
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
+	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
-// CommandJSONFeature is the wire-format representation of a command.
+// CommandJSONFeature is the application/json representation of a command.
+// Its fields are listed explicitly so the API shape does not follow the
+// database model.
 type CommandJSONFeature struct {
-	domains.Command
+	ID                string                   `json:"id"`
+	ControlStreamID   string                   `json:"controlstream@id"`
+	SamplingFeatureID *string                  `json:"samplingFeature@id,omitempty"`
+	ProcedureLink     *common_shared.Link      `json:"procedure@link,omitempty"`
+	IssueTime         *time.Time               `json:"issueTime"`
+	ExecutionTime     *common_shared.TimeRange `json:"executionTime,omitempty"`
+	Sender            string                   `json:"sender,omitempty"`
+	CurrentStatus     domains.CommandStatus    `json:"currentStatus,omitempty"`
+	Parameters        json.RawMessage          `json:"parameters,omitempty"`
+}
+
+// toDomain keeps the fields a client may write. issueTime is honored on
+// create (the repository ignores it on update); id, controlstream@id,
+// sender, currentStatus and executionTime are server-owned, the last two
+// set only by status reports.
+func (w CommandJSONFeature) toDomain() *domains.Command {
+	return &domains.Command{
+		SamplingFeatureID: w.SamplingFeatureID,
+		ProcedureLink:     w.ProcedureLink,
+		IssueTime:         w.IssueTime,
+		Parameters:        w.Parameters,
+	}
 }
 
 // CommandJSONFormatter handles command JSON serialization/deserialization.
 type CommandJSONFormatter struct {
-	formaters.Formatter[CommandJSONFeature, *domains.Command]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
-func NewCommandJSONFormatter(repos *repository.Repositories) *CommandJSONFormatter {
-	return &CommandJSONFormatter{repos: repos}
+var _ formaters.Formatter[CommandJSONFeature, *domains.Command] = (*CommandJSONFormatter)(nil)
+
+func NewCommandJSONFormatter(links *formaters.LinkResolver) *CommandJSONFormatter {
+	return &CommandJSONFormatter{links: links}
 }
 
 func (f *CommandJSONFormatter) ContentType() string {
-	return JSONContentType
+	return mediatype.JSON
 }
 
 func (f *CommandJSONFormatter) Serialize(ctx context.Context, cmd *domains.Command) (CommandJSONFeature, error) {
-	if cmd == nil {
-		return CommandJSONFeature{}, fmt.Errorf("command cannot be nil")
-	}
-	out := CommandJSONFeature{Command: *cmd}
-	if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
-		out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
-		if out.ProcedureLink.Type == "" {
-			out.ProcedureLink.Type = formaters.SensorMLContentType
-		}
-	}
-	return out, nil
+	return formaters.SerializeOne(ctx, cmd, f.SerializeAll)
 }
 
 func (f *CommandJSONFormatter) SerializeAll(ctx context.Context, commands []*domains.Command) ([]CommandJSONFeature, error) {
-	if len(commands) == 0 {
-		return []CommandJSONFeature{}, nil
-	}
+	commands = slices.DeleteFunc(slices.Clone(commands), func(cmd *domains.Command) bool { return cmd == nil })
 
-	// Collect procedure IDs for batch enrichment
-	procedureIDs := make([]string, 0, len(commands))
+	var procedureIDs []string
 	for _, cmd := range commands {
-		if cmd == nil {
-			continue
-		}
-		if cmd.ProcedureLink != nil && cmd.ProcedureLink.Href != "" {
-			id := cmd.ProcedureLink.GetId("procedures")
-			if id != nil && *id != "" {
-				procedureIDs = append(procedureIDs, *id)
-			}
+		if cmd.ProcedureLink != nil {
+			procedureIDs = appendID(procedureIDs, cmd.ProcedureLink.GetId("procedures"))
 		}
 	}
-
-	// Build resource cache for enriching inline links
-	cache := formaters.NewResourceCache()
-	if f.repos != nil && len(procedureIDs) > 0 {
-		_ = cache.FetchProcedures(ctx, f.repos.Procedure, procedureIDs)
+	cache, err := f.links.Lookup(ctx, formaters.References{Procedures: procedureIDs})
+	if err != nil {
+		return nil, err
 	}
 
 	items := make([]CommandJSONFeature, 0, len(commands))
 	for _, cmd := range commands {
-		if cmd == nil {
-			continue
-		}
-		out := CommandJSONFeature{Command: *cmd}
-		if out.ProcedureLink != nil && out.ProcedureLink.Href != "" {
-			out.ProcedureLink.Href = formaters.ToFunctionalAssociationHref(out.ProcedureLink.Href)
-			if out.ProcedureLink.Type == "" {
-				out.ProcedureLink.Type = formaters.SensorMLContentType
-			}
-			// Enrich procedure@link from cache
-			procID := out.ProcedureLink.GetId("procedures")
-			if procID != nil {
-				if proc, ok := cache.Procedures[*procID]; ok {
-					out.ProcedureLink.Title = proc.Name
-					uid := string(proc.UniqueIdentifier)
-					if uid != "" {
-						out.ProcedureLink.UID = &uid
-					}
-				}
-			}
-		}
-		items = append(items, out)
+		procedure := inlineLink(f.links, cmd.ProcedureLink, mediatype.SensorML)
+		describeProcedure(procedure, cache)
+		items = append(items, CommandJSONFeature{
+			ID:                cmd.ID,
+			ControlStreamID:   cmd.ControlStreamID,
+			SamplingFeatureID: cmd.SamplingFeatureID,
+			ProcedureLink:     procedure,
+			IssueTime:         cmd.IssueTime,
+			ExecutionTime:     cmd.ExecutionTime,
+			Sender:            cmd.Sender,
+			CurrentStatus:     cmd.CurrentStatus,
+			Parameters:        cmd.Parameters,
+		})
 	}
 	return items, nil
 }
@@ -102,7 +99,7 @@ func (f *CommandJSONFormatter) Deserialize(ctx context.Context, reader io.Reader
 	if err != nil {
 		return nil, err
 	}
-	wire, err := common_shared.DecodeWithFieldErrors[domains.Command](raw)
+	wire, err := common_shared.DecodeWithFieldErrors[CommandJSONFeature](raw)
 	if err != nil {
 		return nil, err
 	}
@@ -110,5 +107,5 @@ func (f *CommandJSONFormatter) Deserialize(ctx context.Context, reader io.Reader
 	if len(wire.Parameters) == 0 {
 		return nil, fmt.Errorf("parameters is required")
 	}
-	return &wire, nil
+	return wire.toDomain(), nil
 }

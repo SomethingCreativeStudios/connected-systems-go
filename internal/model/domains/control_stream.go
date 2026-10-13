@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // ControlStream represents an OGC Connected Systems control stream resource.
@@ -57,8 +58,6 @@ type ControlStream struct {
 	DeploymentID        *string `gorm:"type:varchar(255);index" json:"-"`
 	FeatureOfInterestID *string `gorm:"type:varchar(255);index" json:"-"`
 	SamplingFeatureID   *string `gorm:"type:varchar(255);index" json:"-"`
-
-	Systems []System `gorm:"many2many:system_controlstreams;" json:"-"`
 }
 
 // TableName specifies the table name.
@@ -82,7 +81,7 @@ func (p ControlStreamControlledProperties) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval.
-func (p *ControlStreamControlledProperties) Scan(value interface{}) error {
+func (p *ControlStreamControlledProperties) Scan(value any) error {
 	if value == nil {
 		return nil
 	}
@@ -113,7 +112,7 @@ func (s ControlStreamSchema) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval.
-func (s *ControlStreamSchema) Scan(value interface{}) error {
+func (s *ControlStreamSchema) Scan(value any) error {
 	if value == nil {
 		return nil
 	}
@@ -130,10 +129,10 @@ type ControlStreamSchemas []ControlStreamSchema
 
 // Upsert replaces the schema registered for the same command format, or
 // appends the schema when its format is new. An empty CommandFormat is
-// treated as "application/json".
+// treated as mediatype.JSON.
 func (s ControlStreamSchemas) Upsert(schema ControlStreamSchema) ControlStreamSchemas {
 	if schema.CommandFormat == "" {
-		schema.CommandFormat = "application/json"
+		schema.CommandFormat = mediatype.JSON
 	}
 	format := NormalizeMediaType(schema.CommandFormat)
 	for i := range s {
@@ -165,7 +164,7 @@ func (s ControlStreamSchemas) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval.
-func (s *ControlStreamSchemas) Scan(value interface{}) error {
+func (s *ControlStreamSchemas) Scan(value any) error {
 	if value == nil {
 		*s = nil
 		return nil

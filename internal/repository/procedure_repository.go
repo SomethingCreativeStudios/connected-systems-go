@@ -2,10 +2,9 @@ package repository
 
 import (
 	"context"
-	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -20,14 +19,14 @@ func NewProcedureRepository(db *gorm.DB) *ProcedureRepository {
 }
 
 // Create creates a new procedure
-func (r *ProcedureRepository) Create(procedure *domains.Procedure) error {
-	return r.db.Create(procedure).Error
+func (r *ProcedureRepository) Create(ctx context.Context, procedure *domains.Procedure) error {
+	return r.db.WithContext(ctx).Create(procedure).Error
 }
 
 // GetByID retrieves a procedure by ID
-func (r *ProcedureRepository) GetByID(id string) (*domains.Procedure, error) {
+func (r *ProcedureRepository) GetByID(ctx context.Context, id string) (*domains.Procedure, error) {
 	var procedure domains.Procedure
-	err := r.db.Where("id = ?", id).First(&procedure).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&procedure).Error
 	if err != nil {
 		return nil, err
 	}
@@ -35,60 +34,35 @@ func (r *ProcedureRepository) GetByID(id string) (*domains.Procedure, error) {
 }
 
 // List retrieves procedures with filtering
-func (r *ProcedureRepository) List(params *queryparams.ProceduresQueryParams) ([]*domains.Procedure, int64, error) {
-	var procedures []*domains.Procedure
-	var total int64
+func (r *ProcedureRepository) List(ctx context.Context, params *queryparams.ProceduresQueryParams) ([]*domains.Procedure, int64, error) {
 
-	query := r.db.Model(&domains.Procedure{})
+	query := r.db.WithContext(ctx).Model(&domains.Procedure{})
 	query = r.applyFilters(query, params)
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&procedures).Error
-	procedures = FinalizeCursorPage(procedures, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(procedures, func(procedure *domains.Procedure) []string { return []string{procedure.ID} })
-	return procedures, total, err
+	return listPage(query, &params.QueryParams, idOrder("procedures"), idAnchor[*domains.Procedure])
 }
 
 // ListBySystem retrieves procedures associated with a specific system.
-func (r *ProcedureRepository) ListBySystem(systemID string, params *queryparams.ProceduresQueryParams) ([]*domains.Procedure, int64, error) {
-	var procedures []*domains.Procedure
-	var total int64
+func (r *ProcedureRepository) ListBySystem(ctx context.Context, systemID string, params *queryparams.ProceduresQueryParams) ([]*domains.Procedure, int64, error) {
 
-	query := r.db.Model(&domains.Procedure{}).
-		Joins("JOIN system_procedures ON procedures.id = system_procedures.procedure_id").
-		Where("system_procedures.system_id = ?", systemID)
+	query := r.db.WithContext(ctx).Model(&domains.Procedure{}).
+		Where("procedures.id = (SELECT type_of_id FROM systems WHERE id = ?)", systemID)
 
 	query = r.applyFilters(query, params)
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&procedures).Error
-	procedures = FinalizeCursorPage(procedures, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(procedures, func(procedure *domains.Procedure) []string { return []string{procedure.ID} })
-	return procedures, total, err
+	return listPage(query, &params.QueryParams, idOrder("procedures"), idAnchor[*domains.Procedure])
 }
 
 // Update updates a procedure
-func (r *ProcedureRepository) Update(procedure *domains.Procedure) error {
-	return r.db.Save(procedure).Error
+func (r *ProcedureRepository) Update(ctx context.Context, procedure *domains.Procedure) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceByID(tx, procedure, nil)
+	})
 }
 
 // Delete deletes a procedure
-func (r *ProcedureRepository) Delete(id string) error {
-	result := r.db.Delete(&domains.Procedure{}, "id = ?", id)
+func (r *ProcedureRepository) Delete(ctx context.Context, id string) error {
+	result := r.db.WithContext(ctx).Delete(&domains.Procedure{}, "id = ?", id)
 	if result.Error != nil {
 		if isFKViolation(result.Error) {
 			return ErrHasChildren
@@ -104,40 +78,23 @@ func (r *ProcedureRepository) Delete(id string) error {
 func (r *ProcedureRepository) applyFilters(query *gorm.DB, params *queryparams.ProceduresQueryParams) *gorm.DB {
 
 	if len(params.IDs) > 0 {
-		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
+		query = query.Where("procedures.id IN ? OR procedures.unique_identifier IN ?", params.IDs, params.IDs)
 	}
 
-	if len(params.Q) > 0 {
-		var clauses []string
-		var args []interface{}
-		for _, term := range params.Q {
-			clauses = append(clauses, "name ILIKE ?")
-			args = append(args, "%"+term+"%")
-			clauses = append(clauses, "description ILIKE ?")
-			args = append(args, "%"+term+"%")
-		}
-		query = query.Where(strings.Join(clauses, " OR "), args...)
-	}
+	query = applyKeywordFilter(query, params.Q, "procedures.name", "procedures.description")
 
-	if params.DateTime != nil {
-		// Only add conditions if start/end are not nil
-		if params.DateTime.Start != nil && params.DateTime.End != nil {
-			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.DateTime.End, params.DateTime.Start)
-		} else if params.DateTime.Start != nil {
-			query = query.Where("valid_time_end IS NULL OR valid_time_end >= ?", params.DateTime.Start)
-		} else if params.DateTime.End != nil {
-			query = query.Where("valid_time_start <= ?", params.DateTime.End)
-		}
-	}
+	query = applyValidTimeFilter(query, "procedures", params.DateTime)
 
+	// EXISTS rather than JOIN so a procedure matching several of the
+	// requested properties is still returned once.
 	if len(params.ControlledProperty) > 0 {
-		query = query.Joins("JOIN procedure_controlled_properties ON procedures.id = procedure_controlled_properties.procedure_id").
-			Where("procedure_controlled_properties.property_id IN ?", params.ControlledProperty)
+		query = query.Where(`EXISTS (SELECT 1 FROM procedure_controlled_properties pcp
+			WHERE pcp.procedure_id = procedures.id AND pcp.property_id IN ?)`, params.ControlledProperty)
 	}
 
 	if len(params.ObservedProperty) > 0 {
-		query = query.Joins("JOIN procedure_observed_properties ON procedures.id = procedure_observed_properties.procedure_id").
-			Where("procedure_observed_properties.property_id IN ?", params.ObservedProperty)
+		query = query.Where(`EXISTS (SELECT 1 FROM procedure_observed_properties pop
+			WHERE pop.procedure_id = procedures.id AND pop.property_id IN ?)`, params.ObservedProperty)
 	}
 
 	return applyCQLFilter(query, &params.QueryParams)

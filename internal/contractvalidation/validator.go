@@ -10,12 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"mime"
 	"path"
 	"sort"
 	"strings"
 	"sync"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 	"golang.org/x/text/language"
@@ -43,25 +43,19 @@ const (
 	CommandResult   Resource = "commandResult"
 )
 
-const (
-	geoJSONContentType  = "application/geo+json"
-	sensorMLContentType = "application/sml+json"
-	jsonContentType     = "application/json"
-)
-
 var resourceSchemas = map[Resource]map[string]string{
 	Deployment: {
-		geoJSONContentType:  "geojson/deployment-bundled.json",
-		sensorMLContentType: "sensorml/deployment-bundled.json",
+		mediatype.GeoJSON:  "geojson/deployment-bundled.json",
+		mediatype.SensorML: "sensorml/deployment-bundled.json",
 	},
 	Procedure: {
-		geoJSONContentType:  "geojson/procedure-bundled.json",
-		sensorMLContentType: "sensorml/procedure-bundled.json",
+		mediatype.GeoJSON:  "geojson/procedure-bundled.json",
+		mediatype.SensorML: "sensorml/procedure-bundled.json",
 	},
-	SamplingFeature: {geoJSONContentType: "geojson/samplingFeature-bundled.json"},
+	SamplingFeature: {mediatype.GeoJSON: "geojson/samplingFeature-bundled.json"},
 	// The remaining writable resources use strict typed decoding and their
-	// endpoint-specific semantic validators. Their bundled response schemas
-	// contain invalid local JSON pointers or server-assigned read-only fields,
+	// endpoint-specific semantic validators. Their response schemas
+	// require server-assigned read-only fields,
 	// so applying those response documents to a create request would reject
 	// valid requests. They remain embedded for E2E response conformance.
 }
@@ -107,7 +101,7 @@ func New() *Validator {
 // specific semantic validation below; their typed decoders remain responsible
 // for strict field/type validation.
 func (v *Validator) Validate(resource Resource, contentType string, body []byte) error {
-	mediaType := normalizeContentType(contentType)
+	mediaType := mediatype.Normalize(contentType)
 	var value any
 	if err := json.Unmarshal(body, &value); err != nil {
 		return err
@@ -181,6 +175,7 @@ func (v *Validator) load(schemaName string) (*jsonschema.Schema, error) {
 
 func (v *Validator) initialize() {
 	compiler := jsonschema.NewCompiler()
+	compiler.UseLoader(embeddedOnlyLoader{})
 	err := fs.WalkDir(schemaFiles, "schemas", func(fileName string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -196,6 +191,12 @@ func (v *Validator) initialize() {
 		if err := json.Unmarshal(contents, &schemaDocument); err != nil {
 			return fmt.Errorf("decode %s: %w", fileName, err)
 		}
+		if strings.HasPrefix(fileName, "schemas/vendor/geojson/") {
+			document := schemaDocument.(map[string]any)
+			if err := compiler.AddResource(document["$id"].(string), schemaDocument); err != nil {
+				return err
+			}
+		}
 		return compiler.AddResource("file:///"+path.Clean(fileName), schemaDocument)
 	})
 	if err != nil {
@@ -203,14 +204,6 @@ func (v *Validator) initialize() {
 		return
 	}
 	v.compiler = compiler
-}
-
-func normalizeContentType(contentType string) string {
-	mediaType, _, err := mime.ParseMediaType(contentType)
-	if err == nil && mediaType != "" {
-		return strings.ToLower(mediaType)
-	}
-	return strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
 }
 
 func schemaError(resource Resource, contentType string, err error) error {
@@ -308,11 +301,11 @@ func dottedPath(parts []string) string {
 
 func requiredFieldPath(path, message string) string {
 	for _, marker := range []string{"missing property '", "missing properties "} {
-		idx := strings.Index(message, marker)
-		if idx < 0 {
+		_, after, ok := strings.Cut(message, marker)
+		if !ok {
 			continue
 		}
-		rest := message[idx+len(marker):]
+		rest := after
 		if marker == "missing properties " {
 			rest = strings.TrimSpace(rest)
 			if len(rest) == 0 || rest[0] != '\'' {
@@ -352,7 +345,14 @@ func uniqueViolations(in []Violation) []Violation {
 }
 
 func validateRepresentation(resource Resource, contentType string, value any) error {
-	if resource == Procedure && contentType == geoJSONContentType {
+	if resource == Datastream || resource == ControlStream {
+		if object, ok := value.(map[string]any); ok {
+			if schema, exists := object["schema"]; exists && schema == nil {
+				return semanticError(resource, contentType, "schema", "must be an object; omit it to retain the current schema")
+			}
+		}
+	}
+	if resource == Procedure && contentType == mediatype.GeoJSON {
 		return &Error{
 			Resource: resource, ContentType: contentType,
 			Details: []Violation{{
@@ -370,7 +370,7 @@ func validateRepresentation(resource Resource, contentType string, value any) er
 		return semanticError(resource, contentType, "$", "must be a JSON object")
 	}
 
-	if contentType == sensorMLContentType {
+	if contentType == mediatype.SensorML {
 		if processType, exists := object["type"]; exists && !validProcessType(processType) {
 			return semanticError(resource, contentType, "type", "must be one of SimpleProcess, AggregateProcess, PhysicalComponent, or PhysicalSystem")
 		}
@@ -389,7 +389,7 @@ func validateRepresentation(resource Resource, contentType string, value any) er
 		}
 	}
 
-	if resource == System && contentType == geoJSONContentType {
+	if resource == System && contentType == mediatype.GeoJSON {
 		if properties, ok := object["properties"].(map[string]any); ok {
 			if definition, exists := properties["featureType"]; exists && !validDefinition(resource, definition) {
 				return semanticError(resource, contentType, "properties.featureType", allowedDefinitionsMessage(resource))
@@ -499,4 +499,12 @@ func rawObjects(value any) []indexedObject {
 		}
 	}
 	return result
+}
+
+// Missing dependencies fail deterministically; validation never falls back to
+// fetching a schema from the network or reading an arbitrary local file.
+type embeddedOnlyLoader struct{}
+
+func (embeddedOnlyLoader) Load(schemaURL string) (any, error) {
+	return nil, fmt.Errorf("schema resource is not embedded: %s", schemaURL)
 }

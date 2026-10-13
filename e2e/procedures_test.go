@@ -22,14 +22,14 @@ const (
 func setupProcedureConformanceData(t *testing.T) []string {
 	t.Helper()
 
-	testProcedures := []map[string]interface{}{
+	testProcedures := []map[string]any{
 		{
 			"type":        "SimpleProcess",
 			"uniqueId":    "urn:ogc:conf:procedure:simple-001",
 			"label":       "Simple Measurement Procedure",
 			"description": "A simple procedure for measuring temperature",
 			"definition":  "http://www.w3.org/ns/sosa/Procedure",
-			"inputs": []map[string]interface{}{
+			"inputs": []map[string]any{
 				{
 					"name":           "input1",
 					"id":             "string",
@@ -125,12 +125,12 @@ func TestProcedureConformance(t *testing.T) {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				var collection map[string]interface{}
+				var collection map[string]any
 				err = json.Unmarshal(body, &collection)
 				require.NoError(t, err, "Response must be valid JSON")
 
 				// sml+json collections use an "items" array (OGC /req/sensorml/collection-items)
-				items, ok := collection["items"].([]interface{})
+				items, ok := collection["items"].([]any)
 				assert.True(t, ok, "Response must contain 'items' array")
 				assert.GreaterOrEqual(t, len(items), 1, "Collection must contain at least one procedure")
 			},
@@ -182,7 +182,7 @@ func TestProcedureConformance(t *testing.T) {
 						assert.Equal(t, http.StatusOK, resp.StatusCode, "GET /procedures/{id} must return 200 OK")
 
 						// Verify ID in response matches
-						var proc map[string]interface{}
+						var proc map[string]any
 						err = json.NewDecoder(resp.Body).Decode(&proc)
 						require.NoError(t, err)
 						assert.Equal(t, id, proc["id"], "Returned procedure ID must match requested ID")
@@ -260,7 +260,7 @@ func TestProcedureConformance(t *testing.T) {
 						require.NoError(t, err)
 						defer resp.Body.Close()
 
-						var proc map[string]interface{}
+						var proc map[string]any
 						err = json.NewDecoder(resp.Body).Decode(&proc)
 						require.NoError(t, err)
 
@@ -291,7 +291,7 @@ func TestProcedureConformance(t *testing.T) {
 						require.NoError(t, err)
 						defer resp.Body.Close()
 
-						var proc map[string]interface{}
+						var proc map[string]any
 						err = json.NewDecoder(resp.Body).Decode(&proc)
 						require.NoError(t, err)
 
@@ -318,12 +318,12 @@ func TestProcedureConformance(t *testing.T) {
 						require.NoError(t, err)
 						defer resp.Body.Close()
 
-						var feat map[string]interface{}
+						var feat map[string]any
 						err = json.NewDecoder(resp.Body).Decode(&feat)
 						require.NoError(t, err)
 
 						// Ensure GeoJSON Feature properties contain expected mappings
-						props, ok := feat["properties"].(map[string]interface{})
+						props, ok := feat["properties"].(map[string]any)
 						require.True(t, ok, "GeoJSON Feature must have properties object")
 						assert.NotEmpty(t, props["uid"], "GeoJSON properties must include uid")
 						assert.NotEmpty(t, props["name"], "GeoJSON properties must include name/label")
@@ -357,7 +357,7 @@ func TestProcedureCRUD_Create(t *testing.T) {
 			name:        "sml+json",
 			contentType: "application/sml+json",
 			makePayload: func(suffix string) []byte {
-				payload := map[string]interface{}{
+				payload := map[string]any{
 					"type":        "SimpleProcess",
 					"uniqueId":    "urn:test:procedure:crud-" + suffix,
 					"label":       "CRUD Test Procedure",
@@ -411,7 +411,7 @@ func TestProcedureCRUD_Replace(t *testing.T) {
 			name:        "sml+json",
 			contentType: "application/sml+json",
 			makeCreatePayload: func(suffix string) []byte {
-				payload := map[string]interface{}{
+				payload := map[string]any{
 					"type":        "SimpleProcess",
 					"uniqueId":    "urn:test:procedure:update-" + suffix,
 					"label":       "Procedure to Update",
@@ -422,7 +422,7 @@ func TestProcedureCRUD_Replace(t *testing.T) {
 				return b
 			},
 			makeUpdatePayload: func(suffix string) []byte {
-				payload := map[string]interface{}{
+				payload := map[string]any{
 					"type":        "SimpleProcess",
 					"uniqueId":    "urn:test:procedure:update-" + suffix,
 					"label":       "Updated Procedure",
@@ -466,7 +466,7 @@ func TestProcedureCRUD_Replace(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			var result map[string]interface{}
+			var result map[string]any
 			json.NewDecoder(resp.Body).Decode(&result)
 
 			assert.Equal(t, "Updated Procedure", result["label"])
@@ -487,7 +487,7 @@ func TestProcedureCRUD_Delete(t *testing.T) {
 
 	// Delete behavior is content-type agnostic. Create a single procedure
 	// (using SML payload) and verify delete/gone semantics.
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"type":       "SimpleProcess",
 		"uniqueId":   "urn:test:procedure:delete-001",
 		"label":      "Procedure to Delete",

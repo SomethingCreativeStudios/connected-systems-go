@@ -17,7 +17,7 @@ import (
 // observations/commands: start = earliest child, end = latest child.
 // =============================================================================
 
-func putJSONResource(t *testing.T, path string, payload map[string]interface{}) {
+func putJSONResource(t *testing.T, path string, payload map[string]any) {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -32,9 +32,9 @@ func putJSONResource(t *testing.T, path string, payload map[string]interface{}) 
 
 // postCommandStatus files a status report for a command — the only path that
 // may set a command's (read-only) executionTime.
-func postCommandStatus(t *testing.T, commandID, statusCode string, executionTime []interface{}) {
+func postCommandStatus(t *testing.T, commandID, statusCode string, executionTime []any) {
 	t.Helper()
-	payload := map[string]interface{}{"statusCode": statusCode}
+	payload := map[string]any{"statusCode": statusCode}
 	if executionTime != nil {
 		payload["executionTime"] = executionTime
 	}
@@ -62,16 +62,16 @@ func deleteResourceViaAPI(t *testing.T, path string) {
 // assertTimeRange asserts the value is a 2-element [start, end] RFC3339 array.
 // Bounds are compared as instants, since the server may render them in a
 // non-UTC offset after a database round-trip.
-func assertTimeRange(t *testing.T, v interface{}, start, end, msg string) {
+func assertTimeRange(t *testing.T, v any, start, end, msg string) {
 	t.Helper()
-	arr, ok := v.([]interface{})
+	arr, ok := v.([]any)
 	require.True(t, ok, "%s: expected time range array, got %T (%v)", msg, v, v)
 	require.Len(t, arr, 2, "%s: expected [start, end]", msg)
 	assertTimeInstant(t, arr[0], start, msg+": start")
 	assertTimeInstant(t, arr[1], end, msg+": end")
 }
 
-func assertTimeInstant(t *testing.T, v interface{}, expected, msg string) {
+func assertTimeInstant(t *testing.T, v any, expected, msg string) {
 	t.Helper()
 	s, ok := v.(string)
 	require.True(t, ok, "%s: expected RFC3339 string, got %T (%v)", msg, v, v)
@@ -96,22 +96,22 @@ func TestDatastream_TimeRanges_ComputedFromObservations(t *testing.T) {
 	ds := getJSONResource(t, "/datastreams/"+dsID, "application/json")
 	assert.Nil(t, ds["phenomenonTime"], "empty datastream must report null phenomenonTime")
 	assert.Nil(t, ds["resultTime"], "empty datastream must report null resultTime")
-	assert.Equal(t, []interface{}{"application/json"}, ds["formats"], "formats must be derived from the schema obsFormat")
+	assert.Equal(t, []any{"application/json"}, ds["formats"], "formats must be derived from the schema obsFormat")
 
-	createObservationViaAPI(t, dsID, map[string]interface{}{
+	createObservationViaAPI(t, dsID, map[string]any{
 		"phenomenonTime": "2026-01-01T00:00:00Z",
 		"resultTime":     "2026-01-01T01:00:00Z",
-		"result":         map[string]interface{}{"temperature": 20.0, "humidity": 40.0},
+		"result":         map[string]any{"temperature": 20.0, "humidity": 40.0},
 	})
 	// No phenomenonTime — defaults to resultTime. This is the newest observation.
-	newestObsID := createObservationViaAPI(t, dsID, map[string]interface{}{
+	newestObsID := createObservationViaAPI(t, dsID, map[string]any{
 		"resultTime": "2026-03-01T00:00:00Z",
-		"result":     map[string]interface{}{"temperature": 21.0, "humidity": 40.0},
+		"result":     map[string]any{"temperature": 21.0, "humidity": 40.0},
 	})
-	createObservationViaAPI(t, dsID, map[string]interface{}{
+	createObservationViaAPI(t, dsID, map[string]any{
 		"phenomenonTime": "2025-06-01T00:00:00Z",
 		"resultTime":     "2026-02-01T00:00:00Z",
-		"result":         map[string]interface{}{"temperature": 22.0, "humidity": 40.0},
+		"result":         map[string]any{"temperature": 22.0, "humidity": 40.0},
 	})
 
 	ds = getJSONResource(t, "/datastreams/"+dsID, "application/json")
@@ -120,10 +120,10 @@ func TestDatastream_TimeRanges_ComputedFromObservations(t *testing.T) {
 
 	// The list endpoint must report the same computed extents.
 	listed := getJSONResource(t, "/systems/"+systemID+"/datastreams", "application/json")
-	items, ok := listed["items"].([]interface{})
+	items, ok := listed["items"].([]any)
 	require.True(t, ok, "expected items array in datastream list")
 	require.Len(t, items, 1)
-	listedDS, ok := items[0].(map[string]interface{})
+	listedDS, ok := items[0].(map[string]any)
 	require.True(t, ok)
 	assertTimeRange(t, listedDS["phenomenonTime"], "2025-06-01T00:00:00Z", "2026-03-01T00:00:00Z", "phenomenonTime in list")
 	assertTimeRange(t, listedDS["resultTime"], "2026-01-01T01:00:00Z", "2026-03-01T00:00:00Z", "resultTime in list")
@@ -160,27 +160,27 @@ func TestControlStream_TimeRanges_ComputedFromCommands(t *testing.T) {
 	cs := getJSONResource(t, "/controlstreams/"+csID, "application/json")
 	assert.Nil(t, cs["issueTime"], "empty control stream must report null issueTime")
 	assert.Nil(t, cs["executionTime"], "empty control stream must report null executionTime")
-	assert.Equal(t, []interface{}{"application/json"}, cs["formats"], "formats must be derived from the schema commandFormat")
+	assert.Equal(t, []any{"application/json"}, cs["formats"], "formats must be derived from the schema commandFormat")
 
 	// executionTime is read-only on commands: it is populated from status
 	// reports, never from the command body (client-supplied values ignored).
-	boundedCmdID := createCommandViaAPI(t, csID, map[string]interface{}{
-		"parameters":    map[string]interface{}{"setPoint": 20.0},
+	boundedCmdID := createCommandViaAPI(t, csID, map[string]any{
+		"parameters":    map[string]any{"setPoint": 20.0},
 		"issueTime":     "2026-01-01T00:00:00Z",
 		"executionTime": []string{"1999-01-01T00:00:00Z", "1999-01-02T00:00:00Z"},
 	})
-	postCommandStatus(t, boundedCmdID, "EXECUTING", []interface{}{"2026-01-02T00:00:00Z", "2026-01-03T00:00:00Z"})
+	postCommandStatus(t, boundedCmdID, "EXECUTING", []any{"2026-01-02T00:00:00Z", "2026-01-03T00:00:00Z"})
 	// No executionTime — contributes only to issueTime. This is the newest issue time.
-	newestCmdID := createCommandViaAPI(t, csID, map[string]interface{}{
-		"parameters": map[string]interface{}{"setPoint": 21.0},
+	newestCmdID := createCommandViaAPI(t, csID, map[string]any{
+		"parameters": map[string]any{"setPoint": 21.0},
 		"issueTime":  "2026-02-01T00:00:00Z",
 	})
 	// Open-ended executionTime counts as a point at its start.
-	openCmdID := createCommandViaAPI(t, csID, map[string]interface{}{
-		"parameters": map[string]interface{}{"setPoint": 22.0},
+	openCmdID := createCommandViaAPI(t, csID, map[string]any{
+		"parameters": map[string]any{"setPoint": 22.0},
 		"issueTime":  "2025-12-01T00:00:00Z",
 	})
-	postCommandStatus(t, openCmdID, "EXECUTING", []interface{}{"2026-03-01T00:00:00Z", nil})
+	postCommandStatus(t, openCmdID, "EXECUTING", []any{"2026-03-01T00:00:00Z", nil})
 
 	cs = getJSONResource(t, "/controlstreams/"+csID, "application/json")
 	assertTimeRange(t, cs["issueTime"], "2025-12-01T00:00:00Z", "2026-02-01T00:00:00Z", "issueTime after 3 commands")
@@ -188,22 +188,22 @@ func TestControlStream_TimeRanges_ComputedFromCommands(t *testing.T) {
 
 	// The list endpoint must report the same computed extents.
 	listed := getJSONResource(t, "/systems/"+systemID+"/controlstreams", "application/json")
-	items, ok := listed["items"].([]interface{})
+	items, ok := listed["items"].([]any)
 	require.True(t, ok, "expected items array in control stream list")
 	require.Len(t, items, 1)
-	listedCS, ok := items[0].(map[string]interface{})
+	listedCS, ok := items[0].(map[string]any)
 	require.True(t, ok)
 	assertTimeRange(t, listedCS["issueTime"], "2025-12-01T00:00:00Z", "2026-02-01T00:00:00Z", "issueTime in list")
 	assertTimeRange(t, listedCS["executionTime"], "2026-01-02T00:00:00Z", "2026-03-01T00:00:00Z", "executionTime in list")
 
 	// A newer status report widens the command's execution time — the extent
 	// must be recomputed. A command PUT with bogus read-only fields must not.
-	putJSONResource(t, "/commands/"+boundedCmdID, map[string]interface{}{
-		"parameters":    map[string]interface{}{"setPoint": 20.0},
+	putJSONResource(t, "/commands/"+boundedCmdID, map[string]any{
+		"parameters":    map[string]any{"setPoint": 20.0},
 		"issueTime":     "1999-01-01T00:00:00Z",
 		"executionTime": []string{"1999-01-01T00:00:00Z", "1999-01-02T00:00:00Z"},
 	})
-	postCommandStatus(t, boundedCmdID, "COMPLETED", []interface{}{"2026-01-02T00:00:00Z", "2026-04-01T00:00:00Z"})
+	postCommandStatus(t, boundedCmdID, "COMPLETED", []any{"2026-01-02T00:00:00Z", "2026-04-01T00:00:00Z"})
 
 	cs = getJSONResource(t, "/controlstreams/"+csID, "application/json")
 	assertTimeRange(t, cs["issueTime"], "2025-12-01T00:00:00Z", "2026-02-01T00:00:00Z", "issueTime unchanged by command PUT (read-only)")

@@ -18,8 +18,8 @@ const (
 	SystemEventJSONSchema = "json/systemEvent-bundled.json"
 )
 
-func baseSystemEventPayload(label string) map[string]interface{} {
-	return map[string]interface{}{
+func baseSystemEventPayload(label string) map[string]any {
+	return map[string]any{
 		"definition":  "https://example.org/event/calibration",
 		"label":       label,
 		"description": "Calibration performed",
@@ -27,7 +27,7 @@ func baseSystemEventPayload(label string) map[string]interface{} {
 	}
 }
 
-func createSystemEventViaAPI(t *testing.T, systemID string, payload map[string]interface{}) string {
+func createSystemEventViaAPI(t *testing.T, systemID string, payload map[string]any) string {
 	t.Helper()
 
 	body, err := json.Marshal(payload)
@@ -50,27 +50,24 @@ func createSystemEventViaAPI(t *testing.T, systemID string, payload map[string]i
 	return eventID
 }
 
-func requireSystemEventSchemaOrSkip(t *testing.T, body []byte, schema string) {
+func requireSystemEventSchema(t *testing.T, body []byte, schema string) {
 	t.Helper()
 	err := validateAgainstSchema(t, body, schema)
-	if err != nil && strings.Contains(err.Error(), "failed to compile schema") {
-		t.Skipf("skipping schema assertion due invalid bundled schema refs: %v", err)
-	}
 	require.NoError(t, err)
 }
 
-func baseSystemWithValidTimePayload(name string, start, end string) map[string]interface{} {
+func baseSystemWithValidTimePayload(name string, start, end string) map[string]any {
 	uid := "urn:uuid:" + uuid.NewString()
-	return map[string]interface{}{
+	return map[string]any{
 		"type": "Feature",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"uid":         uid,
 			"name":        name,
 			"featureType": "http://www.w3.org/ns/sosa/Sensor",
 			"assetType":   "Equipment",
 			"validTime":   []string{start, end},
 		},
-		"geometry": map[string]interface{}{
+		"geometry": map[string]any{
 			"type":        "Point",
 			"coordinates": []float64{-117.1625, 32.715},
 		},
@@ -97,18 +94,18 @@ func TestSystemEvent_ResourcesEndpoint(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
 
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
-		obj, _ := item.(map[string]interface{})
+		obj, _ := item.(map[string]any)
 		if id, _ := obj["id"].(string); id == eventID {
 			found = true
 			break
@@ -133,7 +130,7 @@ func TestSystemEvent_CanonicalURL(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var event map[string]interface{}
+	var event map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&event))
 	assert.Equal(t, eventID, event["id"])
 	assert.Equal(t, payload["label"], event["label"])
@@ -156,7 +153,7 @@ func TestSystemEventSchema_JSON(t *testing.T) {
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	requireSystemEventSchemaOrSkip(t, body, SystemEventJSONSchema)
+	requireSystemEventSchema(t, body, SystemEventJSONSchema)
 }
 
 // =============================================================================
@@ -174,17 +171,17 @@ func TestSystemEvent_SystemSubCollection(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
-		obj, _ := item.(map[string]interface{})
+		obj, _ := item.(map[string]any)
 		if id, _ := obj["id"].(string); id == eventID {
 			found = true
 		}
@@ -216,7 +213,7 @@ func TestSystemEventCRUD(t *testing.T) {
 
 	getResp := doGet(t, "/systems/"+systemID+"/events/"+eventID)
 	defer getResp.Body.Close()
-	var got map[string]interface{}
+	var got map[string]any
 	require.NoError(t, json.NewDecoder(getResp.Body).Decode(&got))
 	assert.Equal(t, "Updated Event", got["label"])
 
@@ -252,17 +249,17 @@ func TestSystemEvent_Filtering(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok)
 	assert.GreaterOrEqual(t, len(items), 1)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 
 	for _, item := range items {
-		obj, _ := item.(map[string]interface{})
+		obj, _ := item.(map[string]any)
 		assert.Equal(t, "https://example.org/event/calibration", obj["definition"])
 	}
 }
@@ -277,12 +274,12 @@ func TestSystemEvent_FilteringNoMatches(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok)
 	assert.Len(t, items, 0)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 }
@@ -292,7 +289,7 @@ func TestSystemEvent_CreateArrayPayload(t *testing.T) {
 
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Event Array Parent"))
 
-	payload := []map[string]interface{}{
+	payload := []map[string]any{
 		baseSystemEventPayload("Batch Event 1"),
 		baseSystemEventPayload("Batch Event 2"),
 	}
@@ -313,18 +310,18 @@ func TestSystemEvent_CreateArrayPayload(t *testing.T) {
 	defer listResp.Body.Close()
 	require.Equal(t, http.StatusOK, listResp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(listResp.Body).Decode(&collection))
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok)
 	require.GreaterOrEqual(t, len(items), 2)
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 
 	labels := map[string]bool{}
 	for _, item := range items {
-		obj, _ := item.(map[string]interface{})
+		obj, _ := item.(map[string]any)
 		if label, ok := obj["label"].(string); ok {
 			labels[label] = true
 		}
@@ -337,7 +334,7 @@ func TestSystemEvent_InvalidArrayLeavesNoRecords(t *testing.T) {
 	cleanupDB(t)
 
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Invalid Event Array Parent"))
-	payload := []map[string]interface{}{
+	payload := []map[string]any{
 		baseSystemEventPayload("Would otherwise be persisted"),
 		{"label": "Missing required event fields"},
 	}
@@ -361,7 +358,7 @@ func TestSystemEvent_InvalidArrayLeavesNoRecords(t *testing.T) {
 	listResp := doGet(t, "/systems/"+systemID+"/events")
 	defer listResp.Body.Close()
 	require.Equal(t, http.StatusOK, listResp.StatusCode)
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(listResp.Body).Decode(&collection))
 	require.Empty(t, collection["items"])
 }
@@ -378,15 +375,15 @@ func TestSystemEvent_PaginationLinks(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, links)
 
 	byRel := map[string]string{}
 	for _, l := range links {
-		obj, _ := l.(map[string]interface{})
+		obj, _ := l.(map[string]any)
 		rel, _ := obj["rel"].(string)
 		href, _ := obj["href"].(string)
 		if rel != "" && href != "" {
@@ -399,23 +396,23 @@ func TestSystemEvent_PaginationLinks(t *testing.T) {
 	assert.True(t, strings.Contains(byRel["next"], "cursor="), "next link must contain an opaque cursor")
 	assert.NotContains(t, byRel["next"], "offset=")
 
-	firstItems, ok := collection["items"].([]interface{})
+	firstItems, ok := collection["items"].([]any)
 	require.True(t, ok)
 	require.Len(t, firstItems, 1)
-	firstID := firstItems[0].(map[string]interface{})["id"].(string)
+	firstID := firstItems[0].(map[string]any)["id"].(string)
 
 	nextResp, err := http.Get(byRel["next"])
 	require.NoError(t, err)
 	defer nextResp.Body.Close()
 	require.Equal(t, http.StatusOK, nextResp.StatusCode)
 
-	var nextCollection map[string]interface{}
+	var nextCollection map[string]any
 	require.NoError(t, json.NewDecoder(nextResp.Body).Decode(&nextCollection))
-	nextLinks, ok := nextCollection["links"].([]interface{})
+	nextLinks, ok := nextCollection["links"].([]any)
 	require.True(t, ok)
 	var prevURL string
 	for _, link := range nextLinks {
-		obj, _ := link.(map[string]interface{})
+		obj, _ := link.(map[string]any)
 		if obj["rel"] != "prev" {
 			continue
 		}
@@ -427,11 +424,11 @@ func TestSystemEvent_PaginationLinks(t *testing.T) {
 	require.NoError(t, err)
 	defer prevResp.Body.Close()
 	require.Equal(t, http.StatusOK, prevResp.StatusCode)
-	var prevCollection map[string]interface{}
+	var prevCollection map[string]any
 	require.NoError(t, json.NewDecoder(prevResp.Body).Decode(&prevCollection))
-	prevItems := prevCollection["items"].([]interface{})
+	prevItems := prevCollection["items"].([]any)
 	require.Len(t, prevItems, 1)
-	assert.Equal(t, firstID, prevItems[0].(map[string]interface{})["id"])
+	assert.Equal(t, firstID, prevItems[0].(map[string]any)["id"])
 }
 
 func TestSystemEvent_OffsetIsRejected(t *testing.T) {
@@ -574,7 +571,7 @@ func TestSystemHistory_PaginationLinks(t *testing.T) {
 	end := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
 	systemID := createSystemViaAPI(t, "/systems", baseSystemWithValidTimePayload("History Pagination Parent", start, end))
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		payload := baseSystemWithValidTimePayload("History Pagination Update", start, end)
 		updBody, _ := json.Marshal(payload)
 		putReq, _ := http.NewRequest(http.MethodPut, testServer.URL+"/systems/"+systemID, bytes.NewReader(updBody))
@@ -589,15 +586,15 @@ func TestSystemHistory_PaginationLinks(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&collection))
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, links)
 
 	byRel := map[string]string{}
 	for _, l := range links {
-		obj, _ := l.(map[string]interface{})
+		obj, _ := l.(map[string]any)
 		rel, _ := obj["rel"].(string)
 		href, _ := obj["href"].(string)
 		if rel != "" && href != "" {
@@ -621,8 +618,8 @@ func TestSystemEvent_List_LatestDatetime_ReturnsMostRecent(t *testing.T) {
 
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Event Latest System"))
 
-	makeEvent := func(label, ts string) map[string]interface{} {
-		return map[string]interface{}{
+	makeEvent := func(label, ts string) map[string]any {
+		return map[string]any{
 			"definition":  "https://example.org/event/calibration",
 			"label":       label,
 			"description": "Test event",
@@ -649,7 +646,7 @@ func TestSystemEvent_List_LatestDatetime_ReturnsMostRecent(t *testing.T) {
 	items := getJSONItems(t, body)
 	require.Equal(t, 1, len(items), "expected exactly one system event for ?datetime=latest")
 
-	ev, ok := items[0].(map[string]interface{})
+	ev, ok := items[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, newestID, ev["id"], "expected the system event with the most-recent time")
 }
@@ -663,8 +660,8 @@ func TestSystemEvent_List_LatestEventTimeAlias_ReturnsMostRecent(t *testing.T) {
 
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Event Alias System"))
 
-	makeEvent := func(label, ts string) map[string]interface{} {
-		return map[string]interface{}{
+	makeEvent := func(label, ts string) map[string]any {
+		return map[string]any{
 			"definition":  "https://example.org/event/calibration",
 			"label":       label,
 			"description": "Test event",
@@ -690,7 +687,7 @@ func TestSystemEvent_List_LatestEventTimeAlias_ReturnsMostRecent(t *testing.T) {
 	items := getJSONItems(t, body)
 	require.Equal(t, 1, len(items), "expected exactly one system event for ?eventTime=latest")
 
-	ev, ok := items[0].(map[string]interface{})
+	ev, ok := items[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, newestID, ev["id"], "expected the system event with the most-recent time via alias")
 }

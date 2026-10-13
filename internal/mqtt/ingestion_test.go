@@ -1,15 +1,16 @@
 package mqtt
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/pubsub"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +18,7 @@ type fakeDatastreamStore struct {
 	datastream *domains.Datastream
 }
 
-func (s *fakeDatastreamStore) GetByID(id string) (*domains.Datastream, error) {
+func (s *fakeDatastreamStore) GetByID(_ context.Context, id string) (*domains.Datastream, error) {
 	if s.datastream == nil || s.datastream.ID != id {
 		return nil, repository.ErrNotFound
 	}
@@ -30,7 +31,7 @@ type fakeObservationStore struct {
 	updates int
 }
 
-func (s *fakeObservationStore) GetByID(id string) (*domains.Observation, error) {
+func (s *fakeObservationStore) GetByID(_ context.Context, id string) (*domains.Observation, error) {
 	observation, exists := s.items[id]
 	if !exists {
 		return nil, repository.ErrNotFound
@@ -38,14 +39,14 @@ func (s *fakeObservationStore) GetByID(id string) (*domains.Observation, error) 
 	return observation, nil
 }
 
-func (s *fakeObservationStore) Create(observation *domains.Observation) error {
+func (s *fakeObservationStore) Create(_ context.Context, observation *domains.Observation) error {
 	s.creates++
 	copy := *observation
 	s.items[observation.ID] = &copy
 	return nil
 }
 
-func (s *fakeObservationStore) Update(observation *domains.Observation) error {
+func (s *fakeObservationStore) Update(_ context.Context, observation *domains.Observation) error {
 	s.updates++
 	copy := *observation
 	s.items[observation.ID] = &copy
@@ -59,14 +60,14 @@ type fakeCommandStore struct {
 	updates int
 }
 
-func (s *fakeCommandStore) GetByID(id string) (*domains.Command, error) {
+func (s *fakeCommandStore) GetByID(_ context.Context, id string) (*domains.Command, error) {
 	if s.command == nil || s.command.ID != id {
 		return nil, repository.ErrNotFound
 	}
 	return s.command, nil
 }
 
-func (s *fakeCommandStore) GetStatusByID(commandID, statusID string) (*domains.CommandStatusReport, error) {
+func (s *fakeCommandStore) GetStatusByID(_ context.Context, commandID, statusID string) (*domains.CommandStatusReport, error) {
 	status, exists := s.status[statusID]
 	if !exists || status.CommandID != commandID {
 		return nil, repository.ErrNotFound
@@ -74,14 +75,14 @@ func (s *fakeCommandStore) GetStatusByID(commandID, statusID string) (*domains.C
 	return status, nil
 }
 
-func (s *fakeCommandStore) CreateStatus(status *domains.CommandStatusReport) error {
+func (s *fakeCommandStore) CreateStatus(_ context.Context, status *domains.CommandStatusReport) error {
 	s.creates++
 	copy := *status
 	s.status[status.ID] = &copy
 	return nil
 }
 
-func (s *fakeCommandStore) UpdateStatus(status *domains.CommandStatusReport) error {
+func (s *fakeCommandStore) UpdateStatus(_ context.Context, status *domains.CommandStatusReport) error {
 	s.updates++
 	copy := *status
 	s.status[status.ID] = &copy
@@ -111,15 +112,15 @@ func newIngestionTestPublisher(transport *capturedTransport) *pubsub.Publisher {
 }
 
 func TestIngestObservationCreatesThenUpdatesCompleteResource(t *testing.T) {
-	datastreams := &fakeDatastreamStore{datastream: &domains.Datastream{Base: domains.Base{ID: "ds-1"}}}
+	datastreams := &fakeDatastreamStore{datastream: &domains.Datastream{Base: domains.Base{ID: "ds-1"}, Schema: &domains.DatastreamSchema{ObsFormat: "application/json", ResultSchema: &domains.DatastreamDataComponent{Type: "Quantity"}}}}
 	observations := &fakeObservationStore{items: map[string]*domains.Observation{}}
 	commands := &fakeCommandStore{status: map[string]*domains.CommandStatusReport{}}
 	transport := &capturedTransport{}
 	handler := newIngestionHandlers(zap.NewNop(), datastreams, observations, commands, newIngestionTestPublisher(transport))
 	payload := []byte(`{"id":"obs-1","datastream@id":"ds-1","resultTime":"2026-08-22T12:00:00Z","result":12.5}`)
 
-	require.NoError(t, handler.ingestObservation("datastreams/ds-1/observations:data", payload))
-	require.NoError(t, handler.ingestObservation("datastreams/ds-1/observations:data", payload))
+	require.NoError(t, handler.ingestObservation(t.Context(), "datastreams/ds-1/observations:data", payload))
+	require.NoError(t, handler.ingestObservation(t.Context(), "datastreams/ds-1/observations:data", payload))
 	handler.pubSubPublisher.Close()
 	require.Equal(t, 1, observations.creates)
 	require.Equal(t, 1, observations.updates)
@@ -138,10 +139,10 @@ func TestIngestObservationRejectsIncompleteOrWrongParent(t *testing.T) {
 	observations := &fakeObservationStore{items: map[string]*domains.Observation{}}
 	handler := newIngestionHandlers(zap.NewNop(), datastreams, observations, &fakeCommandStore{}, nil)
 
-	err := handler.ingestObservation("datastreams/ds-1/observations:data", []byte(`{"resultTime":"2026-08-22T12:00:00Z","result":1}`))
+	err := handler.ingestObservation(t.Context(), "datastreams/ds-1/observations:data", []byte(`{"resultTime":"2026-08-22T12:00:00Z","result":1}`))
 	require.ErrorContains(t, err, "id is required")
 
-	err = handler.ingestObservation("datastreams/ds-1/observations:data", []byte(`{"id":"obs-1","datastream@id":"ds-2","resultTime":"2026-08-22T12:00:00Z","result":1}`))
+	err = handler.ingestObservation(t.Context(), "datastreams/ds-1/observations:data", []byte(`{"id":"obs-1","datastream@id":"ds-2","resultTime":"2026-08-22T12:00:00Z","result":1}`))
 	require.ErrorContains(t, err, "does not match topic datastream")
 	require.Zero(t, observations.creates)
 }
@@ -157,7 +158,7 @@ func TestIngestObservationValidatesDatastreamSchema(t *testing.T) {
 	observations := &fakeObservationStore{items: map[string]*domains.Observation{}}
 	handler := newIngestionHandlers(zap.NewNop(), datastreams, observations, &fakeCommandStore{}, nil)
 
-	err := handler.ingestObservation("datastreams/ds-1/observations:data", []byte(`{"id":"obs-1","datastream@id":"ds-1","resultTime":"2026-08-22T12:00:00Z","result":"not-a-number"}`))
+	err := handler.ingestObservation(t.Context(), "datastreams/ds-1/observations:data", []byte(`{"id":"obs-1","datastream@id":"ds-1","resultTime":"2026-08-22T12:00:00Z","result":"not-a-number"}`))
 	require.ErrorContains(t, err, "must be a number")
 	require.Zero(t, observations.creates)
 }
@@ -171,7 +172,7 @@ func TestIngestCommandStatusPersistsFullResourceAndPublishesEvent(t *testing.T) 
 	handler := newIngestionHandlers(zap.NewNop(), &fakeDatastreamStore{}, &fakeObservationStore{}, commands, newIngestionTestPublisher(transport))
 	payload := []byte(`{"id":"status-1","command@id":"cmd-1","reportTime":"2026-08-22T12:00:00Z","statusCode":"EXECUTING"}`)
 
-	require.NoError(t, handler.ingestCommandStatus("commands/cmd-1/status:data", payload))
+	require.NoError(t, handler.ingestCommandStatus(t.Context(), "commands/cmd-1/status:data", payload))
 	require.Equal(t, 1, commands.creates)
 	require.Len(t, transport.messages, 2)
 
@@ -187,7 +188,7 @@ func TestIngestCommandStatusRejectsLegacyPartialPayload(t *testing.T) {
 	}
 	handler := newIngestionHandlers(zap.NewNop(), &fakeDatastreamStore{}, &fakeObservationStore{}, commands, nil)
 
-	err := handler.ingestCommandStatus("commands/cmd-1/status:data", []byte(`{"currentStatus":"COMPLETED"}`))
+	err := handler.ingestCommandStatus(t.Context(), "commands/cmd-1/status:data", []byte(`{"currentStatus":"COMPLETED"}`))
 	require.ErrorContains(t, err, "statusCode is required")
 	require.Zero(t, commands.creates)
 }

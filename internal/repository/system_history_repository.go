@@ -1,12 +1,12 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -19,7 +19,7 @@ func NewSystemHistoryRepository(db *gorm.DB) *SystemHistoryRepository {
 	return &SystemHistoryRepository{db: db}
 }
 
-func (r *SystemHistoryRepository) CreateFromSystem(system *domains.System) (*domains.SystemHistoryRevision, error) {
+func (r *SystemHistoryRepository) CreateFromSystem(ctx context.Context, system *domains.System) (*domains.SystemHistoryRevision, error) {
 	if system == nil {
 		return nil, fmt.Errorf("system is nil")
 	}
@@ -35,17 +35,16 @@ func (r *SystemHistoryRepository) CreateFromSystem(system *domains.System) (*dom
 		ValidTime: system.ValidTime,
 	}
 
-	if err := r.db.Create(rev).Error; err != nil {
+	if err := r.db.WithContext(ctx).Create(rev).Error; err != nil {
 		return nil, err
 	}
 	return rev, nil
 }
 
-func (r *SystemHistoryRepository) List(systemID string, params *queryparams.SystemHistoryQueryParams) ([]*domains.SystemHistoryRevision, int64, error) {
+func (r *SystemHistoryRepository) List(ctx context.Context, systemID string, params *queryparams.SystemHistoryQueryParams) ([]*domains.SystemHistoryRevision, int64, error) {
 	var revisions []*domains.SystemHistoryRevision
-	var total int64
 
-	query := r.db.Model(&domains.SystemHistoryRevision{}).Where("system_id = ?", systemID)
+	query := r.db.WithContext(ctx).Model(&domains.SystemHistoryRevision{}).Where("system_id = ?", systemID)
 	query = r.applyFilters(query, params)
 
 	if params.ValidTime != nil && params.ValidTime.Latest {
@@ -53,36 +52,25 @@ func (r *SystemHistoryRepository) List(systemID string, params *queryparams.Syst
 		return revisions, int64(len(revisions)), err
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrder{
+	return listPage(query, &params.QueryParams, CursorOrder{
 		Columns:     []string{"created_at", "id"},
 		Descending:  true,
 		TimeColumns: map[int]bool{0: true},
-	})
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&revisions).Error
-	revisions = FinalizeCursorPage(revisions, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(revisions, func(revision *domains.SystemHistoryRevision) []string {
+	}, func(revision *domains.SystemHistoryRevision) []string {
 		return []string{queryparams.TimeCursorValue(revision.CreatedAt), revision.ID}
 	})
-	return revisions, total, err
 }
 
-func (r *SystemHistoryRepository) GetByID(systemID, revID string) (*domains.SystemHistoryRevision, error) {
+func (r *SystemHistoryRepository) GetByID(ctx context.Context, systemID, revID string) (*domains.SystemHistoryRevision, error) {
 	var rev domains.SystemHistoryRevision
-	err := r.db.Where("id = ? AND system_id = ?", revID, systemID).First(&rev).Error
+	err := r.db.WithContext(ctx).Where("id = ? AND system_id = ?", revID, systemID).First(&rev).Error
 	if err != nil {
 		return nil, err
 	}
 	return &rev, nil
 }
 
-func (r *SystemHistoryRepository) UpdateSnapshot(systemID, revID string, snapshot *domains.System) error {
+func (r *SystemHistoryRepository) UpdateSnapshot(ctx context.Context, systemID, revID string, snapshot *domains.System) error {
 	if snapshot == nil {
 		return fmt.Errorf("snapshot is nil")
 	}
@@ -92,7 +80,7 @@ func (r *SystemHistoryRepository) UpdateSnapshot(systemID, revID string, snapsho
 		return err
 	}
 
-	updates := map[string]interface{}{
+	updates := map[string]any{
 		"snapshot": payload,
 	}
 	if snapshot.ValidTime != nil {
@@ -100,13 +88,13 @@ func (r *SystemHistoryRepository) UpdateSnapshot(systemID, revID string, snapsho
 		updates["valid_time_end"] = snapshot.ValidTime.End
 	}
 
-	return r.db.Model(&domains.SystemHistoryRevision{}).
+	return r.db.WithContext(ctx).Model(&domains.SystemHistoryRevision{}).
 		Where("id = ? AND system_id = ?", revID, systemID).
 		Updates(updates).Error
 }
 
-func (r *SystemHistoryRepository) Delete(systemID, revID string) error {
-	return r.db.Where("id = ? AND system_id = ?", revID, systemID).Delete(&domains.SystemHistoryRevision{}).Error
+func (r *SystemHistoryRepository) Delete(ctx context.Context, systemID, revID string) error {
+	return r.db.WithContext(ctx).Where("id = ? AND system_id = ?", revID, systemID).Delete(&domains.SystemHistoryRevision{}).Error
 }
 
 func (r *SystemHistoryRepository) DecodeRevisionSystem(rev *domains.SystemHistoryRevision) (*domains.System, error) {
@@ -129,28 +117,9 @@ func (r *SystemHistoryRepository) applyFilters(query *gorm.DB, params *querypara
 		return query
 	}
 
-	if params.ValidTime != nil && !params.ValidTime.Latest {
-		if params.ValidTime.Start != nil && params.ValidTime.End != nil {
-			query = query.Where("valid_time_start <= ? AND (valid_time_end IS NULL OR valid_time_end >= ?)", params.ValidTime.End, params.ValidTime.Start)
-		} else if params.ValidTime.Start != nil {
-			query = query.Where("valid_time_end IS NULL OR valid_time_end >= ?", params.ValidTime.Start)
-		} else if params.ValidTime.End != nil {
-			query = query.Where("valid_time_start <= ?", params.ValidTime.End)
-		}
-	}
+	query = applyValidTimeFilter(query, "system_history_revisions", params.ValidTime)
 
-	if len(params.Keyword) > 0 || len(params.Q) > 0 {
-		terms := append([]string{}, params.Keyword...)
-		terms = append(terms, params.Q...)
-		var clauses []string
-		var args []interface{}
-		for _, term := range terms {
-			like := "%" + term + "%"
-			clauses = append(clauses, "CAST(snapshot AS text) ILIKE ?")
-			args = append(args, like)
-		}
-		query = query.Where(strings.Join(clauses, " OR "), args...)
-	}
+	query = applyKeywordFilter(query, append(append([]string{}, params.Keyword...), params.Q...), "CAST(snapshot AS text)")
 
 	return applyCQLFilter(query, &params.QueryParams)
 }

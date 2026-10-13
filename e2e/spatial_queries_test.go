@@ -24,15 +24,15 @@ func getSpatialCollectionIDs(t *testing.T, path string, query url.Values) []stri
 	return getFeatureCollectionIDs(t, body)
 }
 
-func pointGeometry(lon, lat float64) map[string]interface{} {
-	return map[string]interface{}{
+func pointGeometry(lon, lat float64) map[string]any {
+	return map[string]any{
 		"type":        "Point",
 		"coordinates": []float64{lon, lat},
 	}
 }
 
-func polygonGeometry(minLon, minLat, maxLon, maxLat float64) map[string]interface{} {
-	return map[string]interface{}{
+func polygonGeometry(minLon, minLat, maxLon, maxLat float64) map[string]any {
+	return map[string]any{
 		"type": "Polygon",
 		"coordinates": [][][]float64{{
 			{minLon, minLat},

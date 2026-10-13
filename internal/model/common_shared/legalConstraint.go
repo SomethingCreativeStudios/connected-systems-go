@@ -20,7 +20,7 @@ func (l LegalConstraints) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (l *LegalConstraints) Scan(value interface{}) error {
+func (l *LegalConstraints) Scan(value any) error {
 	if value == nil {
 		return nil
 	}

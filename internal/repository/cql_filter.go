@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strconv"
 
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 

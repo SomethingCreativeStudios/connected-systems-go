@@ -1,18 +1,16 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -49,25 +47,18 @@ func NewProcedureHandler(cfg *config.Config, logger *zap.Logger, repo *repositor
 func (h *ProcedureHandler) ListProcedures(w http.ResponseWriter, r *http.Request) {
 	params, err := queryparams.ProceduresQueryParams{}.BuildFromRequest(r, h.cfg.API.DefaultLimit)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, map[string]string{"error": err.Error()})
+		writeError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	procedures, total, err := h.repo.List(params)
+	procedures, total, err := h.repo.List(r.Context(), params)
 	if err != nil {
 		h.logger.Error("Failed to list procedures", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Internal server error"})
+		writeError(w, r, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	collection := h.fc.BuildCollection(acceptHeader, procedures, h.cfg.API.BaseURL+r.URL.Path, int(total), r.URL.Query(), params.QueryParams)
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	json.NewEncoder(w).Encode(collection)
+	writeCollection(w, r, h.logger, h.fc, h.cfg.API.BaseURL, procedures, total, params.QueryParams)
 }
 
 // GetProcedure returns a single procedure by ID
@@ -84,26 +75,13 @@ func (h *ProcedureHandler) ListProcedures(w http.ResponseWriter, r *http.Request
 func (h *ProcedureHandler) GetProcedure(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	procedure, err := h.repo.GetByID(id)
+	procedure, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		h.logger.Error("Failed to get procedure", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusNotFound)
-		render.JSON(w, r, map[string]string{"error": "Procedure not found"})
+		writeRepositoryError(w, r, h.logger, err, "Procedure", "Failed to load procedure")
 		return
 	}
 
-	acceptHeader := r.Header.Get("Accept")
-	serialized, err := h.fc.Serialize(acceptHeader, procedure)
-	if err != nil {
-		h.logger.Error("Failed to serialize procedure", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to serialize procedure"})
-		return
-	}
-
-	w.Header().Set("Content-Type", h.fc.GetResponseContentType(acceptHeader))
-	render.Status(r, http.StatusOK)
-	json.NewEncoder(w).Encode(serialized)
+	writeResource(w, r, h.logger, h.fc, procedure)
 }
 
 // CreateProcedure creates a new procedure
@@ -119,17 +97,15 @@ func (h *ProcedureHandler) GetProcedure(w http.ResponseWriter, r *http.Request) 
 // @Router      /procedures [post]
 func (h *ProcedureHandler) CreateProcedure(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
-	procedure, err := h.fc.Deserialize(contentType, r.Body)
+	procedure, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize procedure", zap.Error(err))
 		writeDeserializeError(w, r, err)
 		return
 	}
 
-	if err := h.repo.Create(procedure); err != nil {
-		h.logger.Error("Failed to create procedure", zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to create procedure"})
+	if err := h.repo.Create(r.Context(), procedure); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Procedure", "Failed to create procedure")
 		return
 	}
 
@@ -154,7 +130,7 @@ func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Reques
 	id := chi.URLParam(r, "id")
 
 	contentType := r.Header.Get("Content-Type")
-	procedure, err := h.fc.Deserialize(contentType, r.Body)
+	procedure, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
 	if err != nil {
 		h.logger.Error("Failed to deserialize procedure", zap.Error(err))
 		writeDeserializeError(w, r, err)
@@ -162,10 +138,8 @@ func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Reques
 	}
 
 	procedure.ID = id
-	if err := h.repo.Update(procedure); err != nil {
-		h.logger.Error("Failed to update procedure", zap.String("id", id), zap.Error(err))
-		render.Status(r, http.StatusInternalServerError)
-		render.JSON(w, r, map[string]string{"error": "Failed to update procedure"})
+	if err := h.repo.Update(r.Context(), procedure); err != nil {
+		writeRepositoryError(w, r, h.logger, err, "Procedure", "Failed to update procedure")
 		return
 	}
 
@@ -186,18 +160,15 @@ func (h *ProcedureHandler) UpdateProcedure(w http.ResponseWriter, r *http.Reques
 func (h *ProcedureHandler) DeleteProcedure(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	if err := h.repo.Delete(id); err != nil {
+	if err := h.repo.Delete(r.Context(), id); err != nil {
 		switch {
 		case errors.Is(err, repository.ErrNotFound):
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, map[string]string{"error": "Procedure not found"})
+			writeError(w, r, http.StatusNotFound, "Procedure not found")
 		case errors.Is(err, repository.ErrHasChildren):
-			render.Status(r, http.StatusConflict)
-			render.JSON(w, r, map[string]string{"error": "Procedure has dependent records"})
+			writeError(w, r, http.StatusConflict, "Procedure has dependent records")
 		default:
 			h.logger.Error("Failed to delete procedure", zap.String("id", id), zap.Error(err))
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, map[string]string{"error": "Failed to delete procedure"})
+			writeError(w, r, http.StatusInternalServerError, "Failed to delete procedure")
 		}
 		return
 	}

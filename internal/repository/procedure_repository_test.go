@@ -3,9 +3,9 @@ package repository
 import (
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
 )
 
 func TestProcedureRepository_Create(t *testing.T) {
@@ -50,7 +50,7 @@ func TestProcedureRepository_Create(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := repo.Create(tt.procedure)
+			err := repo.Create(t.Context(), tt.procedure)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -73,7 +73,7 @@ func TestProcedureRepository_GetByID(t *testing.T) {
 		CommonSSN:     domains.CommonSSN{UniqueIdentifier: "urn:test:get1", Name: "Procedure 1"},
 		ProcedureType: "Method",
 	}
-	require.NoError(t, repo.Create(proc1))
+	require.NoError(t, repo.Create(t.Context(), proc1))
 
 	tests := []struct {
 		name     string
@@ -97,7 +97,7 @@ func TestProcedureRepository_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := repo.GetByID(tt.id)
+			got, err := repo.GetByID(t.Context(), tt.id)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -118,19 +118,19 @@ func TestProcedureRepository_List(t *testing.T) {
 		CommonSSN:     domains.CommonSSN{UniqueIdentifier: "urn:test:proc1", Name: "Temperature Method"},
 		ProcedureType: domains.ProcedureTypeActuating,
 	}
-	require.NoError(t, repo.Create(proc1))
+	require.NoError(t, repo.Create(t.Context(), proc1))
 
 	proc2 := &domains.Procedure{
 		CommonSSN:     domains.CommonSSN{UniqueIdentifier: "urn:test:proc2", Name: "Humidity Method"},
 		ProcedureType: domains.ProcedureTypeObserving,
 	}
-	require.NoError(t, repo.Create(proc2))
+	require.NoError(t, repo.Create(t.Context(), proc2))
 
 	proc3 := &domains.Procedure{
 		CommonSSN:     domains.CommonSSN{UniqueIdentifier: "urn:test:proc3", Name: "Sensor Datasheet", Description: "Complete specifications"},
 		ProcedureType: "Datasheet",
 	}
-	require.NoError(t, repo.Create(proc3))
+	require.NoError(t, repo.Create(t.Context(), proc3))
 
 	// Create basic properties for testing
 	property1 := &domains.Property{
@@ -256,7 +256,7 @@ func TestProcedureRepository_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			procedures, total, err := repo.List(tt.params)
+			procedures, total, err := repo.List(t.Context(), tt.params)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantTotal, total, "total count mismatch")
 			require.Len(t, procedures, tt.wantCount, "result count mismatch")
@@ -277,7 +277,7 @@ func TestProcedureRepository_Update(t *testing.T) {
 		CommonSSN:     domains.CommonSSN{UniqueIdentifier: "urn:test:update1", Name: "Original Name"},
 		ProcedureType: "Method",
 	}
-	require.NoError(t, repo.Create(original))
+	require.NoError(t, repo.Create(t.Context(), original))
 
 	tests := []struct {
 		name       string
@@ -310,14 +310,14 @@ func TestProcedureRepository_Update(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Get fresh copy for each test
-			proc, err := repo.GetByID(original.ID)
+			proc, err := repo.GetByID(t.Context(), original.ID)
 			require.NoError(t, err)
 
 			// Apply update
 			tt.updateFunc(proc)
 
 			// Save
-			err = repo.Update(proc)
+			err = repo.Update(t.Context(), proc)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -325,7 +325,7 @@ func TestProcedureRepository_Update(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify
-			updated, err := repo.GetByID(proc.ID)
+			updated, err := repo.GetByID(t.Context(), proc.ID)
 			require.NoError(t, err)
 			if tt.checkFunc != nil {
 				tt.checkFunc(t, updated)
@@ -351,11 +351,11 @@ func TestProcedureRepository_Delete(t *testing.T) {
 					CommonSSN:     domains.CommonSSN{UniqueIdentifier: "urn:test:del1", Name: "Delete Me"},
 					ProcedureType: "Method",
 				}
-				require.NoError(t, repo.Create(proc))
+				require.NoError(t, repo.Create(t.Context(), proc))
 				return proc.ID
 			},
 			checkFunc: func(t *testing.T, id string) {
-				_, err := repo.GetByID(id)
+				_, err := repo.GetByID(t.Context(), id)
 				require.Error(t, err)
 			},
 		},
@@ -364,7 +364,7 @@ func TestProcedureRepository_Delete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id := tt.setupFunc()
-			err := repo.Delete(id)
+			err := repo.Delete(t.Context(), id)
 			require.NoError(t, err)
 			tt.checkFunc(t, id)
 		})

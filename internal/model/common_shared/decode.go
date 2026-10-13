@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-var timeRangeType = reflect.TypeOf(TimeRange{})
+var timeRangeType = reflect.TypeFor[TimeRange]()
 
 // UnknownFieldError is returned when an incoming JSON payload contains a field
 // that is not declared on the target Go type. Path is the dotted/indexed JSON
@@ -39,7 +39,7 @@ func DecodeWithFieldErrors[T any](data []byte) (T, error) {
 	}
 
 	t := reflect.TypeOf(zero)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() == reflect.Struct {
@@ -65,11 +65,11 @@ func DecodeWithFieldErrors[T any](data []byte) (T, error) {
 func unknownFieldKey(err error) (string, bool) {
 	msg := err.Error()
 	const prefix = "json: unknown field "
-	idx := strings.Index(msg, prefix)
-	if idx < 0 {
+	_, after, ok := strings.Cut(msg, prefix)
+	if !ok {
 		return "", false
 	}
-	rest := msg[idx+len(prefix):]
+	rest := after
 	rest = strings.TrimSpace(rest)
 	if len(rest) >= 2 && rest[0] == '"' {
 		end := strings.IndexByte(rest[1:], '"')
@@ -81,11 +81,10 @@ func unknownFieldKey(err error) (string, bool) {
 }
 
 func checkTimeRangeFields(t reflect.Type, raw map[string]json.RawMessage) error {
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
+	for f := range t.Fields() {
 
 		ft := f.Type
-		if ft.Kind() == reflect.Ptr {
+		if ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
 
@@ -134,16 +133,16 @@ func findUnknownFieldPath(t reflect.Type, data []byte, key string) (string, bool
 }
 
 var (
-	rawMessageType   = reflect.TypeOf(json.RawMessage(nil))
-	jsonUnmarshaler  = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
-	emptyInterface   = reflect.TypeOf((*any)(nil)).Elem()
+	rawMessageType  = reflect.TypeFor[json.RawMessage]()
+	jsonUnmarshaler = reflect.TypeFor[json.Unmarshaler]()
+	emptyInterface  = reflect.TypeFor[any]()
 )
 
 func walkForUnknown(t reflect.Type, v any, key, path string) (string, bool) {
 	if t == nil {
 		return "", false
 	}
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -213,8 +212,7 @@ type fieldInfo struct {
 // name but their fieldType may be nil to skip recursion.
 func structJSONFields(t reflect.Type) map[string]fieldInfo {
 	out := map[string]fieldInfo{}
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
+	for f := range t.Fields() {
 		if !f.IsExported() {
 			continue
 		}
@@ -224,7 +222,7 @@ func structJSONFields(t reflect.Type) map[string]fieldInfo {
 
 		if f.Anonymous {
 			ft := f.Type
-			for ft.Kind() == reflect.Ptr {
+			for ft.Kind() == reflect.Pointer {
 				ft = ft.Elem()
 			}
 			if name == "" && ft.Kind() == reflect.Struct {

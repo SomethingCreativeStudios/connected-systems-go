@@ -2,11 +2,9 @@ package repository
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -21,14 +19,14 @@ func NewFeatureRepository(db *gorm.DB) *FeatureRepository {
 }
 
 // Create creates a new feature
-func (r *FeatureRepository) Create(feature *domains.Feature) error {
-	return r.db.Create(feature).Error
+func (r *FeatureRepository) Create(ctx context.Context, feature *domains.Feature) error {
+	return r.db.WithContext(ctx).Create(feature).Error
 }
 
 // GetByID retrieves a feature by ID
-func (r *FeatureRepository) GetByID(id string) (*domains.Feature, error) {
+func (r *FeatureRepository) GetByID(ctx context.Context, id string) (*domains.Feature, error) {
 	var feature domains.Feature
-	err := r.db.Where("id = ?", id).First(&feature).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&feature).Error
 	if err != nil {
 		return nil, err
 	}
@@ -36,9 +34,9 @@ func (r *FeatureRepository) GetByID(id string) (*domains.Feature, error) {
 }
 
 // GetByCollectionAndID retrieves a feature by collection ID and feature ID
-func (r *FeatureRepository) GetByCollectionAndID(collectionID, featureID string) (*domains.Feature, error) {
+func (r *FeatureRepository) GetByCollectionAndID(ctx context.Context, collectionID, featureID string) (*domains.Feature, error) {
 	var feature domains.Feature
-	err := r.db.Where("collection_id = ? AND id = ?", collectionID, featureID).First(&feature).Error
+	err := r.db.WithContext(ctx).Where("collection_id = ? AND id = ?", collectionID, featureID).First(&feature).Error
 	if err != nil {
 		return nil, err
 	}
@@ -46,57 +44,35 @@ func (r *FeatureRepository) GetByCollectionAndID(collectionID, featureID string)
 }
 
 // List retrieves features with filtering
-func (r *FeatureRepository) List(params *queryparams.FeatureQueryParams) ([]*domains.Feature, int64, error) {
-	var features []*domains.Feature
-	var total int64
+func (r *FeatureRepository) List(ctx context.Context, params *queryparams.FeatureQueryParams) ([]*domains.Feature, int64, error) {
 
-	query := r.db.Model(&domains.Feature{})
+	query := r.db.WithContext(ctx).Model(&domains.Feature{})
 	query = r.applyFilters(query, params)
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&features).Error
-	features = FinalizeCursorPage(features, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(features, func(feature *domains.Feature) []string { return []string{feature.ID} })
-	return features, total, err
+	return listPage(query, &params.QueryParams, idOrder("features"), idAnchor[*domains.Feature])
 }
 
 // ListByCollection retrieves features in a specific collection with filtering
-func (r *FeatureRepository) ListByCollection(collectionID string, params *queryparams.FeatureQueryParams) ([]*domains.Feature, int64, error) {
-	var features []*domains.Feature
-	var total int64
+func (r *FeatureRepository) ListByCollection(ctx context.Context, collectionID string, params *queryparams.FeatureQueryParams) ([]*domains.Feature, int64, error) {
 
-	query := r.db.Model(&domains.Feature{}).Where("collection_id = ?", collectionID)
+	query := r.db.WithContext(ctx).Model(&domains.Feature{}).Where("collection_id = ?", collectionID)
 	query = r.applyFilters(query, params)
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&features).Error
-	features = FinalizeCursorPage(features, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(features, func(feature *domains.Feature) []string { return []string{feature.ID} })
-	return features, total, err
+	return listPage(query, &params.QueryParams, idOrder("features"), idAnchor[*domains.Feature])
 }
 
 // Update updates a feature
-func (r *FeatureRepository) Update(feature *domains.Feature) error {
-	return r.db.Save(feature).Error
+func (r *FeatureRepository) Update(ctx context.Context, feature *domains.Feature) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceByID(tx, feature, func(existing *domains.Feature) {
+			feature.CollectionID = existing.CollectionID
+		})
+	})
 }
 
 // Delete deletes a feature
-func (r *FeatureRepository) Delete(id string) error {
-	return r.db.Delete(&domains.Feature{}, "id = ?", id).Error
+func (r *FeatureRepository) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Delete(&domains.Feature{}, "id = ?", id).Error
 }
 
 func (r *FeatureRepository) applyFilters(query *gorm.DB, params *queryparams.FeatureQueryParams) *gorm.DB {
@@ -105,48 +81,12 @@ func (r *FeatureRepository) applyFilters(query *gorm.DB, params *queryparams.Fea
 	}
 
 	// Text search
-	if len(params.Q) > 0 {
-		var clauses []string
-		var args []interface{}
-		for _, term := range params.Q {
-			clauses = append(clauses, "name ILIKE ?")
-			args = append(args, "%"+term+"%")
-			clauses = append(clauses, "description ILIKE ?")
-			args = append(args, "%"+term+"%")
-		}
-		query = query.Where(strings.Join(clauses, " OR "), args...)
-	}
+	query = applyKeywordFilter(query, params.Q, "name", "description")
 
-	// Bounding box filter (OGC bbox parameter)
-	if len(params.BBox) >= 4 {
-		// PostGIS ST_Intersects on geometry JSONB
-		// Format: [minLon, minLat, maxLon, maxLat] or [minLon, minLat, minZ, maxLon, maxLat, maxZ]
-		minLon, minLat, maxLon, maxLat := params.BBox[0], params.BBox[1], params.BBox[2], params.BBox[3]
-		bboxWKT := fmt.Sprintf("POLYGON((%f %f, %f %f, %f %f, %f %f, %f %f))",
-			minLon, minLat,
-			maxLon, minLat,
-			maxLon, maxLat,
-			minLon, maxLat,
-			minLon, minLat,
-		)
-		// Assuming geometry is stored as JSONB with GeoJSON structure
-		// For production, consider using PostGIS geometry column instead
-		query = query.Where("ST_Intersects(ST_GeomFromGeoJSON(geometry::text), ST_GeomFromText(?, 4326))", bboxWKT)
-	}
+	query = applySpatialIntersectionFilters(query, "features.geometry", params.BBox, "")
 
 	// DateTime filter (OGC datetime parameter)
-	if params.DateTime != nil {
-		if params.DateTime.Start != nil && params.DateTime.End != nil {
-			// Interval: both start and end
-			query = query.Where("date_time >= ? AND date_time <= ?", params.DateTime.Start, params.DateTime.End)
-		} else if params.DateTime.Start != nil {
-			// Open-ended: start only
-			query = query.Where("date_time >= ?", params.DateTime.Start)
-		} else if params.DateTime.End != nil {
-			// Open-ended: end only
-			query = query.Where("date_time <= ?", params.DateTime.End)
-		}
-	}
+	query = applyInstantFilter(query, "features.date_time", params.DateTime)
 
 	return applyCQLFilter(query, &params.QueryParams)
 }

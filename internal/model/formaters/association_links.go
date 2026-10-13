@@ -2,390 +2,361 @@ package formaters
 
 import (
 	"context"
+	"maps"
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
 
-// Content type constants used for association link Type fields.
-const (
-	GeoJSONContentType  = "application/geo+json"
-	SensorMLContentType = "application/sml+json"
-	JSONContentType     = "application/json"
-)
-
-var associationLinksBaseURL string
-
-// SetAssociationLinksBaseURL configures the absolute base URL used for association link hrefs.
-func SetAssociationLinksBaseURL(baseURL string) {
-	associationLinksBaseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+// ByIDsReader is the batch lookup the repositories expose.
+type ByIDsReader[T any] interface {
+	GetByIDs(ctx context.Context, ids []string) (map[string]*T, error)
 }
 
-// ResourceCache holds pre-fetched resources for enriching association links.
+// ChildCollectionReader reports, for each of the given resources, which of
+// its nested collections have members.
+type ChildCollectionReader interface {
+	ChildCollections(ctx context.Context, ids []string) (map[string][]string, error)
+}
+
+// LinkResolver builds response links in one place. It makes hrefs absolute
+// against the API base URL, and looks up the resources links point to so
+// links carry their titles and uids and nested collections are linked only
+// when they have members. A nil resolver, or a nil lookup, leaves hrefs
+// relative and skips that enrichment.
+type DeploymentSystemsReader interface {
+	DeployedSystemsByIDs(context.Context, []string) (map[string]domains.DeployedSystemItems, error)
+}
+
+type LinkResolver struct {
+	DeploymentSystems  DeploymentSystemsReader
+	BaseURL            string
+	Systems            ByIDsReader[domains.System]
+	Procedures         ByIDsReader[domains.Procedure]
+	Deployments        ByIDsReader[domains.Deployment]
+	SamplingFeatures   ByIDsReader[domains.SamplingFeature]
+	SystemChildren     ChildCollectionReader
+	DeploymentChildren ChildCollectionReader
+	ProcedureChildren  ChildCollectionReader
+}
+
+// Href makes a server-relative href absolute.
+func (l *LinkResolver) Href(href string) string {
+	href = strings.TrimSpace(href)
+	if href == "" || l == nil || l.BaseURL == "" {
+		return href
+	}
+	if parsed, err := url.Parse(href); err == nil && parsed.IsAbs() {
+		return href
+	}
+	base := strings.TrimRight(l.BaseURL, "/")
+	if strings.HasPrefix(href, "/") {
+		return base + href
+	}
+	return base + "/" + href
+}
+
+// References are the IDs of the resources a page of results links to, and
+// of the resources whose nested collections are checked for members.
+type References struct {
+	Systems            []string
+	Procedures         []string
+	Deployments        []string
+	SamplingFeatures   []string
+	SystemChildren     []string
+	DeploymentChildren []string
+	ProcedureChildren  []string
+}
+
+// ResourceCache holds what a LinkResolver looked up for one page of results.
 type ResourceCache struct {
-	Systems          map[string]*domains.System
-	Procedures       map[string]*domains.Procedure
-	Deployments      map[string]*domains.Deployment
-	SamplingFeatures map[string]*domains.SamplingFeature
+	DeploymentSystems  map[string]domains.DeployedSystemItems
+	Systems            map[string]*domains.System
+	Procedures         map[string]*domains.Procedure
+	Deployments        map[string]*domains.Deployment
+	SamplingFeatures   map[string]*domains.SamplingFeature
+	SystemChildren     map[string][]string
+	DeploymentChildren map[string][]string
+	ProcedureChildren  map[string][]string
 }
 
 // NewResourceCache creates an empty ResourceCache.
 func NewResourceCache() *ResourceCache {
 	return &ResourceCache{
-		Systems:          make(map[string]*domains.System),
-		Procedures:       make(map[string]*domains.Procedure),
-		Deployments:      make(map[string]*domains.Deployment),
-		SamplingFeatures: make(map[string]*domains.SamplingFeature),
+		Systems:            make(map[string]*domains.System),
+		Procedures:         make(map[string]*domains.Procedure),
+		Deployments:        make(map[string]*domains.Deployment),
+		SamplingFeatures:   make(map[string]*domains.SamplingFeature),
+		SystemChildren:     make(map[string][]string),
+		DeploymentChildren: make(map[string][]string),
+		ProcedureChildren:  make(map[string][]string),
 	}
 }
 
-// FetchParentSystems loads parent systems for the given system IDs into the cache.
-func (c *ResourceCache) FetchParentSystems(ctx context.Context, repo interface {
-	GetByIDs(ctx context.Context, ids []string) (map[string]*domains.System, error)
-}, systemIDs []string) error {
-	if len(systemIDs) == 0 {
+// Lookup batch-loads references. Failures are returned so a cancelled request
+// or database error cannot silently remove associations from a response.
+func (l *LinkResolver) Lookup(ctx context.Context, refs References) (*ResourceCache, error) {
+	cache := NewResourceCache()
+	if l == nil {
+		return cache, nil
+	}
+	if l.DeploymentSystems != nil && len(refs.DeploymentChildren) > 0 {
+		var err error
+		cache.DeploymentSystems, err = l.DeploymentSystems.DeployedSystemsByIDs(ctx, compactIDs(refs.DeploymentChildren))
+		if err != nil {
+			return nil, err
+		}
+		for _, items := range cache.DeploymentSystems {
+			for _, item := range items {
+				refs.Systems = append(refs.Systems, trimmedID(l.LocalID(item.System, "systems")))
+			}
+		}
+	}
+	lookups := []func() error{
+		func() error { return fetchInto(ctx, cache.Systems, l.Systems, refs.Systems) },
+		func() error { return fetchInto(ctx, cache.Procedures, l.Procedures, refs.Procedures) },
+		func() error { return fetchInto(ctx, cache.Deployments, l.Deployments, refs.Deployments) },
+		func() error { return fetchInto(ctx, cache.SamplingFeatures, l.SamplingFeatures, refs.SamplingFeatures) },
+		func() error { return fetchChildren(ctx, cache.SystemChildren, l.SystemChildren, refs.SystemChildren) },
+		func() error {
+			return fetchChildren(ctx, cache.DeploymentChildren, l.DeploymentChildren, refs.DeploymentChildren)
+		},
+		func() error {
+			return fetchChildren(ctx, cache.ProcedureChildren, l.ProcedureChildren, refs.ProcedureChildren)
+		},
+	}
+	for _, lookup := range lookups {
+		if err := lookup(); err != nil {
+			return nil, err
+		}
+	}
+	return cache, nil
+}
+
+func fetchInto[T any](ctx context.Context, into map[string]*T, reader ByIDsReader[T], ids []string) error {
+	ids = compactIDs(ids)
+	if reader == nil || len(ids) == 0 {
 		return nil
 	}
-	systems, err := repo.GetByIDs(ctx, systemIDs)
+	found, err := reader.GetByIDs(ctx, ids)
 	if err != nil {
 		return err
 	}
-	for k, v := range systems {
-		c.Systems[k] = v
-	}
+	maps.Copy(into, found)
 	return nil
 }
 
-// FetchProcedures loads procedures for the given IDs into the cache.
-func (c *ResourceCache) FetchProcedures(ctx context.Context, repo interface {
-	GetByIDs(ctx context.Context, ids []string) (map[string]*domains.Procedure, error)
-}, procedureIDs []string) error {
-	if len(procedureIDs) == 0 {
+func fetchChildren(ctx context.Context, into map[string][]string, reader ChildCollectionReader, ids []string) error {
+	ids = compactIDs(ids)
+	if reader == nil || len(ids) == 0 {
 		return nil
 	}
-	procedures, err := repo.GetByIDs(ctx, procedureIDs)
+	found, err := reader.ChildCollections(ctx, ids)
 	if err != nil {
 		return err
 	}
-	for k, v := range procedures {
-		c.Procedures[k] = v
-	}
+	maps.Copy(into, found)
 	return nil
 }
 
-// FetchDeployments loads deployments for the given IDs into the cache.
-func (c *ResourceCache) FetchDeployments(ctx context.Context, repo interface {
-	GetByIDs(ctx context.Context, ids []string) (map[string]*domains.Deployment, error)
-}, deploymentIDs []string) error {
-	if len(deploymentIDs) == 0 {
-		return nil
+// compactIDs drops blank IDs and duplicates.
+func compactIDs(ids []string) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id = strings.TrimSpace(id); id != "" && !slices.Contains(out, id) {
+			out = append(out, id)
+		}
 	}
-	deployments, err := repo.GetByIDs(ctx, deploymentIDs)
-	if err != nil {
-		return err
-	}
-	for k, v := range deployments {
-		c.Deployments[k] = v
-	}
-	return nil
+	return out
 }
 
-// FetchSamplingFeatures loads sampling features for the given IDs into the cache.
-func (c *ResourceCache) FetchSamplingFeatures(ctx context.Context, repo interface {
-	GetByIDs(ctx context.Context, ids []string) (map[string]*domains.SamplingFeature, error)
-}, sfIDs []string) error {
-	if len(sfIDs) == 0 {
-		return nil
+func trimmedID(id *string) string {
+	if id == nil {
+		return ""
 	}
-	sfs, err := repo.GetByIDs(ctx, sfIDs)
-	if err != nil {
-		return err
-	}
-	for k, v := range sfs {
-		c.SamplingFeatures[k] = v
-	}
-	return nil
+	return strings.TrimSpace(*id)
 }
 
-var (
-	geoJSONSystemAssociationRels = []string{
-		common_shared.OGCRel("parentSystem"),
-		common_shared.OGCRel("subsystems"),
-		common_shared.OGCRel("samplingFeatures"),
-		common_shared.OGCRel("deployments"),
-		common_shared.OGCRel("procedures"),
-		common_shared.OGCRel("datastreams"),
-		common_shared.OGCRel("controlstreams"),
-	}
-	sensorMLSystemAssociationRels = []string{
-		common_shared.OGCRel("parentSystem"),
-		common_shared.OGCRel("subsystems"),
-		common_shared.OGCRel("samplingFeatures"),
-		common_shared.OGCRel("deployments"),
-		common_shared.OGCRel("procedures"),
-		common_shared.OGCRel("datastreams"),
-		common_shared.OGCRel("controlstreams"),
-	}
-	deploymentAssociationRels = []string{
-		common_shared.OGCRel("parentDeployment"),
-		common_shared.OGCRel("subdeployments"),
-		common_shared.OGCRel("featuresOfInterest"),
-		common_shared.OGCRel("samplingFeatures"),
-		common_shared.OGCRel("datastreams"),
-		common_shared.OGCRel("controlstreams"),
-	}
-	procedureAssociationRels = []string{
-		common_shared.OGCRel("implementingSystems"),
-	}
-	samplingFeatureGeoJSONAssociationRels = []string{
-		common_shared.OGCRel("parentSystem"),
-		common_shared.OGCRel("sampleOf"),
-		common_shared.OGCRel("datastreams"),
-		common_shared.OGCRel("controlstreams"),
-	}
-)
-
-func GeoJSONSystemAssociationLinks(links common_shared.Links) common_shared.Links {
-	return resourceAssociationLinks(links, geoJSONSystemAssociationRels)
+func (c *ResourceCache) hasChildren(children map[string][]string, id, rel string) bool {
+	return c != nil && slices.Contains(children[id], rel)
 }
 
-func DeploymentAssociationLinks(links common_shared.Links) common_shared.Links {
-	return resourceAssociationLinks(links, deploymentAssociationRels)
+// SystemReferences lists what a page of systems links to: their procedures
+// (system kinds), their parents, and their own nested collections.
+func SystemReferences(systems []*domains.System) References {
+	var refs References
+	for _, system := range systems {
+		if system == nil {
+			continue
+		}
+		refs.SystemChildren = append(refs.SystemChildren, system.ID)
+		refs.Procedures = append(refs.Procedures, trimmedID(system.TypeOfID))
+		refs.Systems = append(refs.Systems, trimmedID(system.ParentSystemID))
+	}
+	return refs
 }
 
-func SamplingFeatureGeoJSONAssociationLinks(links common_shared.Links) common_shared.Links {
-	return resourceAssociationLinks(links, samplingFeatureGeoJSONAssociationRels)
-}
+// systemChildCollections are the nested collections a system links to when
+// they have members.
+var systemChildCollections = []string{"subsystems", "samplingFeatures", "deployments", "datastreams", "controlstreams", "procedures"}
 
-func AppendGeoJSONSystemAssociationLinks(system *domains.System, cache *ResourceCache) common_shared.Links {
+// SystemLinks builds a system's links for the given representation: the
+// client's own links plus the server-generated association links, typed with
+// that representation's media type.
+func (l *LinkResolver) SystemLinks(system *domains.System, cache *ResourceCache, contentType string) common_shared.Links {
 	if system == nil {
 		return nil
 	}
 
 	derived := common_shared.Links{}
 
-	if system.ParentSystemID != nil && strings.TrimSpace(*system.ParentSystemID) != "" {
-		parentID := strings.TrimSpace(*system.ParentSystemID)
+	if parentID := trimmedID(system.ParentSystemID); parentID != "" {
 		link := common_shared.Link{
 			Rel:  common_shared.OGCRel("parentSystem"),
 			Href: "/systems/" + parentID,
-			Type: GeoJSONContentType,
+			Type: contentType,
 		}
 		if cache != nil {
 			if parent, ok := cache.Systems[parentID]; ok {
-				link.Title = parent.Name
-				uid := string(parent.UniqueIdentifier)
-				if uid != "" {
-					link.UID = &uid
-				}
+				link.Describe(parent.Name, string(parent.UniqueIdentifier))
 			}
 		}
 		derived = append(derived, link)
 	}
 
 	if strings.TrimSpace(system.ID) != "" {
-		if hasAssociationLink(system.Links, "subsystems") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("subsystems"),
-				Href: "/systems/" + system.ID + "/subsystems",
-				Type: GeoJSONContentType,
-			})
-		}
-		if hasAssociationLink(system.Links, "samplingFeatures") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("samplingFeatures"),
-				Href: "/systems/" + system.ID + "/samplingFeatures",
-				Type: GeoJSONContentType,
-			})
-		}
-		if len(system.Deployments) > 0 || hasAssociationLink(system.Links, "deployments") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("deployments"),
-				Href: "/systems/" + system.ID + "/deployments",
-				Type: GeoJSONContentType,
-			})
-		}
-		if hasAssociationLink(system.Links, "datastreams") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("datastreams"),
-				Href: "/systems/" + system.ID + "/datastreams",
-				Type: GeoJSONContentType,
-			})
-		}
-		if hasAssociationLink(system.Links, "controlstreams") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("controlstreams"),
-				Href: "/systems/" + system.ID + "/controlstreams",
-				Type: GeoJSONContentType,
-			})
+		for _, rel := range systemChildCollections {
+			if cache.hasChildren(cache.SystemChildren, system.ID, rel) || (rel == "deployments" && len(system.Deployments) > 0) {
+				targetType := contentType
+				if rel == "datastreams" || rel == "controlstreams" {
+					targetType = mediatype.JSON
+				}
+				derived = append(derived, common_shared.Link{
+					Rel:  common_shared.OGCRel(rel),
+					Href: "/systems/" + system.ID + "/" + rel,
+					Type: targetType,
+				})
+			}
 		}
 
 		if system.TypeOf != nil {
 			link := common_shared.Link{
 				Rel:  common_shared.OGCRel("procedures"),
 				Href: system.TypeOf.Href,
-				Type: GeoJSONContentType,
+				Type: contentType,
 			}
-			// Enrich from cache if we have the procedure
-			if cache != nil && system.TypeOfID != nil {
-				if proc, ok := cache.Procedures[*system.TypeOfID]; ok {
-					link.Title = proc.Name
-					uid := string(proc.UniqueIdentifier)
-					if uid != "" {
-						link.UID = &uid
-					}
+			if cache != nil {
+				if proc, ok := cache.Procedures[trimmedID(system.TypeOfID)]; ok {
+					link.Describe(proc.Name, string(proc.UniqueIdentifier))
 				}
 			}
 			derived = append(derived, link)
 		}
 	}
 
-	return mergeAssociationLinks(common_shared.StripAssociationLinks(system.Links), geoJSONSystemAssociationRels, derived)
+	return l.withAssociationLinks(system.Links, derived)
 }
 
-func AppendSensorMLSystemAssociationLinks(system *domains.System, cache *ResourceCache) common_shared.Links {
-	if system == nil {
-		return nil
-	}
-
-	derived := common_shared.Links{}
-
-	if system.ParentSystemID != nil && strings.TrimSpace(*system.ParentSystemID) != "" {
-		parentID := strings.TrimSpace(*system.ParentSystemID)
-		link := common_shared.Link{
-			Rel:  common_shared.OGCRel("parentSystem"),
-			Href: "/systems/" + parentID,
-			Type: SensorMLContentType,
+// DeploymentReferences lists what a page of deployments links to: their
+// platforms and deployed systems, and their own nested collections.
+func DeploymentReferences(deployments []*domains.Deployment) References {
+	var refs References
+	for _, deployment := range deployments {
+		if deployment == nil {
+			continue
 		}
-		if cache != nil {
-			if parent, ok := cache.Systems[parentID]; ok {
-				link.Title = parent.Name
-				uid := string(parent.UniqueIdentifier)
-				if uid != "" {
-					link.UID = &uid
-				}
-			}
+		refs.DeploymentChildren = append(refs.DeploymentChildren, deployment.ID)
+		if deployment.Platform != nil {
+			refs.Systems = append(refs.Systems, trimmedID(deployment.Platform.System.GetId("systems")))
 		}
-		derived = append(derived, link)
-	}
-
-	if strings.TrimSpace(system.ID) != "" {
-		if hasAssociationLink(system.Links, "subsystems") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("subsystems"),
-				Href: "/systems/" + system.ID + "/subsystems",
-				Type: SensorMLContentType,
-			})
-		}
-		if hasAssociationLink(system.Links, "samplingFeatures") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("samplingFeatures"),
-				Href: "/systems/" + system.ID + "/samplingFeatures",
-				Type: SensorMLContentType,
-			})
-		}
-		if len(system.Deployments) > 0 || hasAssociationLink(system.Links, "deployments") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("deployments"),
-				Href: "/systems/" + system.ID + "/deployments",
-				Type: SensorMLContentType,
-			})
-		}
-		if hasAssociationLink(system.Links, "datastreams") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("datastreams"),
-				Href: "/systems/" + system.ID + "/datastreams",
-				Type: SensorMLContentType,
-			})
-		}
-		if hasAssociationLink(system.Links, "controlstreams") {
-			derived = append(derived, common_shared.Link{
-				Rel:  common_shared.OGCRel("controlstreams"),
-				Href: "/systems/" + system.ID + "/controlstreams",
-				Type: SensorMLContentType,
-			})
-		}
-
-		if system.TypeOf != nil {
-			link := common_shared.Link{
-				Rel:  common_shared.OGCRel("procedures"),
-				Href: system.TypeOf.Href,
-				Type: SensorMLContentType,
-			}
-			if cache != nil && system.TypeOfID != nil {
-				if proc, ok := cache.Procedures[*system.TypeOfID]; ok {
-					link.Title = proc.Name
-					uid := string(proc.UniqueIdentifier)
-					if uid != "" {
-						link.UID = &uid
-					}
-				}
-			}
-			derived = append(derived, link)
+		for _, deployed := range deployment.DeployedSystems {
+			refs.Systems = append(refs.Systems, trimmedID(deployed.System.GetId("systems")))
 		}
 	}
-
-	return mergeAssociationLinks(common_shared.StripAssociationLinks(system.Links), sensorMLSystemAssociationRels, derived)
+	return refs
 }
 
-func AppendDeploymentAssociationLinks(deployment *domains.Deployment) common_shared.Links {
+// DeploymentLinks builds a deployment's links: the client's own links plus
+// its parent and subdeployments.
+func (l *LinkResolver) DeploymentLinks(deployment *domains.Deployment, cache *ResourceCache) common_shared.Links {
 	if deployment == nil {
 		return nil
 	}
 
 	derived := common_shared.Links{}
 
-	if deployment.ParentDeploymentID != nil && strings.TrimSpace(*deployment.ParentDeploymentID) != "" {
+	if parentID := trimmedID(deployment.ParentDeploymentID); parentID != "" {
 		derived = append(derived, common_shared.Link{
 			Rel:  common_shared.OGCRel("parentDeployment"),
-			Href: "/deployments/" + strings.TrimSpace(*deployment.ParentDeploymentID),
-			Type: GeoJSONContentType,
+			Href: "/deployments/" + parentID,
+			Type: mediatype.GeoJSON,
 		})
 	}
 
-	if strings.TrimSpace(deployment.ID) != "" && hasAssociationLink(deployment.Links, "subdeployments") {
-		derived = append(derived, common_shared.Link{
-			Rel:  common_shared.OGCRel("subdeployments"),
-			Href: "/deployments/" + deployment.ID + "/subdeployments",
-			Type: GeoJSONContentType,
-		})
+	if strings.TrimSpace(deployment.ID) != "" {
+		for _, rel := range []string{"subdeployments", "samplingFeatures", "featuresOfInterest", "datastreams", "controlstreams"} {
+			if cache.hasChildren(cache.DeploymentChildren, deployment.ID, rel) {
+				targetType := mediatype.GeoJSON
+				if rel == "datastreams" || rel == "controlstreams" {
+					targetType = mediatype.JSON
+				}
+				derived = append(derived, common_shared.Link{Rel: common_shared.OGCRel(rel), Href: "/deployments/" + deployment.ID + "/" + rel, Type: targetType})
+			}
+		}
 	}
 
-	return mergeAssociationLinks(common_shared.StripAssociationLinks(deployment.Links), deploymentAssociationRels, derived)
+	return l.withAssociationLinks(deployment.Links, derived)
 }
 
-func AppendProcedureAssociationLinks(procedure *domains.Procedure) common_shared.Links {
+// ProcedureReferences lists the procedures whose implementing systems are
+// checked for.
+func ProcedureReferences(procedures []*domains.Procedure) References {
+	var refs References
+	for _, procedure := range procedures {
+		if procedure != nil {
+			refs.ProcedureChildren = append(refs.ProcedureChildren, procedure.ID)
+		}
+	}
+	return refs
+}
+
+// ProcedureLinks builds a procedure's links: the client's own links plus the
+// systems that implement it.
+func (l *LinkResolver) ProcedureLinks(procedure *domains.Procedure, cache *ResourceCache) common_shared.Links {
 	if procedure == nil {
 		return nil
 	}
 
 	derived := common_shared.Links{}
-	if strings.TrimSpace(procedure.ID) != "" && (len(procedure.Systems) > 0 || hasAssociationLink(procedure.Links, "implementingSystems")) {
+	if strings.TrimSpace(procedure.ID) != "" && cache.hasChildren(cache.ProcedureChildren, procedure.ID, "implementingSystems") {
 		derived = append(derived, common_shared.Link{
 			Rel:  common_shared.OGCRel("implementingSystems"),
-			Href: "/systems?procedure=" + url.QueryEscape(procedure.ID),
-			Type: GeoJSONContentType,
+			Href: "/systems?procedure=" + url.QueryEscape(procedure.ID) + "&recursive=true",
+			Type: mediatype.GeoJSON,
 		})
 	}
 
-	return mergeAssociationLinks(common_shared.StripAssociationLinks(procedure.Links), procedureAssociationRels, derived)
+	return l.withAssociationLinks(procedure.Links, derived)
 }
 
-func AppendSamplingFeatureGeoJSONAssociationLinks(sf *domains.SamplingFeature) common_shared.Links {
+// SamplingFeatureLinks builds a sampling feature's links: the client's own
+// links plus its parent system and the features it is a sample of.
+func (l *LinkResolver) SamplingFeatureLinks(sf *domains.SamplingFeature) common_shared.Links {
 	if sf == nil {
 		return nil
 	}
 
 	derived := common_shared.Links{}
 
-	if sf.ParentSystemID != nil && strings.TrimSpace(*sf.ParentSystemID) != "" {
+	if parentID := trimmedID(sf.ParentSystemID); parentID != "" {
 		link := common_shared.Link{
 			Rel:  common_shared.OGCRel("parentSystem"),
-			Href: "/systems/" + strings.TrimSpace(*sf.ParentSystemID),
-			Type: GeoJSONContentType,
+			Href: "/systems/" + parentID,
+			Type: mediatype.GeoJSON,
 		}
 		if sf.ParentSystemUID != nil {
 			link.UID = sf.ParentSystemUID
@@ -393,123 +364,49 @@ func AppendSamplingFeatureGeoJSONAssociationLinks(sf *domains.SamplingFeature) c
 		derived = append(derived, link)
 	}
 
+	// sampleOf is a body property, so whatever rel the client gave its links
+	// is irrelevant: they are always published as ogc-rel:sampleOf.
 	if sf.SampleOf != nil {
-		for _, l := range *sf.SampleOf {
-			link := l
+		for _, link := range *sf.SampleOf {
+			link.Rel = common_shared.OGCRel("sampleOf")
 			if link.Type == "" {
-				link.Type = GeoJSONContentType
+				link.Type = mediatype.GeoJSON
 			}
 			derived = append(derived, link)
 		}
 	}
 
-	return mergeAssociationLinks(common_shared.StripAssociationLinks(sf.Links), samplingFeatureGeoJSONAssociationRels, derived)
+	return l.withAssociationLinks(sf.Links, derived)
 }
 
-func ApplyGeoJSONSystemAssociationLinks(system *domains.System, links common_shared.Links) {
-	if system == nil {
-		return
-	}
-
-	for _, link := range links {
-		if common_shared.RelEquals(link.Rel, common_shared.OGCRel("parentSystem")) {
-			system.ParentSystemID = link.GetId("systems")
-		}
-	}
-}
-
-func ApplyDeploymentAssociationLinks(deployment *domains.Deployment, links common_shared.Links) {
-	if deployment == nil {
-		return
-	}
-
-	for _, link := range links {
-		if common_shared.RelEquals(link.Rel, common_shared.OGCRel("parentDeployment")) {
-			deployment.ParentDeploymentID = link.GetId("deployments")
-		}
-	}
-}
-
-func ApplySamplingFeatureGeoJSONAssociationLinks(sf *domains.SamplingFeature, links common_shared.Links) {
-	if sf == nil || len(links) == 0 {
-		return
-	}
-
-	sampleIDs := []string{}
-	sampleUIDs := []string{}
-	sampleOfLinks := common_shared.Links{}
-
-	for _, link := range links {
-		if common_shared.RelEquals(link.Rel, common_shared.OGCRel("parentSystem")) {
-			sf.ParentSystemID = link.GetId("systems")
-			if link.UID != nil {
-				sf.ParentSystemUID = link.UID
-			}
-			continue
-		}
-
-		if common_shared.RelEquals(link.Rel, common_shared.OGCRel("sampleOf")) {
-			sampleOfLinks = append(sampleOfLinks, link)
-			if id := link.GetId("samplingFeatures"); id != nil {
-				sampleIDs = append(sampleIDs, *id)
-			}
-			if link.UID != nil {
-				sampleUIDs = append(sampleUIDs, *link.UID)
-			}
-		}
-	}
-
-	if len(sampleOfLinks) > 0 {
-		sf.SampleOf = &sampleOfLinks
-	}
-	if len(sampleIDs) > 0 {
-		sf.SampleOfIDs = &sampleIDs
-	}
-	if len(sampleUIDs) > 0 {
-		sf.SampleOfUIDs = &sampleUIDs
-	}
-}
-
-func mergeAssociationLinks(existing common_shared.Links, allowedRels []string, derived common_shared.Links) common_shared.Links {
+// withAssociationLinks returns the client's own links followed by the
+// server-generated association links, with absolute hrefs and without
+// duplicates. Association links a client sent are never stored, so the
+// derived ones are the only association links published.
+func (l *LinkResolver) withAssociationLinks(own, derived common_shared.Links) common_shared.Links {
 	out := common_shared.Links{}
 	seen := make(map[string]struct{})
-	allowed := make(map[string]struct{}, len(allowedRels))
-
-	for _, rel := range allowedRels {
-		allowed[common_shared.CanonicalRel(rel)] = struct{}{}
-	}
 
 	add := func(link common_shared.Link, association bool) {
 		if strings.TrimSpace(link.Href) == "" {
 			return
 		}
-
 		canonicalRel := common_shared.CanonicalRel(link.Rel)
 		if association {
-			if _, ok := allowed[canonicalRel]; !ok {
-				return
-			}
 			link.Rel = common_shared.OGCRel(canonicalRel)
-			link.Href = ToFunctionalAssociationHref(link.Href)
+			link.Href = l.Href(link.Href)
 		}
-
 		key := canonicalRel + "|" + link.Href
 		if _, ok := seen[key]; ok {
 			return
 		}
-
 		seen[key] = struct{}{}
 		out = append(out, link)
 	}
 
-	for _, link := range common_shared.StripAssociationLinks(existing) {
+	for _, link := range common_shared.StripAssociationLinks(own) {
 		add(link, false)
 	}
-
-	for _, link := range resourceAssociationLinks(existing, allowedRels) {
-		add(link, true)
-	}
-
 	for _, link := range derived {
 		add(link, true)
 	}
@@ -517,71 +414,42 @@ func mergeAssociationLinks(existing common_shared.Links, allowedRels []string, d
 	if len(out) == 0 {
 		return nil
 	}
-
 	return out
 }
 
-func resourceAssociationLinks(links common_shared.Links, allowedRels []string) common_shared.Links {
-	if len(links) == 0 {
+// DeploymentSystems returns the recursive read projection without altering
+// the deployment's directly owned membership records.
+func (c *ResourceCache) DeployedSystems(d *domains.Deployment) domains.DeployedSystemItems {
+	if c != nil && c.DeploymentSystems != nil {
+		return c.DeploymentSystems[d.ID]
+	}
+	return d.DeployedSystems
+}
+
+// LocalID returns an ID only for a canonical resource in this API namespace.
+// An external resource with the same final path segment remains external.
+func (l *LinkResolver) LocalID(link common_shared.Link, collection string) *string {
+	parsed, err := url.Parse(link.Href)
+	if err != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return nil
 	}
-	return links.FilterByRels(allowedRels, true)
-}
-
-func buildProceduresEndpointHref(procedures []domains.Procedure) string {
-	if len(procedures) == 0 {
-		return ""
-	}
-
-	ids := make([]string, 0, len(procedures))
-	seen := make(map[string]struct{}, len(procedures))
-
-	for _, procedure := range procedures {
-		id := strings.TrimSpace(procedure.ID)
-		if id == "" {
-			continue
+	if parsed.IsAbs() || parsed.Host != "" {
+		if l == nil || l.BaseURL == "" {
+			return nil
 		}
-		if _, ok := seen[id]; ok {
-			continue
+		base, err := url.Parse(l.BaseURL)
+		if err != nil || parsed.Host != base.Host || parsed.Scheme != base.Scheme {
+			return nil
 		}
-		seen[id] = struct{}{}
-		ids = append(ids, id)
-	}
-
-	if len(ids) == 0 {
-		return ""
-	}
-
-	sort.Strings(ids)
-	return "/procedures?id=" + url.QueryEscape(strings.Join(ids, ","))
-}
-
-func hasAssociationLink(links common_shared.Links, rel string) bool {
-	for _, link := range links {
-		if common_shared.RelEquals(link.Rel, common_shared.OGCRel(rel)) {
-			return true
+		prefix := strings.TrimRight(base.Path, "/")
+		if prefix != "" && !strings.HasPrefix(parsed.Path, prefix+"/") {
+			return nil
 		}
+		parsed.Path = strings.TrimPrefix(parsed.Path, prefix)
 	}
-	return false
-}
-
-func ToFunctionalAssociationHref(href string) string {
-	href = strings.TrimSpace(href)
-	if href == "" {
-		return href
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	if len(parts) != 2 || parts[0] != collection || parts[1] == "" {
+		return nil
 	}
-
-	if parsed, err := url.Parse(href); err == nil && parsed.IsAbs() {
-		return href
-	}
-
-	if associationLinksBaseURL == "" {
-		return href
-	}
-
-	if strings.HasPrefix(href, "/") {
-		return associationLinksBaseURL + href
-	}
-
-	return associationLinksBaseURL + "/" + href
+	return &parts[1]
 }

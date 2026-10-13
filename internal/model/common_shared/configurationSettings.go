@@ -19,14 +19,14 @@ type ConfigurationSettings struct {
 
 // SetValue represents an object with a reference and a scalar value (number or string).
 type SetValue struct {
-	Ref   string      `json:"ref"`
-	Value interface{} `json:"value"` // number or string per schema
+	Ref   string `json:"ref"`
+	Value any    `json:"value"` // number or string per schema
 }
 
 // SetArrayValue represents an object with a reference and an array value.
 type SetArrayValue struct {
-	Ref   string        `json:"ref"`
-	Value []interface{} `json:"value"`
+	Ref   string `json:"ref"`
+	Value []any  `json:"value"`
 }
 
 // SetMode represents a mode assignment with a reference and a mode value.
@@ -168,7 +168,7 @@ func (c *Constraint) UnmarshalJSON(b []byte) error {
 // MarshalJSON emits the preserved Raw bytes when available, otherwise the
 // concrete variant is marshalled.
 func (c Constraint) MarshalJSON() ([]byte, error) {
-	out := make(map[string]interface{})
+	out := make(map[string]any)
 	if c.Type != "" {
 		out["type"] = c.Type
 	}
@@ -230,7 +230,7 @@ func (c ConfigurationSettings) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner to load ConfigurationSettings from a JSONB column.
-func (c *ConfigurationSettings) Scan(value interface{}) error {
+func (c *ConfigurationSettings) Scan(value any) error {
 	if value == nil {
 		*c = ConfigurationSettings{}
 		return nil

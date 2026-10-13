@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 func TestDeploymentGeoJSONSerialize_EmptyValidTimeDefaultsToNow(t *testing.T) {
@@ -42,9 +43,8 @@ func TestDeploymentGeoJSONSerialize_EmptyValidTimeDefaultsToNow(t *testing.T) {
 }
 
 func TestDeploymentGeoJSONSerialize_AssociationLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewDeploymentGeoJSONFormatter(nil)
+	formatter := NewDeploymentGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL, DeploymentChildren: stubChildren{"dep-1": {"subdeployments"}}})
 	parentID := "dep-parent"
 	deployment := &domains.Deployment{
 		Base:               domains.Base{ID: "dep-1"},
@@ -97,8 +97,10 @@ func TestDeploymentGeoJSONDeserialize_AssociationLinks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deserialize failed: %v", err)
 	}
-	if deployment.ParentDeploymentID == nil || *deployment.ParentDeploymentID != "dep-parent" {
-		t.Fatalf("expected parent deployment id dep-parent, got %+v", deployment.ParentDeploymentID)
+	// ogc-rel links are server-generated: the parent is only set through
+	// /deployments/{id}/subdeployments, never from a client link.
+	if deployment.ParentDeploymentID != nil {
+		t.Fatalf("expected parentDeployment link to be ignored, got %+v", *deployment.ParentDeploymentID)
 	}
 	if len(deployment.Links) != 1 || deployment.Links[0].Rel != "alternate" {
 		t.Fatalf("expected only non-association links to remain, got %+v", deployment.Links)
@@ -107,9 +109,8 @@ func TestDeploymentGeoJSONDeserialize_AssociationLinks(t *testing.T) {
 
 // Phase 1: inline @link Type enrichment
 func TestDeploymentGeoJSONSerialize_SetsTypeOnPlatformAndDeployedSystems(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewDeploymentGeoJSONFormatter(nil)
+	formatter := NewDeploymentGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL})
 	deployment := &domains.Deployment{
 		Base: domains.Base{ID: "dep-1"},
 		Platform: &domains.DeployedSystemItem{
@@ -129,25 +130,24 @@ func TestDeploymentGeoJSONSerialize_SetsTypeOnPlatformAndDeployedSystems(t *test
 	if feature.Properties.Platform == nil {
 		t.Fatal("expected Platform to be non-nil")
 	}
-	if feature.Properties.Platform.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected Platform.Type %q, got %q", formaters.GeoJSONContentType, feature.Properties.Platform.Type)
+	if feature.Properties.Platform.Type != mediatype.GeoJSON {
+		t.Errorf("expected Platform.Type %q, got %q", mediatype.GeoJSON, feature.Properties.Platform.Type)
 	}
 
 	if len(feature.Properties.DeployedSystems) != 2 {
 		t.Fatalf("expected 2 DeployedSystems, got %d", len(feature.Properties.DeployedSystems))
 	}
 	for i, ds := range feature.Properties.DeployedSystems {
-		if ds.Type != formaters.GeoJSONContentType {
-			t.Errorf("DeployedSystems[%d].Type: expected %q, got %q", i, formaters.GeoJSONContentType, ds.Type)
+		if ds.Type != mediatype.GeoJSON {
+			t.Errorf("DeployedSystems[%d].Type: expected %q, got %q", i, mediatype.GeoJSON, ds.Type)
 		}
 	}
 }
 
 // Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
 func TestDeploymentGeoJSONSerializeAll_EnrichesInlineLinks(t *testing.T) {
-	useTestAssociationBaseURL(t)
 
-	formatter := NewDeploymentGeoJSONFormatter(nil)
+	formatter := NewDeploymentGeoJSONFormatter(&formaters.LinkResolver{BaseURL: testAssociationBaseURL})
 	deployments := []*domains.Deployment{
 		{
 			Base: domains.Base{ID: "dep-1"},
@@ -170,8 +170,8 @@ func TestDeploymentGeoJSONSerializeAll_EnrichesInlineLinks(t *testing.T) {
 	}
 
 	// Type is always set (Phase 1)
-	if features[0].Properties.Platform.Type != formaters.GeoJSONContentType {
-		t.Errorf("expected Platform.Type %q, got %q", formaters.GeoJSONContentType, features[0].Properties.Platform.Type)
+	if features[0].Properties.Platform.Type != mediatype.GeoJSON {
+		t.Errorf("expected Platform.Type %q, got %q", mediatype.GeoJSON, features[0].Properties.Platform.Type)
 	}
 
 	// Title/UID are empty with nil repos (no cache population)

@@ -1,12 +1,13 @@
 package repository
 
 import (
-	"strings"
+	"context"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ControlStreamRepository handles ControlStream data access.
@@ -20,7 +21,7 @@ func NewControlStreamRepository(db *gorm.DB) *ControlStreamRepository {
 }
 
 // Create creates a new control stream.
-func (r *ControlStreamRepository) Create(cs *domains.ControlStream) error {
+func (r *ControlStreamRepository) Create(ctx context.Context, cs *domains.ControlStream) error {
 	// issueTime and executionTime are read-only extents derived from commands;
 	// a new control stream has none. live is server-owned (command channel
 	// availability) and starts out false.
@@ -32,24 +33,31 @@ func (r *ControlStreamRepository) Create(cs *domains.ControlStream) error {
 	if cs.Schema != nil {
 		cs.Schemas = cs.Schemas.Upsert(*cs.Schema)
 	}
-	normalizeControlStreamRefs(cs)
-	r.populateSystemAssociations(cs)
-	if err := r.db.Create(cs).Error; err != nil {
-		return err
-	}
-	if cs.SystemID != nil && cs.ID != "" {
-		r.db.Exec(
-			"INSERT INTO system_controlstreams (system_id, control_stream_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
-			*cs.SystemID, cs.ID,
-		)
-	}
-	return nil
+	cs.RecomputeSchemaMetadata()
+
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := r.resolveReferences(ctx, tx, cs); err != nil {
+			return err
+		}
+		if cs.SystemID != nil {
+			if err := requireParent(tx, &domains.System{}, "system", *cs.SystemID); err != nil {
+				return err
+			}
+		}
+		if err := r.populateSystemAssociations(tx, cs); err != nil {
+			return err
+		}
+		if err := r.resolveReferences(ctx, tx, cs); err != nil {
+			return err
+		}
+		return tx.Create(cs).Error
+	})
 }
 
 // GetByID retrieves a control stream by ID.
-func (r *ControlStreamRepository) GetByID(id string) (*domains.ControlStream, error) {
+func (r *ControlStreamRepository) GetByID(ctx context.Context, id string) (*domains.ControlStream, error) {
 	var cs domains.ControlStream
-	err := r.db.Where("id = ?", id).First(&cs).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&cs).Error
 	if err != nil {
 		return nil, err
 	}
@@ -57,11 +65,10 @@ func (r *ControlStreamRepository) GetByID(id string) (*domains.ControlStream, er
 }
 
 // List retrieves control streams with filtering.
-func (r *ControlStreamRepository) List(params *queryparams.ControlStreamsQueryParams, systemID *string) ([]*domains.ControlStream, int64, error) {
+func (r *ControlStreamRepository) List(ctx context.Context, params *queryparams.ControlStreamsQueryParams, systemID *string) ([]*domains.ControlStream, int64, error) {
 	var controlStreams []*domains.ControlStream
-	var total int64
 
-	query := r.db.Model(&domains.ControlStream{})
+	query := r.db.WithContext(ctx).Model(&domains.ControlStream{})
 	query = r.applyFilters(query, params, systemID)
 
 	if params.IssueTime != nil && params.IssueTime.Latest {
@@ -69,124 +76,105 @@ func (r *ControlStreamRepository) List(params *queryparams.ControlStreamsQueryPa
 		return controlStreams, int64(len(controlStreams)), err
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	query, err := ApplyCursorPagination(query, &params.QueryParams, CursorOrderIDAsc)
-	if err != nil {
-		return nil, 0, err
-	}
-	err = query.Find(&controlStreams).Error
-	controlStreams = FinalizeCursorPage(controlStreams, &params.QueryParams)
-	params.Anchors = queryparams.CursorAnchorsFor(controlStreams, func(controlStream *domains.ControlStream) []string { return []string{controlStream.ID} })
-	return controlStreams, total, err
+	return listPage(query, &params.QueryParams, idOrder("control_streams"), idAnchor[*domains.ControlStream])
 }
 
 // Update updates a control stream.
-// Procedure and deployment are locked (server-derived from system). SamplingFeature can be
-// changed by the client; featureOfInterest is re-derived from the updated samplingFeature.
-func (r *ControlStreamRepository) Update(cs *domains.ControlStream) error {
-	var existing domains.ControlStream
-	if err := r.db.Select("id", "procedure_link", "procedure_id", "deployment_link", "deployment_id",
-		"issue_time_start", "issue_time_end", "execution_time_start", "execution_time_end", "schemas", "live").
-		Where("id = ?", cs.ID).First(&existing).Error; err == nil {
-		cs.ProcedureLink = existing.ProcedureLink
-		cs.ProcedureID = existing.ProcedureID
-		cs.DeploymentLink = existing.DeploymentLink
-		cs.DeploymentID = existing.DeploymentID
-		// issueTime and executionTime are read-only extents derived from
-		// commands; carry the stored values forward so Save can't clobber them.
-		cs.IssueTime = common_shared.NonEmptyTimeRange(existing.IssueTime)
-		cs.ExecutionTime = common_shared.NonEmptyTimeRange(existing.ExecutionTime)
-		// Carry the schema registry forward, folding in the incoming schema.
-		cs.Schemas = existing.Schemas
-		if cs.Schema != nil {
-			cs.Schemas = cs.Schemas.Upsert(*cs.Schema)
-		}
-		// live is server-owned; carry the stored value forward.
-		cs.Live = existing.Live
-	}
-	normalizeControlStreamRefs(cs)
-	r.deriveFOIFromSamplingFeature(cs)
-	return r.db.Save(cs).Error
+// Writable links are replaced; system membership and schema registries are preserved.
+func (r *ControlStreamRepository) Update(ctx context.Context, cs *domains.ControlStream) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return replaceByIDChecked(tx, cs, func(existing *domains.ControlStream) error {
+			// system@link is read-only: a control stream cannot be reparented.
+			cs.SystemID = existing.SystemID
+			// issueTime and executionTime are read-only extents derived from
+			// commands; carry the stored values forward.
+			cs.IssueTime = common_shared.NonEmptyTimeRange(existing.IssueTime)
+			cs.ExecutionTime = common_shared.NonEmptyTimeRange(existing.ExecutionTime)
+
+			// live is server-owned; carry the stored value forward.
+			cs.Live = existing.Live
+			if err := r.resolveReferences(ctx, tx, cs); err != nil {
+				return err
+			}
+			return mergeControlStreamSchema(tx, cs, existing)
+		})
+	})
 }
 
 // populateSystemAssociations sets procedure and deployment from the parent system on create.
-// Procedure comes from system.SystemKindID; deployment from system_deployments.
+// Procedure comes from systems.type_of_id; deployment is inferred only when unique.
 // FOI is derived from the user-supplied samplingFeature via deriveFOIFromSamplingFeature.
-func (r *ControlStreamRepository) populateSystemAssociations(cs *domains.ControlStream) {
+func (r *ControlStreamRepository) populateSystemAssociations(db *gorm.DB, cs *domains.ControlStream) error {
 	if cs.SystemID == nil {
-		return
+		return nil
 	}
 	systemID := *cs.SystemID
 
 	// Procedure from TypeOfID FK
 	var sys domains.System
-	if err := r.db.Select("id", "type_of_id").Where("id = ?", systemID).First(&sys).Error; err == nil {
-		if sys.TypeOfID != nil && *sys.TypeOfID != "" {
+	if err := db.Select("id", "type_of_id").Where("id = ?", systemID).First(&sys).Error; err != nil {
+		return err
+	}
+	{
+		if cs.ProcedureLink == nil && sys.TypeOfID != nil && *sys.TypeOfID != "" {
 			kindID := *sys.TypeOfID
 			cs.ProcedureLink = &common_shared.Link{Href: "procedures/" + kindID}
 			cs.ProcedureID = &kindID
 		}
 	}
 
-	// Deployment — first entry in system_deployments join table
-	var depID string
-	if err := r.db.Table("system_deployments").Select("deployment_id").Where("system_id = ?", systemID).Limit(1).Scan(&depID).Error; err == nil && depID != "" {
+	// Infer deployment only for an unambiguous single membership.
+	var depIDs []string
+	if err := db.Table("system_deployments").Where("system_id = ?", systemID).Limit(2).Pluck("deployment_id", &depIDs).Error; err != nil {
+		return err
+	}
+	if cs.DeploymentLink == nil && len(depIDs) == 1 {
+		depID := depIDs[0]
 		cs.DeploymentLink = &common_shared.Link{Href: "deployments/" + depID}
 		cs.DeploymentID = &depID
 	}
 
 	// FOI derived from user-provided samplingFeature
-	r.deriveFOIFromSamplingFeature(cs)
+	return r.deriveFOIFromSamplingFeature(db, cs)
 }
 
 // deriveFOIFromSamplingFeature sets FeatureOfInterest and FeatureOfInterestID on the control stream
 // by looking up the sampledFeature link stored on the referenced SamplingFeature.
-func (r *ControlStreamRepository) deriveFOIFromSamplingFeature(cs *domains.ControlStream) {
-	if cs.SamplingFeatureID == nil {
-		return
+func (r *ControlStreamRepository) deriveFOIFromSamplingFeature(db *gorm.DB, cs *domains.ControlStream) error {
+	if cs.FeatureOfInterest != nil || cs.SamplingFeatureID == nil {
+		return nil
 	}
 	var sf domains.SamplingFeature
-	if err := r.db.Select("id", "sampled_feature_link", "sampled_feature_id").
-		Where("id = ?", *cs.SamplingFeatureID).First(&sf).Error; err == nil {
+	if err := db.Select("id", "sampled_feature_link", "sampled_feature_id").
+		Where("id = ?", *cs.SamplingFeatureID).First(&sf).Error; err != nil {
+		return err
+	}
+	{
 		cs.FeatureOfInterest = sf.SampledFeatureLink
 		cs.FeatureOfInterestID = sf.SampledFeatureID
 	}
+	return nil
 }
 
 // Delete deletes a control stream.
-// If cascade is true, all commands associated with the control stream are deleted first.
-func (r *ControlStreamRepository) Delete(id string, cascade bool) error {
-	// Always clean join table first to unblock FK constraints.
-	if err := r.db.Exec("DELETE FROM system_controlstreams WHERE control_stream_id = ?", id).Error; err != nil {
-		return err
-	}
-
-	if !cascade {
-		var cmdCount int64
-		if err := r.db.Model(&domains.Command{}).Where("control_stream_id = ?", id).Count(&cmdCount).Error; err != nil {
+// If cascade is true, all commands associated with the control stream are
+// deleted first. The checks and every delete share one transaction, so a
+// refused or failed delete leaves the control stream exactly as it was.
+func (r *ControlStreamRepository) Delete(ctx context.Context, id string, cascade bool) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockControlStream(tx, id); err != nil {
 			return err
 		}
-		if cmdCount > 0 {
+		if cascade {
+			if err := deleteControlStreamCommands(tx, []string{id}); err != nil {
+				return err
+			}
+		} else if has, err := hasRows(tx, &domains.Command{}, "control_stream_id = ?", id); err != nil {
+			return err
+		} else if has {
 			return ErrHasChildren
 		}
 
-		result := r.db.Delete(&domains.ControlStream{}, "id = ?", id)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return ErrNotFound
-		}
-		return nil
-	}
-
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("control_stream_id = ?", id).Delete(&domains.Command{}).Error; err != nil {
-			return err
-		}
 		result := tx.Delete(&domains.ControlStream{}, "id = ?", id)
 		if result.Error != nil {
 			return result.Error
@@ -198,11 +186,28 @@ func (r *ControlStreamRepository) Delete(id string, cascade bool) error {
 	})
 }
 
+// deleteControlStreamCommands removes the commands of the given control
+// streams together with their status reports and results, which no foreign
+// key would otherwise clean up.
+func deleteControlStreamCommands(tx *gorm.DB, controlStreamIDs []string) error {
+	if len(controlStreamIDs) == 0 {
+		return nil
+	}
+	commandIDs := tx.Model(&domains.Command{}).Select("id").Where("control_stream_id IN ?", controlStreamIDs)
+	if err := tx.Where("command_id IN (?)", commandIDs).Delete(&domains.CommandStatusReport{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("command_id IN (?)", commandIDs).Delete(&domains.CommandResult{}).Error; err != nil {
+		return err
+	}
+	return tx.Where("control_stream_id IN ?", controlStreamIDs).Delete(&domains.Command{}).Error
+}
+
 // GetSchema retrieves the current schema and the per-format schema registry
 // for a control stream.
-func (r *ControlStreamRepository) GetSchema(id string) (*domains.ControlStreamSchema, domains.ControlStreamSchemas, error) {
+func (r *ControlStreamRepository) GetSchema(ctx context.Context, id string) (*domains.ControlStreamSchema, domains.ControlStreamSchemas, error) {
 	var cs domains.ControlStream
-	err := r.db.Select("id", "schema", "schemas").Where("id = ?", id).First(&cs).Error
+	err := r.db.WithContext(ctx).Select("id", "schema", "schemas").Where("id = ?", id).First(&cs).Error
 	if err != nil {
 		return nil, nil, err
 	}
@@ -210,28 +215,30 @@ func (r *ControlStreamRepository) GetSchema(id string) (*domains.ControlStreamSc
 	if len(cs.Schemas) == 0 && cs.Schema != nil {
 		cs.Schemas = cs.Schemas.Upsert(*cs.Schema)
 	}
+	if cs.Schema == nil && len(cs.Schemas) > 0 {
+		cs.Schema = cs.Schemas.ForFormat("application/json")
+		if cs.Schema == nil {
+			cs.Schema = &cs.Schemas[0]
+		}
+	}
 	return cs.Schema, cs.Schemas, nil
 }
 
 // UpdateSchema upserts the schema into the control stream's per-format
 // registry (replacing the entry with the same commandFormat, adding it
 // otherwise) and makes it the current schema.
-func (r *ControlStreamRepository) UpdateSchema(id string, schema *domains.ControlStreamSchema) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+func (r *ControlStreamRepository) UpdateSchema(ctx context.Context, id string, schema *domains.ControlStreamSchema) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing domains.ControlStream
-		if err := tx.Select("id", "schema", "schemas").Where("id = ?", id).First(&existing).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&existing).Error; err != nil {
 			return err
 		}
-		schemas := existing.Schemas
-		// Legacy rows predate the registry: fold the stored schema in first.
-		if len(schemas) == 0 && existing.Schema != nil {
-			schemas = schemas.Upsert(*existing.Schema)
+		replacement := existing
+		replacement.Schema = schema
+		if err := mergeControlStreamSchema(tx, &replacement, &existing); err != nil {
+			return err
 		}
-		if schema != nil {
-			schemas = schemas.Upsert(*schema)
-		}
-		return tx.Model(&domains.ControlStream{}).Where("id = ?", id).
-			Updates(map[string]interface{}{"schema": schema, "schemas": schemas}).Error
+		return tx.Model(&replacement).Select("schema", "schemas", "formats", "controlled_properties").Updates(&replacement).Error
 	})
 }
 
@@ -240,43 +247,14 @@ func (r *ControlStreamRepository) applyFilters(query *gorm.DB, params *querypara
 		query = query.Where("id IN ? OR unique_identifier IN ?", params.IDs, params.IDs)
 	}
 
-	if len(params.Q) > 0 {
-		var clauses []string
-		var args []interface{}
-		for _, term := range params.Q {
-			like := "%" + term + "%"
-			clauses = append(clauses, "name ILIKE ?")
-			args = append(args, like)
-			clauses = append(clauses, "description ILIKE ?")
-			args = append(args, like)
-			clauses = append(clauses, "input_name ILIKE ?")
-			args = append(args, like)
-		}
-		query = query.Where(strings.Join(clauses, " OR "), args...)
-	}
+	query = applyKeywordFilter(query, params.Q, "name", "description", "input_name")
 
-	if params.IssueTime != nil && !params.IssueTime.Latest {
-		if params.IssueTime.Start != nil && params.IssueTime.End != nil {
-			query = query.Where("issue_time_start <= ? AND (issue_time_end IS NULL OR issue_time_end >= ?)", params.IssueTime.End, params.IssueTime.Start)
-		} else if params.IssueTime.Start != nil {
-			query = query.Where("issue_time_end IS NULL OR issue_time_end >= ?", params.IssueTime.Start)
-		} else if params.IssueTime.End != nil {
-			query = query.Where("issue_time_start <= ?", params.IssueTime.End)
-		}
-	}
+	query = applyRangeFilter(query, "control_streams.issue_time_start", "control_streams.issue_time_end", params.IssueTime)
 
-	if params.ExecutionTime != nil {
-		if params.ExecutionTime.Start != nil && params.ExecutionTime.End != nil {
-			query = query.Where("execution_time_start <= ? AND (execution_time_end IS NULL OR execution_time_end >= ?)", params.ExecutionTime.End, params.ExecutionTime.Start)
-		} else if params.ExecutionTime.Start != nil {
-			query = query.Where("execution_time_end IS NULL OR execution_time_end >= ?", params.ExecutionTime.Start)
-		} else if params.ExecutionTime.End != nil {
-			query = query.Where("execution_time_start <= ?", params.ExecutionTime.End)
-		}
-	}
+	query = applyRangeFilter(query, "control_streams.execution_time_start", "control_streams.execution_time_end", params.ExecutionTime)
 
 	if systemID != nil {
-		query = query.Where("system_id = ?", *systemID)
+		query = query.Where("system_id IN ("+systemTreeSQL("?")+")", *systemID)
 	} else if len(params.System) > 0 {
 		query = query.Where("system_id IN ?", params.System)
 	}
@@ -294,21 +272,8 @@ func (r *ControlStreamRepository) applyFilters(query *gorm.DB, params *querypara
 	return applyCQLFilter(query, &params.QueryParams)
 }
 
-func normalizeControlStreamRefs(cs *domains.ControlStream) {
-	if cs == nil {
-		return
-	}
-
-	if cs.ProcedureLink != nil {
-		cs.ProcedureID = cs.ProcedureLink.GetId("procedures")
-	}
-	if cs.DeploymentLink != nil {
-		cs.DeploymentID = cs.DeploymentLink.GetId("deployments")
-	}
-	if cs.FeatureOfInterest != nil {
-		cs.FeatureOfInterestID = cs.FeatureOfInterest.GetId("features")
-	}
-	if cs.SamplingFeatureLink != nil {
-		cs.SamplingFeatureID = cs.SamplingFeatureLink.GetId("samplingFeatures")
-	}
+func (r *ControlStreamRepository) resolveReferences(ctx context.Context, tx *gorm.DB, cs *domains.ControlStream) error {
+	var err error
+	cs.ProcedureID, cs.DeploymentID, cs.SamplingFeatureID, cs.FeatureOfInterestID, err = resolveStreamReferences(ctx, tx, cs.ProcedureLink, cs.DeploymentLink, cs.SamplingFeatureLink, cs.FeatureOfInterest)
+	return err
 }

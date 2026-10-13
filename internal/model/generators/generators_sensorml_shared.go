@@ -6,8 +6,9 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/google/uuid"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
 )
 
 // =============================================================================
@@ -57,7 +58,7 @@ func FakeClassifierTerm() common_shared.Term {
 // FakeIdentifiers creates multiple identifier Terms
 func FakeIdentifiers(count int) common_shared.Terms {
 	terms := make(common_shared.Terms, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		terms[i] = FakeIdentifierTerm()
 	}
 	return terms
@@ -66,7 +67,7 @@ func FakeIdentifiers(count int) common_shared.Terms {
 // FakeClassifiers creates multiple classifier Terms
 func FakeClassifiers(count int) common_shared.Terms {
 	terms := make(common_shared.Terms, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		terms[i] = FakeClassifierTerm()
 	}
 	return terms
@@ -165,7 +166,7 @@ func FakeContactWrapperLink() common_shared.ContactWrapper {
 // FakeContactWrappers creates a mixed list of contact wrappers
 func FakeContactWrappers(count int) common_shared.ContactWrappers {
 	wrappers := make(common_shared.ContactWrappers, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		if rand.Intn(2) == 0 {
 			wrappers[i] = FakeContactWrapperPerson()
 		} else {
@@ -205,7 +206,7 @@ func FakeDocumentFull() common_shared.Document {
 // FakeDocumentsFull creates multiple Documents
 func FakeDocumentsFull(count int) common_shared.Documents {
 	docs := make(common_shared.Documents, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		docs[i] = FakeDocumentFull()
 	}
 	return docs
@@ -219,7 +220,7 @@ func FakeDocumentsFull(count int) common_shared.Documents {
 func FakeSecurityConstraint() common_shared.SecurityConstraint {
 	return common_shared.SecurityConstraint{
 		Type: "http://sensorml.com/ont/swe/security/Classification",
-		Extra: map[string]interface{}{
+		Extra: map[string]any{
 			"level":        "unclassified",
 			"releasableTo": []string{"public"},
 		},
@@ -229,7 +230,7 @@ func FakeSecurityConstraint() common_shared.SecurityConstraint {
 // FakeSecurityConstraintsFull creates multiple SecurityConstraints
 func FakeSecurityConstraintsFull(count int) common_shared.SecurityConstraints {
 	constraints := make(common_shared.SecurityConstraints, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		constraints[i] = FakeSecurityConstraint()
 	}
 	return constraints
@@ -246,7 +247,7 @@ func FakeCodeList() common_shared.CodeList {
 // FakeCodeListsFull creates multiple CodeList entries
 func FakeCodeListsFull(count int) common_shared.CodeLists {
 	lists := make(common_shared.CodeLists, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		lists[i] = FakeCodeList()
 	}
 	return lists
@@ -267,7 +268,7 @@ func FakeLegalConstraint() common_shared.LegalConstraint {
 // FakeLegalConstraintsFull creates multiple LegalConstraints
 func FakeLegalConstraintsFull(count int) common_shared.LegalConstraints {
 	constraints := make(common_shared.LegalConstraints, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		constraints[i] = FakeLegalConstraint()
 	}
 	return constraints
@@ -289,7 +290,7 @@ func FakeComponentWrapperBoolean() common_shared.ComponentWrapper {
 		Value:      valJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]interface{}{
+	raw, _ := json.Marshal(map[string]any{
 		"type":       cw.Type,
 		"definition": cw.Definition,
 		"label":      cw.Label,
@@ -312,7 +313,7 @@ func FakeComponentWrapperCount() common_shared.ComponentWrapper {
 		Value:      valJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]interface{}{
+	raw, _ := json.Marshal(map[string]any{
 		"type":       cw.Type,
 		"definition": cw.Definition,
 		"label":      cw.Label,
@@ -340,7 +341,7 @@ func FakeComponentWrapperQuantity() common_shared.ComponentWrapper {
 		UOM:        uomJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]interface{}{
+	raw, _ := json.Marshal(map[string]any{
 		"type":       cw.Type,
 		"definition": cw.Definition,
 		"label":      cw.Label,
@@ -364,7 +365,7 @@ func FakeComponentWrapperText() common_shared.ComponentWrapper {
 		Value:      valJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]interface{}{
+	raw, _ := json.Marshal(map[string]any{
 		"type":       cw.Type,
 		"definition": cw.Definition,
 		"label":      cw.Label,
@@ -388,7 +389,7 @@ func FakeComponentWrapperCategory() common_shared.ComponentWrapper {
 		Value:      valJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]interface{}{
+	raw, _ := json.Marshal(map[string]any{
 		"type":       cw.Type,
 		"definition": cw.Definition,
 		"label":      cw.Label,
@@ -415,7 +416,7 @@ func FakeComponentWrapperQuantityRange() common_shared.ComponentWrapper {
 		UOM:        uomJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]interface{}{
+	raw, _ := json.Marshal(map[string]any{
 		"type":       cw.Type,
 		"definition": cw.Definition,
 		"label":      cw.Label,
@@ -442,7 +443,7 @@ func FakeComponentWrapperTime() common_shared.ComponentWrapper {
 		UOM:        uomJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]interface{}{
+	raw, _ := json.Marshal(map[string]any{
 		"type":       cw.Type,
 		"definition": cw.Definition,
 		"label":      cw.Label,
@@ -471,7 +472,7 @@ func FakeComponentWrapperRandom() common_shared.ComponentWrapper {
 // FakeComponentWrappers creates a list of random component wrappers
 func FakeComponentWrappers(count int) []common_shared.ComponentWrapper {
 	wrappers := make([]common_shared.ComponentWrapper, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		wrappers[i] = FakeComponentWrapperRandom()
 	}
 	return wrappers
@@ -492,7 +493,7 @@ func FakeCharacteristicGroupFull() common_shared.CharacteristicGroup {
 // FakeCharacteristicGroupsFull creates multiple CharacteristicGroups
 func FakeCharacteristicGroupsFull(count int) common_shared.CharacteristicGroups {
 	groups := make(common_shared.CharacteristicGroups, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		groups[i] = FakeCharacteristicGroupFull()
 	}
 	return groups
@@ -513,7 +514,7 @@ func FakeCapabilityGroupFull() common_shared.CapabilityGroup {
 // FakeCapabilityGroupsFull creates multiple CapabilityGroups
 func FakeCapabilityGroupsFull(count int) common_shared.CapabilityGroups {
 	groups := make(common_shared.CapabilityGroups, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		groups[i] = FakeCapabilityGroupFull()
 	}
 	return groups
@@ -546,7 +547,7 @@ func FakeHistoryEventFull() common_shared.HistoryEvent {
 	}
 
 	props := FakeComponentWrappers(2)
-	configJSON, _ := json.Marshal(map[string]interface{}{
+	configJSON, _ := json.Marshal(map[string]any{
 		"setting1": f.Lorem().Word(),
 		"setting2": rand.Float64() * 100,
 	})
@@ -569,7 +570,7 @@ func FakeHistoryEventFull() common_shared.HistoryEvent {
 // FakeHistoryFull creates multiple HistoryEvents
 func FakeHistoryFull(count int) common_shared.History {
 	events := make(common_shared.History, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		events[i] = FakeHistoryEventFull()
 	}
 	return events
@@ -582,7 +583,7 @@ func FakeHistoryFull(count int) common_shared.History {
 // FakeLinkFull creates a fully populated Link
 func FakeLinkFull() common_shared.Link {
 	rels := []string{"self", "alternate", "related", "describedby", "collection", "item"}
-	types := []string{"application/json", "application/geo+json", "application/sml+json", "text/html"}
+	types := []string{mediatype.JSON, mediatype.GeoJSON, mediatype.SensorML, "text/html"}
 	uid := fmt.Sprintf("urn:uuid:%s", uuid.New().String())
 
 	return common_shared.Link{
@@ -597,7 +598,7 @@ func FakeLinkFull() common_shared.Link {
 // FakeLinksFull creates multiple Links
 func FakeLinksFull(count int) common_shared.Links {
 	links := make(common_shared.Links, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		links[i] = FakeLinkFull()
 	}
 	return links
@@ -609,7 +610,7 @@ func FakeSystemLink() common_shared.Link {
 	return common_shared.Link{
 		Href:  fmt.Sprintf("http://example.org/api/systems/%s", uuid.New().String()),
 		Rel:   "system",
-		Type:  "application/sml+json",
+		Type:  mediatype.SensorML,
 		Title: f.Company().Name() + " System",
 		UID:   &uid,
 	}
@@ -667,7 +668,7 @@ func FakeIOItem() common_shared.IOItem {
 // FakeIOListFull creates an IOList with multiple IOItems
 func FakeIOListFull(count int) common_shared.IOList {
 	list := make(common_shared.IOList, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		list[i] = FakeIOItem()
 	}
 	return list

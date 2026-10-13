@@ -12,7 +12,7 @@ import (
 
 // postControlStreamStatus creates a control stream under a system and returns
 // the raw HTTP status, so tests can assert rejection of malformed schemas.
-func postControlStreamStatus(t *testing.T, systemID string, payload map[string]interface{}) int {
+func postControlStreamStatus(t *testing.T, systemID string, payload map[string]any) int {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -30,13 +30,13 @@ func postControlStreamStatus(t *testing.T, systemID string, payload map[string]i
 // controlStreamPayloadWithParamField returns a control stream create payload
 // whose parametersSchema is a DataRecord with a single field. The field is
 // merged from the given map so tests can omit required attributes.
-func controlStreamPayloadWithParamField(field map[string]interface{}) map[string]interface{} {
+func controlStreamPayloadWithParamField(field map[string]any) map[string]any {
 	p := baseControlStreamPayload()
-	p["schema"] = map[string]interface{}{
+	p["schema"] = map[string]any{
 		"commandFormat": "application/json",
-		"parametersSchema": map[string]interface{}{
+		"parametersSchema": map[string]any{
 			"type":   "DataRecord",
-			"fields": []map[string]interface{}{field},
+			"fields": []map[string]any{field},
 		},
 	}
 	return p
@@ -50,7 +50,7 @@ func TestControlStreamSchema_QuantityRequiresUOM(t *testing.T) {
 	systemID := createSystemForControlStreamTest(t)
 
 	// Missing uom -> rejected.
-	status := postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]interface{}{
+	status := postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]any{
 		"name":       "speed",
 		"type":       "Quantity",
 		"definition": "urn:onvif:ptz:speed",
@@ -59,12 +59,12 @@ func TestControlStreamSchema_QuantityRequiresUOM(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, status, "Quantity without uom must be rejected")
 
 	// With a uom -> accepted.
-	status = postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]interface{}{
+	status = postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]any{
 		"name":       "speed",
 		"type":       "Quantity",
 		"definition": "urn:onvif:ptz:speed",
 		"label":      "Move Speed",
-		"uom":        map[string]interface{}{"code": "1"},
+		"uom":        map[string]any{"code": "1"},
 	}))
 	assert.Equal(t, http.StatusCreated, status, "Quantity with uom must be accepted")
 }
@@ -76,14 +76,14 @@ func TestControlStreamSchema_ScalarRequiresDefinitionAndLabel(t *testing.T) {
 	systemID := createSystemForControlStreamTest(t)
 
 	// Category missing definition and label.
-	status := postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]interface{}{
+	status := postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]any{
 		"name": "action",
 		"type": "Category",
 	}))
 	assert.Equal(t, http.StatusBadRequest, status, "Category without definition/label must be rejected")
 
 	// Category missing only label.
-	status = postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]interface{}{
+	status = postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]any{
 		"name":       "action",
 		"type":       "Category",
 		"definition": "urn:onvif:ptz:preset-action",
@@ -91,7 +91,7 @@ func TestControlStreamSchema_ScalarRequiresDefinitionAndLabel(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, status, "Category without label must be rejected")
 
 	// Complete Category (definition + label, no uom needed) is accepted.
-	status = postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]interface{}{
+	status = postControlStreamStatus(t, systemID, controlStreamPayloadWithParamField(map[string]any{
 		"name":       "action",
 		"type":       "Category",
 		"definition": "urn:onvif:ptz:preset-action",
@@ -108,11 +108,11 @@ func TestControlStreamSchema_ValidationOnSchemaPut(t *testing.T) {
 	csID := createControlStreamViaAPI(t, systemID, baseControlStreamPayload())
 
 	// A schema PUT with a uom-less Quantity must be rejected.
-	body, err := json.Marshal(map[string]interface{}{
+	body, err := json.Marshal(map[string]any{
 		"commandFormat": "application/json",
-		"parametersSchema": map[string]interface{}{
+		"parametersSchema": map[string]any{
 			"type": "DataRecord",
-			"fields": []map[string]interface{}{
+			"fields": []map[string]any{
 				{"name": "speed", "type": "Quantity", "definition": "urn:onvif:ptz:speed", "label": "Move Speed"},
 			},
 		},

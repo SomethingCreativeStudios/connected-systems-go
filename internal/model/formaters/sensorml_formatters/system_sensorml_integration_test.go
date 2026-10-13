@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
-	"github.com/yourusername/connected-systems-go/internal/repository/testutil"
 )
 
 // setupFormatterTestDB spins up a PostGIS container, migrates models, and returns repos + cleanup.
@@ -39,8 +40,6 @@ func setupFormatterTestDB(t *testing.T) (*repository.Repositories, func()) {
 // TestSystemSensorMLFormatter_SerializeAll_EnrichesInlineLinksFromDB verifies that
 // SerializeAll populates Title and UID on attachedTo and typeOf.
 func TestSystemSensorMLFormatter_SerializeAll_EnrichesInlineLinksFromDB(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
 	repos, cleanup := setupFormatterTestDB(t)
 	defer cleanup()
@@ -51,14 +50,14 @@ func TestSystemSensorMLFormatter_SerializeAll_EnrichesInlineLinksFromDB(t *testi
 		CommonSSN:  domains.CommonSSN{UniqueIdentifier: "urn:test:sys:parent", Name: "Parent System"},
 		SystemType: domains.SystemTypePlatform,
 	}
-	require.NoError(t, repos.System.Create(parentSys))
+	require.NoError(t, repos.System.Create(t.Context(), parentSys))
 
 	// Seed procedure (system kind)
 	kindProc := &domains.Procedure{
 		CommonSSN:   domains.CommonSSN{UniqueIdentifier: "urn:test:proc:kind", Name: "System Kind Procedure"},
 		ProcessType: "SimpleProcess",
 	}
-	require.NoError(t, repos.Procedure.Create(kindProc))
+	require.NoError(t, repos.Procedure.Create(t.Context(), kindProc))
 
 	// Create system with parent and kind
 	system := &domains.System{
@@ -69,7 +68,7 @@ func TestSystemSensorMLFormatter_SerializeAll_EnrichesInlineLinksFromDB(t *testi
 		TypeOfID:       &kindProc.ID,
 	}
 
-	formatter := NewSystemSensorMLFormatter(repos)
+	formatter := NewSystemSensorMLFormatter(&formaters.LinkResolver{BaseURL: "http://example.test", Systems: repos.System, Procedures: repos.Procedure, Deployments: repos.Deployment, SamplingFeatures: repos.SamplingFeature, SystemChildren: repos.System, DeploymentChildren: repos.Deployment, ProcedureChildren: repos.Procedure})
 	features, err := formatter.SerializeAll(ctx, []*domains.System{system})
 	require.NoError(t, err)
 	require.Len(t, features, 1)
@@ -78,14 +77,14 @@ func TestSystemSensorMLFormatter_SerializeAll_EnrichesInlineLinksFromDB(t *testi
 
 	// attachedTo enrichment
 	require.NotNil(t, f.AttachedTo)
-	require.Equal(t, formaters.GeoJSONContentType, f.AttachedTo.Type)
+	require.Equal(t, mediatype.GeoJSON, f.AttachedTo.Type)
 	require.Equal(t, "Parent System", f.AttachedTo.Title)
 	require.NotNil(t, f.AttachedTo.UID)
 	require.Equal(t, "urn:test:sys:parent", *f.AttachedTo.UID)
 
 	// typeOf enrichment
 	require.NotNil(t, f.TypeOf)
-	require.Equal(t, formaters.SensorMLContentType, f.TypeOf.Type)
+	require.Equal(t, mediatype.SensorML, f.TypeOf.Type)
 	require.Equal(t, "System Kind Procedure", f.TypeOf.Title)
 	require.NotNil(t, f.TypeOf.UID)
 	require.Equal(t, "urn:test:proc:kind", *f.TypeOf.UID)

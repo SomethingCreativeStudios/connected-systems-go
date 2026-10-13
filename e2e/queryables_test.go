@@ -15,7 +15,7 @@ import (
 func TestFeaturesPart3CQLAndCollectionFacade(t *testing.T) {
 	cleanupDB(t)
 	payload := baseSystemPayload("CQL harbor sensor")
-	payload["properties"].(map[string]interface{})["validTime"] = []string{"2026-01-01T00:00:00Z", "2026-01-03T00:00:00Z"}
+	payload["properties"].(map[string]any)["validTime"] = []string{"2026-01-01T00:00:00Z", "2026-01-03T00:00:00Z"}
 	createdID := createSystemViaAPI(t, "/systems", payload)
 
 	get := func(filter, language string) *http.Response {

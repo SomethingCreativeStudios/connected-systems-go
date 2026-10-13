@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -18,31 +17,31 @@ const (
 	DatastreamJSONSchema = "json/datastream-bundled.json"
 )
 
-func baseDatastreamPayload() map[string]interface{} {
+func baseDatastreamPayload() map[string]any {
 	uniqueID := uuid.NewString()
-	return map[string]interface{}{
+	return map[string]any{
 		"name":       "Datastream " + uniqueID[:8],
 		"type":       "observation",
 		"outputName": "weather-output",
 		"formats":    []string{"application/json"},
-		"schema": map[string]interface{}{
+		"schema": map[string]any{
 			"obsFormat": "application/json",
-			"resultSchema": map[string]interface{}{
+			"resultSchema": map[string]any{
 				"type": "DataRecord",
-				"fields": []map[string]interface{}{
+				"fields": []map[string]any{
 					{
 						"name":       "temperature",
 						"type":       "Quantity",
 						"definition": "http://sensorml.com/ont/swe/property/Temperature",
 						"label":      "Temperature",
-						"uom":        map[string]interface{}{"code": "Cel"},
+						"uom":        map[string]any{"code": "Cel"},
 					},
 					{
 						"name":       "humidity",
 						"type":       "Quantity",
 						"definition": "http://sensorml.com/ont/swe/property/RelativeHumidity",
 						"label":      "Humidity",
-						"uom":        map[string]interface{}{"code": "%"},
+						"uom":        map[string]any{"code": "%"},
 					},
 				},
 			},
@@ -50,7 +49,7 @@ func baseDatastreamPayload() map[string]interface{} {
 	}
 }
 
-func createDatastreamViaAPI(t *testing.T, endpoint string, payload map[string]interface{}) string {
+func createDatastreamViaAPI(t *testing.T, endpoint string, payload map[string]any) string {
 	t.Helper()
 
 	body, err := json.Marshal(payload)
@@ -84,7 +83,8 @@ func TestDatastreamConformance_ResourcesEndpoint(t *testing.T) {
 	cleanupDB(t)
 
 	payload := baseDatastreamPayload()
-	systemID := uuid.NewString()
+	// Datastreams can only be created under an existing system.
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Datastream Host"))
 	createdDatastreamID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", payload)
 
 	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/datastreams", nil)
@@ -100,20 +100,20 @@ func TestDatastreamConformance_ResourcesEndpoint(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	err = json.Unmarshal(body, &collection)
 	require.NoError(t, err)
 
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok, "response must contain 'items' array")
 	require.GreaterOrEqual(t, len(items), 1, "expected at least one datastream")
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
-		obj, ok := item.(map[string]interface{})
+		obj, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -135,7 +135,8 @@ func TestDatastreamConformance_CanonicalURL(t *testing.T) {
 	cleanupDB(t)
 
 	payload := baseDatastreamPayload()
-	systemID := uuid.NewString()
+	// Datastreams can only be created under an existing system.
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Datastream Host"))
 	datastreamID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", payload)
 
 	url := fmt.Sprintf("%s/datastreams/%s", testServer.URL, datastreamID)
@@ -149,7 +150,7 @@ func TestDatastreamConformance_CanonicalURL(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var datastream map[string]interface{}
+	var datastream map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&datastream)
 	require.NoError(t, err)
 	assert.Equal(t, datastreamID, datastream["id"])
@@ -166,7 +167,8 @@ func TestDatastreamSchema_JSON(t *testing.T) {
 	cleanupDB(t)
 
 	payload := baseDatastreamPayload()
-	systemID := uuid.NewString()
+	// Datastreams can only be created under an existing system.
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Datastream Host"))
 	datastreamID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", payload)
 
 	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/datastreams/"+datastreamID, nil)
@@ -182,9 +184,6 @@ func TestDatastreamSchema_JSON(t *testing.T) {
 	require.NoError(t, err)
 
 	err = validateAgainstSchema(t, body, DatastreamJSONSchema)
-	if err != nil && strings.Contains(err.Error(), "failed to compile schema") {
-		t.Skipf("skipping datastream schema validation due invalid bundled schema references: %v", err)
-	}
 	require.NoError(t, err, "response did not validate against datastream JSON schema")
 }
 
@@ -197,7 +196,8 @@ func TestDatastreamSchema_JSON(t *testing.T) {
 func TestDatastream_CreateUnderSystem_AndSchemaRoundTrip(t *testing.T) {
 	cleanupDB(t)
 
-	systemID := uuid.NewString()
+	// Datastreams can only be created under an existing system.
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Datastream Host"))
 	payload := baseDatastreamPayload()
 
 	datastreamID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", payload)
@@ -211,21 +211,21 @@ func TestDatastream_CreateUnderSystem_AndSchemaRoundTrip(t *testing.T) {
 	defer getResp.Body.Close()
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 
-	var created map[string]interface{}
+	var created map[string]any
 	err = json.NewDecoder(getResp.Body).Decode(&created)
 	require.NoError(t, err)
 
-	systemLink, ok := created["system@link"].(map[string]interface{})
+	systemLink, ok := created["system@link"].(map[string]any)
 	require.True(t, ok, "expected system@link object on datastream")
 	href, _ := systemLink["href"].(string)
 	assert.Contains(t, href, systemID)
 
-	links, ok := created["links"].([]interface{})
+	links, ok := created["links"].([]any)
 	require.True(t, ok, "expected links array on datastream")
 
 	foundObservationsLink := false
 	for _, rawLink := range links {
-		link, ok := rawLink.(map[string]interface{})
+		link, ok := rawLink.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -239,7 +239,7 @@ func TestDatastream_CreateUnderSystem_AndSchemaRoundTrip(t *testing.T) {
 	}
 	assert.True(t, foundObservationsLink, "expected observations association link on datastream")
 
-	updatedSchema := map[string]interface{}{
+	updatedSchema := map[string]any{
 		"obsFormat":     "application/x-protobuf",
 		"messageSchema": "syntax = \"proto3\"; message ObservationResult { double value = 1; }",
 	}
@@ -265,7 +265,7 @@ func TestDatastream_CreateUnderSystem_AndSchemaRoundTrip(t *testing.T) {
 	defer schemaResp.Body.Close()
 	require.Equal(t, http.StatusOK, schemaResp.StatusCode)
 
-	var returnedSchema map[string]interface{}
+	var returnedSchema map[string]any
 	err = json.NewDecoder(schemaResp.Body).Decode(&returnedSchema)
 	require.NoError(t, err)
 	assert.Equal(t, "application/x-protobuf", returnedSchema["obsFormat"])
@@ -280,12 +280,13 @@ func TestDatastream_CreateUnderSystem_AndSchemaRoundTrip(t *testing.T) {
 func TestDatastream_DeleteCascade_RemovesObservations(t *testing.T) {
 	cleanupDB(t)
 
-	systemID := uuid.NewString()
+	// Datastreams can only be created under an existing system.
+	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Datastream Host"))
 	datastreamID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", baseDatastreamPayload())
 
-	obsPayload := map[string]interface{}{
+	obsPayload := map[string]any{
 		"resultTime": "2026-03-14T12:00:00Z",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"temperature": 20.5,
 			"humidity":    48.1,
 		},
@@ -328,10 +329,10 @@ func TestDatastream_List_LatestPhenomenonTime_ReturnsMostRecent(t *testing.T) {
 	// each datastream with one observation carrying the desired phenomenon time.
 	dsWithPhenomenonTime := func(start, end string) string {
 		dsID := createDatastreamViaAPI(t, "/systems/"+systemID+"/datastreams", baseDatastreamPayload())
-		createObservationViaAPI(t, dsID, map[string]interface{}{
+		createObservationViaAPI(t, dsID, map[string]any{
 			"phenomenonTime": start,
 			"resultTime":     end,
-			"result":         map[string]interface{}{"temperature": 21.0, "humidity": 40.0},
+			"result":         map[string]any{"temperature": 21.0, "humidity": 40.0},
 		})
 		return dsID
 	}
@@ -356,7 +357,7 @@ func TestDatastream_List_LatestPhenomenonTime_ReturnsMostRecent(t *testing.T) {
 	items := getJSONItems(t, body)
 	require.Equal(t, 1, len(items), "expected exactly one datastream for ?phenomenonTime=latest")
 
-	ds, ok := items[0].(map[string]interface{})
+	ds, ok := items[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, newestID, ds["id"], "expected the datastream with the most-recent phenomenonTime start")
 }

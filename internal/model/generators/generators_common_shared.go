@@ -9,8 +9,9 @@ import (
 	faker "github.com/jaswdr/faker/v2"
 	geom "github.com/twpayne/go-geom"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 )
 
 var f = faker.New()
@@ -33,7 +34,7 @@ func FakeLink() common_shared.Link {
 		Href:  f.Internet().URL(),
 		Title: f.Lorem().Word(),
 		Rel:   "related",
-		Type:  "application/json",
+		Type:  mediatype.JSON,
 	}
 }
 
@@ -125,14 +126,14 @@ func FakeComponentWrapper() common_shared.ComponentWrapper {
 
 	// set UOM/Constraint/NilValues for richer payloads
 	uom, _ := json.Marshal(map[string]string{"uom": "m"})
-	constr, _ := json.Marshal(map[string]interface{}{"type": "AllowedValues", "values": []int{1, 2, 3}})
+	constr, _ := json.Marshal(map[string]any{"type": "AllowedValues", "values": []int{1, 2, 3}})
 	nilv, _ := json.Marshal([]string{})
 	cw.UOM = uom
 	cw.Constraint = constr
 	cw.NilValues = nilv
 
 	// Raw: marshal a representative payload
-	rep := map[string]interface{}{
+	rep := map[string]any{
 		"type":       cw.Type,
 		"definition": cw.Definition,
 		"label":      cw.Label,

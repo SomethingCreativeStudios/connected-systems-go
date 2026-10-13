@@ -1,14 +1,15 @@
 package pubsub
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/repository"
 	"go.uber.org/zap"
 )
 
@@ -16,7 +17,7 @@ import (
 // by a Resource Event. Resolution happens after create/update and before delete
 // so parent information is still available for deletions.
 type ChangeResolver interface {
-	Resolve(path string, operation Operation) (Change, error)
+	Resolve(ctx context.Context, path string, operation Operation) (Change, error)
 }
 
 // HTTPResourceEventMiddleware emits individual or Batch Resource Events after
@@ -44,7 +45,7 @@ func HTTPResourceEventMiddleware(publisher *Publisher, resolver ChangeResolver, 
 			var change Change
 			var resolveErr error
 			if operation == OperationDelete {
-				change, resolveErr = resolver.Resolve(r.URL.Path, operation)
+				change, resolveErr = resolver.Resolve(r.Context(), r.URL.Path, operation)
 			}
 
 			ww := chimiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
@@ -58,7 +59,7 @@ func HTTPResourceEventMiddleware(publisher *Publisher, resolver ChangeResolver, 
 				if operation == OperationCreate {
 					resourcePath = ww.Header().Get("Location")
 				}
-				change, resolveErr = resolver.Resolve(resourcePath, operation)
+				change, resolveErr = resolver.Resolve(r.Context(), resourcePath, operation)
 			}
 			if resolveErr != nil {
 				logger.Debug("Pub/Sub Resource Event skipped for unsupported or unresolved resource",
@@ -108,7 +109,7 @@ func NewRepositoryChangeResolver(apiRoot string, repos *repository.Repositories)
 	return &RepositoryChangeResolver{repos: repos, apiBasePath: basePath}
 }
 
-func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) (Change, error) {
+func (r *RepositoryChangeResolver) Resolve(ctx context.Context, rawPath string, operation Operation) (Change, error) {
 	if r == nil || r.repos == nil {
 		return Change{}, fmt.Errorf("resource resolver is not configured")
 	}
@@ -122,7 +123,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 
 	switch {
 	case len(parts) == 2 && parts[0] == "systems":
-		resource, err := r.repos.System.GetByID(parts[1])
+		resource, err := r.repos.System.GetByID(ctx, parts[1])
 		if err != nil {
 			return Change{}, err
 		}
@@ -137,7 +138,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		}
 
 	case len(parts) == 2 && parts[0] == "deployments":
-		resource, err := r.repos.Deployment.GetByID(parts[1])
+		resource, err := r.repos.Deployment.GetByID(ctx, parts[1])
 		if err != nil {
 			return Change{}, err
 		}
@@ -150,7 +151,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		}
 
 	case len(parts) == 2 && parts[0] == "procedures":
-		resource, err := r.repos.Procedure.GetByID(parts[1])
+		resource, err := r.repos.Procedure.GetByID(ctx, parts[1])
 		if err != nil {
 			return Change{}, err
 		}
@@ -159,7 +160,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		change.CollectionPath = "/procedures"
 
 	case len(parts) == 2 && parts[0] == "properties":
-		resource, err := r.repos.Property.GetByID(parts[1])
+		resource, err := r.repos.Property.GetByID(ctx, parts[1])
 		if err != nil {
 			return Change{}, err
 		}
@@ -168,7 +169,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		change.CollectionPath = "/properties"
 
 	case len(parts) == 2 && parts[0] == "samplingFeatures":
-		resource, err := r.repos.SamplingFeature.GetByID(parts[1])
+		resource, err := r.repos.SamplingFeature.GetByID(ctx, parts[1])
 		if err != nil {
 			return Change{}, err
 		}
@@ -181,7 +182,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		}
 
 	case len(parts) == 2 && parts[0] == "datastreams":
-		resource, err := r.repos.Datastream.GetByID(parts[1])
+		resource, err := r.repos.Datastream.GetByID(ctx, parts[1])
 		if err != nil {
 			return Change{}, err
 		}
@@ -194,7 +195,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		}
 
 	case len(parts) == 2 && parts[0] == "observations":
-		resource, err := r.repos.Observation.GetByID(parts[1])
+		resource, err := r.repos.Observation.GetByID(ctx, parts[1])
 		if err != nil {
 			return Change{}, err
 		}
@@ -204,7 +205,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		change.CollectionPath = change.ParentPath + "/observations"
 
 	case len(parts) == 2 && parts[0] == "controlstreams":
-		resource, err := r.repos.ControlStream.GetByID(parts[1])
+		resource, err := r.repos.ControlStream.GetByID(ctx, parts[1])
 		if err != nil {
 			return Change{}, err
 		}
@@ -217,7 +218,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		}
 
 	case len(parts) == 2 && parts[0] == "commands":
-		resource, err := r.repos.Command.GetByID(parts[1])
+		resource, err := r.repos.Command.GetByID(ctx, parts[1])
 		if err != nil {
 			return Change{}, err
 		}
@@ -227,7 +228,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		change.CollectionPath = change.ParentPath + "/commands"
 
 	case len(parts) == 4 && parts[0] == "commands" && parts[2] == "status":
-		resource, err := r.repos.Command.GetStatusByID(parts[1], parts[3])
+		resource, err := r.repos.Command.GetStatusByID(ctx, parts[1], parts[3])
 		if err != nil {
 			return Change{}, err
 		}
@@ -237,7 +238,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		change.CollectionPath = change.ParentPath + "/status"
 
 	case len(parts) == 4 && parts[0] == "commands" && parts[2] == "result":
-		resource, err := r.repos.Command.GetResultByID(parts[1], parts[3])
+		resource, err := r.repos.Command.GetResultByID(ctx, parts[1], parts[3])
 		if err != nil {
 			return Change{}, err
 		}
@@ -247,7 +248,7 @@ func (r *RepositoryChangeResolver) Resolve(rawPath string, operation Operation) 
 		change.CollectionPath = change.ParentPath + "/result"
 
 	case len(parts) == 4 && parts[0] == "systems" && parts[2] == "events":
-		resource, err := r.repos.SystemEvent.GetByID(parts[1], parts[3])
+		resource, err := r.repos.SystemEvent.GetByID(ctx, parts[1], parts[3])
 		if err != nil {
 			return Change{}, err
 		}

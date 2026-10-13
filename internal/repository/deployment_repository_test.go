@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository/testutil"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
-	"github.com/yourusername/connected-systems-go/internal/repository/testutil"
 )
 
 func TestDeploymentRepository_Create(t *testing.T) {
@@ -28,8 +28,8 @@ func TestDeploymentRepository_Create(t *testing.T) {
 				CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:deployment1", Name: "Fixed Deployment"},
 				DeploymentType: "Fixed",
 				ValidTime: &common_shared.TimeRange{
-					Start: testutil.PtrTime(time.Now()),
-					End:   testutil.PtrTime(time.Now().Add(30 * 24 * time.Hour)),
+					Start: new(time.Now()),
+					End:   new(time.Now().Add(30 * 24 * time.Hour)),
 				},
 			},
 			wantErr: false,
@@ -46,7 +46,7 @@ func TestDeploymentRepository_Create(t *testing.T) {
 				CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:deployment2", Name: "Mobile Deployment", Description: "Test mobile deployment"},
 				DeploymentType: "Mobile",
 				ValidTime: &common_shared.TimeRange{
-					Start: testutil.PtrTime(time.Now()),
+					Start: new(time.Now()),
 				},
 			},
 			wantErr: false,
@@ -61,7 +61,7 @@ func TestDeploymentRepository_Create(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := repo.Create(tt.deployment)
+			err := repo.Create(t.Context(), tt.deployment)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -84,7 +84,7 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:get1", Name: "Deployment 1"},
 		DeploymentType: "Fixed",
 	}
-	require.NoError(t, repo.Create(dep1))
+	require.NoError(t, repo.Create(t.Context(), dep1))
 
 	depWithSubdep := &domains.Deployment{
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:get2", Name: "Deployment 2"},
@@ -94,11 +94,11 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 			{
 				Href: "systems/urn:test:get1",
 				Rel:  common_shared.OGCRel("deployedSystems"),
-				UID:  testutil.PtrStr("urn:test:get1"),
+				UID:  new("urn:test:get1"),
 			},
 		},
 	}
-	require.NoError(t, repo.Create(depWithSubdep))
+	require.NoError(t, repo.Create(t.Context(), depWithSubdep))
 
 	subdep := &domains.Deployment{
 		CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:get3", Name: "Subdeployment of Deployment 2"},
@@ -109,21 +109,21 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 			{
 				Href: "systems/urn:test:subSystem1",
 				Rel:  common_shared.OGCRel("deployedSystems"),
-				UID:  testutil.PtrStr("urn:test:subSystem1"),
+				UID:  new("urn:test:subSystem1"),
 			},
 			{
 				Href: "features/some-feature",
 				Rel:  common_shared.OGCRel("samplingFeatures"),
-				UID:  testutil.PtrStr("some-feature"),
+				UID:  new("some-feature"),
 			},
 			{
 				Href: "features/some-foi",
 				Rel:  common_shared.OGCRel("featuresOfInterest"),
-				UID:  testutil.PtrStr("some-foi"),
+				UID:  new("some-foi"),
 			},
 		},
 	}
-	require.NoError(t, repo.Create(subdep))
+	require.NoError(t, repo.Create(t.Context(), subdep))
 
 	// Manually create parent-child relationship for testing
 
@@ -159,7 +159,7 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := repo.GetByID(tt.id)
+			got, err := repo.GetByID(t.Context(), tt.id)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -168,24 +168,10 @@ func TestDeploymentRepository_GetByID(t *testing.T) {
 			require.Equal(t, tt.wantName, got.Name)
 
 			if tt.isParent {
-				foundSamplingFeature := false
-				foundFOI := false
-				foundDeployedSystem := false
-
-				for _, link := range got.Links {
-					if common_shared.RelEquals(link.Rel, common_shared.OGCRel("samplingFeatures")) && link.UID != nil && *link.UID == "some-feature" {
-						foundSamplingFeature = true
-					}
-					if common_shared.RelEquals(link.Rel, common_shared.OGCRel("featuresOfInterest")) && link.UID != nil && *link.UID == "some-foi" {
-						foundFOI = true
-					}
-					if common_shared.RelEquals(link.Rel, common_shared.OGCRel("deployedSystems")) && link.UID != nil && *link.UID == "urn:test:subSystem1" {
-						foundDeployedSystem = true
-					}
-				}
-				require.True(t, foundSamplingFeature, "Expected samplingFeatures link not found")
-				require.True(t, foundFOI, "Expected featuresOfInterest link not found")
-				require.True(t, foundDeployedSystem, "Expected deployedSystems link not found")
+				// A parent keeps only its own links; its subdeployments' links are
+				// not rolled up. Association links are derived when the
+				// deployment is serialized (see ChildCollections).
+				require.Equal(t, depWithSubdep.Links, got.Links)
 			}
 		})
 	}
@@ -202,21 +188,21 @@ func TestDeploymentRepository_List(t *testing.T) {
 		DeploymentType: "Fixed",
 		Geometry:       testutil.MakePoint(-122.4194, 37.7749),
 	}
-	require.NoError(t, repo.Create(dep1))
+	require.NoError(t, repo.Create(t.Context(), dep1))
 
 	dep2 := &domains.Deployment{
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:dep2", Name: "Deployment Beta"},
 		DeploymentType: "Mobile",
 		Geometry:       testutil.MakePoint(-118.2437, 34.0522),
 	}
-	require.NoError(t, repo.Create(dep2))
+	require.NoError(t, repo.Create(t.Context(), dep2))
 
 	dep3 := &domains.Deployment{
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:dep3", Name: "Deployment Gamma", Description: "Special deployment"},
 		DeploymentType: "Fixed",
 		Geometry:       testutil.MakePoint(-122.3321, 47.6062),
 	}
-	require.NoError(t, repo.Create(dep3))
+	require.NoError(t, repo.Create(t.Context(), dep3))
 
 	tests := []struct {
 		name      string
@@ -336,7 +322,7 @@ func TestDeploymentRepository_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deployments, total, err := repo.List(tt.params, nil)
+			deployments, total, err := repo.List(t.Context(), tt.params, nil)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantTotal, total, "total count mismatch")
 			require.Len(t, deployments, tt.wantCount, "result count mismatch")
@@ -357,7 +343,7 @@ func TestDeploymentRepository_Update(t *testing.T) {
 		CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:update1", Name: "Original Name"},
 		DeploymentType: "Fixed",
 	}
-	require.NoError(t, repo.Create(original))
+	require.NoError(t, repo.Create(t.Context(), original))
 
 	tests := []struct {
 		name       string
@@ -400,14 +386,14 @@ func TestDeploymentRepository_Update(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Get fresh copy for each test
-			dep, err := repo.GetByID(original.ID)
+			dep, err := repo.GetByID(t.Context(), original.ID)
 			require.NoError(t, err)
 
 			// Apply update
 			tt.updateFunc(dep)
 
 			// Save
-			err = repo.Update(dep)
+			err = repo.Update(t.Context(), dep)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -415,7 +401,7 @@ func TestDeploymentRepository_Update(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify
-			updated, err := repo.GetByID(dep.ID)
+			updated, err := repo.GetByID(t.Context(), dep.ID)
 			require.NoError(t, err)
 			if tt.checkFunc != nil {
 				tt.checkFunc(t, updated)
@@ -442,11 +428,11 @@ func TestDeploymentRepository_Delete(t *testing.T) {
 					CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:del1", Name: "Delete Me"},
 					DeploymentType: "Fixed",
 				}
-				require.NoError(t, repo.Create(dep))
+				require.NoError(t, repo.Create(t.Context(), dep))
 				return []string{dep.ID}
 			},
 			checkFunc: func(t *testing.T, id []string) {
-				_, err := repo.GetByID(id[0])
+				_, err := repo.GetByID(t.Context(), id[0])
 				require.Error(t, err)
 			},
 		},
@@ -458,20 +444,20 @@ func TestDeploymentRepository_Delete(t *testing.T) {
 					CommonSSN:      domains.CommonSSN{UniqueIdentifier: "urn:test:del1", Name: "Delete Me"},
 					DeploymentType: "Fixed",
 				}
-				require.NoError(t, repo.Create(dep))
+				require.NoError(t, repo.Create(t.Context(), dep))
 
 				child := &domains.Deployment{
 					CommonSSN:          domains.CommonSSN{UniqueIdentifier: "urn:test:del2", Name: "Child Deployment"},
 					DeploymentType:     "Mobile",
 					ParentDeploymentID: &dep.ID,
 				}
-				require.NoError(t, repo.Create(child))
+				require.NoError(t, repo.Create(t.Context(), child))
 
 				return []string{dep.ID}
 			},
 			checkFunc: func(t *testing.T, id []string) {
 				// Parent should still exist
-				_, err := repo.GetByID(id[0])
+				_, err := repo.GetByID(t.Context(), id[0])
 				require.NoError(t, err)
 			},
 		},
@@ -480,7 +466,7 @@ func TestDeploymentRepository_Delete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id := tt.setupFunc()
-			err := repo.Delete(id[0], false)
+			err := repo.Delete(t.Context(), id[0], false)
 			if tt.expectErr != nil {
 				require.ErrorIs(t, err, tt.expectErr)
 			} else {
@@ -488,7 +474,7 @@ func TestDeploymentRepository_Delete(t *testing.T) {
 			}
 			tt.checkFunc(t, id)
 
-			repo.DeleteAll()
+			repo.DeleteAll(t.Context())
 		})
 	}
 }

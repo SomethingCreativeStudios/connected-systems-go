@@ -24,7 +24,7 @@ func (d Documents) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner to load Documents from a JSONB column.
-func (d *Documents) Scan(value interface{}) error {
+func (d *Documents) Scan(value any) error {
 	if value == nil {
 		*d = nil
 		return nil

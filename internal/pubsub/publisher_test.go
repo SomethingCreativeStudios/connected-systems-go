@@ -6,9 +6,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
 	"go.uber.org/zap"
 )
 
@@ -355,16 +356,14 @@ func TestPublisherAggregatesConcurrentChanges(t *testing.T) {
 	publisher.now = func() time.Time { return time.Date(2026, 8, 22, 12, 0, 30, 0, time.UTC) }
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 100 {
+		wg.Go(func() {
 			publisher.PublishChange(Change{
 				ResourceType: "observation", ResourceID: "obs", Operation: OperationCreate,
 				SubjectPath: "/observations/obs", ParentPath: "/datastreams/ds-1",
 				CollectionPath: "/datastreams/ds-1/observations",
 			})
-		}()
+		})
 	}
 	wg.Wait()
 	publisher.Close()
@@ -381,27 +380,29 @@ func TestPublisherAggregatesConcurrentChanges(t *testing.T) {
 	}
 }
 
+// The window timer runs on synctest's fake clock, so a realistic one-minute
+// window closes as soon as every goroutine is waiting on it.
 func TestPublisherAutomaticallyFlushesAtWindowBoundary(t *testing.T) {
-	transport := &signalingTransport{messages: make(chan publishedMessage, 1)}
-	cfg := enabledConfig()
-	cfg.BatchResourceEvents.Window = 25 * time.Millisecond
-	publisher := NewPublisher("https://example.org/api", cfg, transport, zap.NewNop())
-	defer publisher.Close()
+	synctest.Test(t, func(t *testing.T) {
+		transport := &signalingTransport{messages: make(chan publishedMessage, 1)}
+		publisher := NewPublisher("https://example.org/api", enabledConfig(), transport, zap.NewNop())
+		defer publisher.Close()
 
-	publisher.PublishChange(Change{
-		ResourceType: "observation", ResourceID: "obs-1", Operation: OperationCreate,
-		SubjectPath: "/observations/obs-1", ParentPath: "/datastreams/ds-1",
-		CollectionPath: "/datastreams/ds-1/observations",
-	})
+		publisher.PublishChange(Change{
+			ResourceType: "observation", ResourceID: "obs-1", Operation: OperationCreate,
+			SubjectPath: "/observations/obs-1", ParentPath: "/datastreams/ds-1",
+			CollectionPath: "/datastreams/ds-1/observations",
+		})
 
-	select {
-	case message := <-transport.messages:
-		if message.topic != "datastreams/ds-1/observations:batch-events" {
-			t.Fatalf("unexpected automatic batch topic %q", message.topic)
+		select {
+		case message := <-transport.messages:
+			if message.topic != "datastreams/ds-1/observations:batch-events" {
+				t.Fatalf("unexpected automatic batch topic %q", message.topic)
+			}
+		case <-time.After(2 * time.Minute):
+			t.Fatal("batch was not published after its window closed")
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("batch was not published after its window closed")
-	}
+	})
 }
 
 func TestPublisherCloseDoesNotPublishEmptyBatch(t *testing.T) {

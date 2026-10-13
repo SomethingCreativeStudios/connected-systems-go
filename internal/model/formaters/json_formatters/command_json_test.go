@@ -7,16 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 func TestCommandJSONFormatter_Serialize_NormalizesRelativeHref(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter(nil)
+	formatter := NewCommandJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	cmd := &domains.Command{
 		Base: domains.Base{ID: "cmd-1"},
@@ -39,10 +38,8 @@ func TestCommandJSONFormatter_Serialize_NormalizesRelativeHref(t *testing.T) {
 }
 
 func TestCommandJSONFormatter_Serialize_PreservesAbsoluteHref(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter(nil)
+	formatter := NewCommandJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	cmd := &domains.Command{
 		Base: domains.Base{ID: "cmd-1"},
@@ -65,10 +62,8 @@ func TestCommandJSONFormatter_Serialize_PreservesAbsoluteHref(t *testing.T) {
 }
 
 func TestCommandJSONFormatter_Serialize_NilLink(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter(nil)
+	formatter := NewCommandJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	cmd := &domains.Command{
 		Base: domains.Base{ID: "cmd-1"},
@@ -85,10 +80,8 @@ func TestCommandJSONFormatter_Serialize_NilLink(t *testing.T) {
 }
 
 func TestCommandJSONFormatter_Serialize_EmptyHref(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter(nil)
+	formatter := NewCommandJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	cmd := &domains.Command{
 		Base: domains.Base{ID: "cmd-1"},
@@ -111,10 +104,8 @@ func TestCommandJSONFormatter_Serialize_EmptyHref(t *testing.T) {
 }
 
 func TestCommandJSONFormatter_SerializeAll_NormalizesLinks(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter(nil)
+	formatter := NewCommandJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	commands := []*domains.Command{
 		{
@@ -154,13 +145,13 @@ func TestCommandJSONFormatter_SerializeAll_NormalizesLinks(t *testing.T) {
 func TestCommandJSONFormatter_Deserialize(t *testing.T) {
 	formatter := NewCommandJSONFormatter(nil)
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"id":               "cmd-1",
 		"controlstream@id": "cs-1",
-		"procedure@link": map[string]interface{}{
+		"procedure@link": map[string]any{
 			"href": "/procedures/proc-1",
 		},
-		"parameters": map[string]interface{}{
+		"parameters": map[string]any{
 			"setPoint": 22.5,
 		},
 	}
@@ -173,11 +164,12 @@ func TestCommandJSONFormatter_Deserialize(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.ID != "cmd-1" {
-		t.Errorf("expected ID 'cmd-1', got %q", result.ID)
+	// id and controlstream@id are read-only: the server assigns them.
+	if result.ID != "" {
+		t.Errorf("expected client-supplied id to be ignored, got %q", result.ID)
 	}
-	if result.ControlStreamID != "cs-1" {
-		t.Errorf("expected ControlStreamID 'cs-1', got %q", result.ControlStreamID)
+	if result.ControlStreamID != "" {
+		t.Errorf("expected client-supplied controlstream@id to be ignored, got %q", result.ControlStreamID)
 	}
 	if result.ProcedureLink == nil {
 		t.Fatal("expected ProcedureLink to be non-nil")
@@ -189,10 +181,8 @@ func TestCommandJSONFormatter_Deserialize(t *testing.T) {
 
 // Phase 1: inline @link Type enrichment
 func TestCommandJSONFormatter_Serialize_SetsTypeOnProcedureLink(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter(nil)
+	formatter := NewCommandJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	cmd := &domains.Command{
 		Base: domains.Base{ID: "cmd-1"},
@@ -209,17 +199,15 @@ func TestCommandJSONFormatter_Serialize_SetsTypeOnProcedureLink(t *testing.T) {
 	if result.ProcedureLink == nil {
 		t.Fatal("expected ProcedureLink to be non-nil")
 	}
-	if result.ProcedureLink.Type != formaters.SensorMLContentType {
-		t.Errorf("expected ProcedureLink.Type %q, got %q", formaters.SensorMLContentType, result.ProcedureLink.Type)
+	if result.ProcedureLink.Type != mediatype.SensorML {
+		t.Errorf("expected ProcedureLink.Type %q, got %q", mediatype.SensorML, result.ProcedureLink.Type)
 	}
 }
 
 // Phase 2: inline @link Title/UID enrichment (nil repos — fields remain empty)
 func TestCommandJSONFormatter_SerializeAll_EnrichesInlineLinks(t *testing.T) {
-	formaters.SetAssociationLinksBaseURL("http://example.test")
-	t.Cleanup(func() { formaters.SetAssociationLinksBaseURL("") })
 
-	formatter := NewCommandJSONFormatter(nil)
+	formatter := NewCommandJSONFormatter(&formaters.LinkResolver{BaseURL: "http://example.test"})
 
 	commands := []*domains.Command{
 		{
@@ -240,8 +228,8 @@ func TestCommandJSONFormatter_SerializeAll_EnrichesInlineLinks(t *testing.T) {
 	}
 
 	// Type is always set (Phase 1)
-	if results[0].ProcedureLink.Type != formaters.SensorMLContentType {
-		t.Errorf("expected ProcedureLink.Type %q, got %q", formaters.SensorMLContentType, results[0].ProcedureLink.Type)
+	if results[0].ProcedureLink.Type != mediatype.SensorML {
+		t.Errorf("expected ProcedureLink.Type %q, got %q", mediatype.SensorML, results[0].ProcedureLink.Type)
 	}
 
 	// Title/UID are empty with nil repos (no cache population)

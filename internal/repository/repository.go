@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"gorm.io/gorm"
 )
 
@@ -46,8 +46,9 @@ func NewRepositories(db *gorm.DB) *Repositories {
 	}
 }
 
-// AutoMigrate runs database migrations for all models
-func AutoMigrate(db *gorm.DB) error {
+// baselineSchema is migration version 1: the schema as the GORM models and
+// the setup below describe it. Run it through Migrate.
+func baselineSchema(db *gorm.DB) error {
 	if err := ensureDatabaseExtensions(db); err != nil {
 		return err
 	}
@@ -65,7 +66,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&domains.Datastream{},
 		&domains.Observation{},
 		&domains.Collection{},
-		&domains.DeploymentClosure{},
 		&domains.ControlStream{},
 		&domains.Command{},
 		&domains.CommandStatusReport{},
@@ -97,10 +97,6 @@ func AutoMigrate(db *gorm.DB) error {
 		}
 	}
 
-	// Ensure generic closure support for deployments (creates triggers/functions)
-	if err := EnsureClosureSupport(db, "deployments", "id", "parent_deployment_id", "deployment_closures"); err != nil {
-		return err
-	}
 	if err := ensureCursorIndexes(db); err != nil {
 		return err
 	}

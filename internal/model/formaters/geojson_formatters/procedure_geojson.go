@@ -5,35 +5,31 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // ProcedureGeoJSONFormatter handles serialization and deserialization of Procedure objects in GeoJSON format
 type ProcedureGeoJSONFormatter struct {
 	formaters.Formatter[domains.ProcedureGeoJSONFeature, *domains.Procedure]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewProcedureGeoJSONFormatter constructs a formatter with required repository readers
-func NewProcedureGeoJSONFormatter(repos *repository.Repositories) *ProcedureGeoJSONFormatter {
-	return &ProcedureGeoJSONFormatter{repos: repos}
+func NewProcedureGeoJSONFormatter(links *formaters.LinkResolver) *ProcedureGeoJSONFormatter {
+	return &ProcedureGeoJSONFormatter{links: links}
 }
 
 func (f *ProcedureGeoJSONFormatter) ContentType() string {
-	return GeoJSONContentType
+	return mediatype.GeoJSON
 }
 
 // --- Serialization ---
 
 func (f *ProcedureGeoJSONFormatter) Serialize(ctx context.Context, procedure *domains.Procedure) (domains.ProcedureGeoJSONFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.Procedure{procedure})
-	if err != nil {
-		return domains.ProcedureGeoJSONFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, procedure, f.SerializeAll)
 }
 
 func (f *ProcedureGeoJSONFormatter) SerializeAll(ctx context.Context, procedures []*domains.Procedure) ([]domains.ProcedureGeoJSONFeature, error) {
@@ -41,6 +37,10 @@ func (f *ProcedureGeoJSONFormatter) SerializeAll(ctx context.Context, procedures
 		return []domains.ProcedureGeoJSONFeature{}, nil
 	}
 
+	cache, err := f.links.Lookup(ctx, formaters.ProcedureReferences(procedures))
+	if err != nil {
+		return nil, err
+	}
 	var features []domains.ProcedureGeoJSONFeature
 	for _, procedure := range procedures {
 		feature := domains.ProcedureGeoJSONFeature{
@@ -54,7 +54,7 @@ func (f *ProcedureGeoJSONFormatter) SerializeAll(ctx context.Context, procedures
 				FeatureType: procedure.ProcedureType,
 				ValidTime:   common_shared.NonEmptyTimeRange(procedure.ValidTime),
 			},
-			Links: formaters.AppendProcedureAssociationLinks(procedure),
+			Links: f.links.ProcedureLinks(procedure, cache),
 		}
 		features = append(features, feature)
 	}

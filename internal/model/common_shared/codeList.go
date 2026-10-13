@@ -18,7 +18,7 @@ func (l CodeLists) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB retrieval
-func (l *CodeLists) Scan(value interface{}) error {
+func (l *CodeLists) Scan(value any) error {
 	if value == nil {
 		return nil
 	}

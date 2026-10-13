@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/config"
-	"github.com/yourusername/connected-systems-go/internal/model"
 	"go.uber.org/zap"
 	"go.yaml.in/yaml/v3"
 )

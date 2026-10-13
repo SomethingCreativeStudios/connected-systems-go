@@ -8,18 +8,24 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/queryables"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/queryables"
 )
 
 const (
 	unsupportedOffsetError = "offset is no longer supported; use cursor"
 	invalidCursorError     = "invalid cursor"
+	invalidLimitError      = "limit must be a positive integer"
 )
+
+// MaxLimit caps the page size a client can request. Larger values are
+// clamped rather than rejected, as OGC API - Features requires.
+const MaxLimit = 1000
 
 // CursorKind identifies the stable ordering used by a collection endpoint.
 // It is part of the opaque server-generated token, not a client input.
@@ -127,10 +133,8 @@ func decodeCursor(value, scope string, kind CursorKind) (*Cursor, error) {
 		len(cursor.Values) != cursorValueCount(kind) {
 		return nil, errors.New(invalidCursorError)
 	}
-	for _, value := range cursor.Values {
-		if value == "" {
-			return nil, errors.New(invalidCursorError)
-		}
+	if slices.Contains(cursor.Values, "") {
+		return nil, errors.New(invalidCursorError)
 	}
 	for _, index := range cursorTimeIndexes(kind) {
 		if _, err := time.Parse(time.RFC3339Nano, cursor.Values[index]); err != nil {
@@ -189,11 +193,19 @@ func (QueryParams) BuildFromRequest(r *http.Request, defaultLimit int, kind Curs
 		return nil, errors.New(unsupportedOffsetError)
 	}
 
-	params := &QueryParams{Limit: defaultLimit, Kind: kind, Path: r.URL.Path}
-	if limit := r.URL.Query().Get("limit"); limit != "" {
-		if val, err := strconv.Atoi(limit); err == nil {
-			params.Limit = val
+	// An unset (zero) default used to mean "no limit"; keep it bounded.
+	if defaultLimit <= 0 {
+		defaultLimit = MaxLimit
+	}
+	params := &QueryParams{Limit: min(defaultLimit, MaxLimit), Kind: kind, Path: r.URL.Path}
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		// A limit below 1 would turn the page size off entirely and return
+		// the whole table, so it is rejected rather than ignored.
+		limit, err := strconv.Atoi(raw)
+		if err != nil || limit < 1 {
+			return nil, errors.New(invalidLimitError)
 		}
+		params.Limit = min(limit, MaxLimit)
 	}
 	if cursor := r.URL.Query().Get("cursor"); cursor != "" {
 		decoded, err := decodeCursor(cursor, cursorScope(r.URL.Path, r.URL.Query()), kind)

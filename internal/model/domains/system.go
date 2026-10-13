@@ -3,7 +3,7 @@ package domains
 import (
 	"encoding/json"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // System represents a sosa:System feature
@@ -61,13 +61,10 @@ type System struct {
 
 	LinkedProcedure Procedure `gorm:"foreignKey:TypeOfID;" json:"-"`
 
-	// Associations
-	Procedures       []Procedure       `gorm:"many2many:system_procedures;"`
+	// Associations. A system's procedure is TypeOfID, and its datastreams and
+	// control streams are found by their SystemID.
 	Deployments      []Deployment      `gorm:"many2many:system_deployments;"`
 	SamplingFeatures []SamplingFeature `gorm:"foreignKey:ParentSystemID;"`
-
-	Datastreams    []Datastream    `gorm:"many2many:system_datastreams;"`
-	Controlstreams []ControlStream `gorm:"many2many:system_controlstreams;"`
 }
 
 // TableName specifies the table name

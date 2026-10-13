@@ -1,9 +1,10 @@
 package domains
 
 import (
+	"maps"
 	"time"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // Feature represents a generic OGC API Features resource
@@ -36,20 +37,18 @@ func (Feature) TableName() string {
 
 // FeatureGeoJSONFeature converts Feature to GeoJSON Feature format
 type FeatureGeoJSONFeature struct {
-	Type       string                 `json:"type"`
-	ID         string                 `json:"id"`
-	Geometry   *common_shared.GoGeom  `json:"geometry"`
-	Properties map[string]interface{} `json:"properties"`
-	Links      common_shared.Links    `json:"links,omitempty"`
+	Type       string                `json:"type"`
+	ID         string                `json:"id"`
+	Geometry   *common_shared.GoGeom `json:"geometry"`
+	Properties map[string]any        `json:"properties"`
+	Links      common_shared.Links   `json:"links,omitempty"`
 }
 
 // ToGeoJSON converts Feature domain to GeoJSON Feature
 func (f Feature) ToGeoJSON() FeatureGeoJSONFeature {
 	// Start with extra properties so known fields always win
-	props := make(map[string]interface{}, len(f.Properties)+6)
-	for k, v := range f.Properties {
-		props[k] = v
-	}
+	props := make(map[string]any, len(f.Properties)+6)
+	maps.Copy(props, f.Properties)
 
 	props["uid"] = string(f.UniqueIdentifier)
 	props["name"] = f.Name

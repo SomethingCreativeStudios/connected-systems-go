@@ -1,7 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +34,29 @@ type DatabaseConfig struct {
 	Name     string `mapstructure:"name"`
 	User     string `mapstructure:"user"`
 	Password string `mapstructure:"password"`
+	SSLMode  string `mapstructure:"sslmode"`
+
+	// Connection pool limits; zero keeps the database/sql default.
+	MaxOpenConns    int           `mapstructure:"max_open_conns"`
+	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
+
+	// AutoMigrate applies pending migrations at startup. When disabled, run
+	// `server migrate` before starting the server.
+	AutoMigrate bool `mapstructure:"auto_migrate"`
+}
+
+// DSN is the connection URL for the database. Building it as a URL escapes
+// credentials that contain spaces, quotes or other special characters.
+func (d DatabaseConfig) DSN() string {
+	dsn := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(d.User, d.Password),
+		Host:     net.JoinHostPort(d.Host, strconv.Itoa(d.Port)),
+		Path:     "/" + d.Name,
+		RawQuery: url.Values{"sslmode": {d.SSLMode}}.Encode(),
+	}
+	return dsn.String()
 }
 
 // APIConfig holds API-specific configuration
@@ -39,6 +66,8 @@ type APIConfig struct {
 	Description  string `mapstructure:"description"`
 	Version      string `mapstructure:"version"`
 	DefaultLimit int    `mapstructure:"default_limit"`
+	// MaxBodyBytes caps request bodies; 0 means the 10 MiB default.
+	MaxBodyBytes int64 `mapstructure:"max_body_bytes"`
 }
 
 // MQTTConfig holds MQTT broker connection configuration.
@@ -89,11 +118,14 @@ func Load() (*Config, error) {
 	viper.SetDefault("database.password", "postgres")
 	viper.SetDefault("database.port", 5432)
 	viper.SetDefault("database.name", "connected_systems")
+	viper.SetDefault("database.sslmode", "disable")
+	viper.SetDefault("database.auto_migrate", true)
 	viper.SetDefault("api.title", "OGC Connected Systems API")
 	viper.SetDefault("api.version", "1.0.0")
 	viper.SetDefault("api.description", "OGC API - Connected Systems - Part 1: Feature Resources")
 	viper.SetDefault("api.base_url", "http://localhost:8080")
 	viper.SetDefault("api.default_limit", 10)
+	viper.SetDefault("api.max_body_bytes", 10<<20)
 	viper.SetDefault("mqtt.enabled", false)
 	viper.SetDefault("mqtt.broker", "tcp://localhost:1883")
 	viper.SetDefault("mqtt.client_id", "cs-api-server")
@@ -112,7 +144,7 @@ func Load() (*Config, error) {
 
 	// Read config file (optional)
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		if _, notFound := errors.AsType[viper.ConfigFileNotFoundError](err); !notFound {
 			return nil, err
 		}
 	}

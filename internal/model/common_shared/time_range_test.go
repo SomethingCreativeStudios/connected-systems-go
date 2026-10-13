@@ -123,13 +123,6 @@ func TestParseTimeRangeStrict_LatestKeyword_SetsLatestFlag(t *testing.T) {
 	}
 }
 
-func TestToTimeRange_LatestKeyword_SetsLatestFlag(t *testing.T) {
-	tr := ToTimeRange("latest")
-	if !tr.Latest {
-		t.Fatal("expected Latest=true for 'latest' keyword")
-	}
-}
-
 func TestParseTimeRangeStrict_DotDot_OK(t *testing.T) {
 	// ".." as a standalone value is treated the same as "latest"/"now" — accepted without error.
 	_, err := ParseTimeRangeStrict([]string{".."})
@@ -148,5 +141,38 @@ func TestParseTimeRangeStrict_OpenEndedRange_OK(t *testing.T) {
 	}
 	if tr.End != nil {
 		t.Fatal("expected End to be nil for \"..\"")
+	}
+}
+
+// A single instant (including "now") selects resources whose time range
+// contains that instant, so it bounds both ends rather than opening the
+// range towards the future.
+func TestParseTimeRangeStrict_InstantBoundsBothEnds(t *testing.T) {
+	for _, value := range []string{"2026-03-01T12:00:00Z", "now"} {
+		tr, err := ParseTimeRangeStrict([]string{value})
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", value, err)
+		}
+		if tr.Start == nil || tr.End == nil || !tr.Start.Equal(*tr.End) {
+			t.Fatalf("%s: expected Start == End, got %v / %v", value, tr.Start, tr.End)
+		}
+	}
+}
+
+// A string time range in a request body is parsed as strictly as the array
+// and object forms: an unparseable bound is an error, not an empty range.
+func TestTimeRange_UnmarshalJSON_StringFormIsStrict(t *testing.T) {
+	var tr TimeRange
+	if err := json.Unmarshal([]byte(`"2026-01-01T00:00:00Z/2026-12-31T00:00:00Z"`), &tr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tr.Start == nil || tr.End == nil {
+		t.Fatalf("expected both bounds, got %+v", tr)
+	}
+	for _, raw := range []string{`"frobnicate"`, `"2026-01-01T00:00:00Z/soon"`} {
+		var invalid TimeRange
+		if err := json.Unmarshal([]byte(raw), &invalid); err == nil {
+			t.Fatalf("%s: expected an error", raw)
+		}
 	}
 }

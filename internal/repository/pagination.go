@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	queryparams "github.com/yourusername/connected-systems-go/internal/model/query_params"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"gorm.io/gorm"
 )
 
@@ -17,14 +18,12 @@ type CursorOrder struct {
 	TimeColumns map[int]bool
 }
 
-var (
-	CursorOrderIDAsc    = CursorOrder{Columns: []string{"id"}}
-	CursorOrderTimeDesc = CursorOrder{
-		Columns:     []string{"result_time", "id"},
-		Descending:  true,
-		TimeColumns: map[int]bool{0: true},
-	}
-)
+// idOrder is the ascending ID tuple of a resource table. Columns are table
+// qualified so association filters that join other tables (which have their
+// own id column) cannot make the ORDER BY or the cursor predicate ambiguous.
+func idOrder(table string) CursorOrder {
+	return CursorOrder{Columns: []string{table + ".id"}}
+}
 
 func cursorTimeValue(value *time.Time) string {
 	if value == nil {
@@ -58,7 +57,7 @@ func cursorPredicate(columns []string, values []any, greater bool) (string, []an
 	}
 	for i := range columns {
 		parts := make([]string, 0, i+1)
-		for j := 0; j < i; j++ {
+		for j := range i {
 			parts = append(parts, columns[j]+" = ?")
 			args = append(args, values[j])
 		}
@@ -135,4 +134,29 @@ func FinalizeCursorPage[T any](items []T, params *queryparams.QueryParams) []T {
 	}
 	params.Page = queryparams.PageInfo{HasNext: hasExtra, HasPrev: params.Cursor != nil}
 	return items
+}
+
+// listPage counts the rows matching query, fetches one page of them in the
+// cursor order and records the page bounds used for next/prev links.
+func listPage[T any](query *gorm.DB, params *queryparams.QueryParams, order CursorOrder, anchor func(T) []string) ([]T, int64, error) {
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	query, err := ApplyCursorPagination(query, params, order)
+	if err != nil {
+		return nil, 0, err
+	}
+	var items []T
+	if err := query.Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	items = FinalizeCursorPage(items, params)
+	params.Anchors = queryparams.CursorAnchorsFor(items, anchor)
+	return items, total, nil
+}
+
+// idAnchor is the cursor anchor of resources paged in ID order.
+func idAnchor[T interface{ BaseFields() *domains.Base }](item T) []string {
+	return []string{item.BaseFields().ID}
 }

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	generators "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/generators"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	generators "github.com/yourusername/connected-systems-go/internal/model/generators"
 )
 
 const (
@@ -25,12 +25,13 @@ func seedDatastreamForObservationTests(t *testing.T) *domains.Datastream {
 	datastream := generators.FakeDatastreamJSONRecord()
 	systemID := createSystemViaAPI(t, "/systems", baseSystemPayload("Observation Test System"))
 	datastream.SystemID = &systemID
-	require.NoError(t, testRepos.Datastream.Create(&datastream), "failed to seed datastream")
+	datastream.FeatureOfInterest = nil
+	require.NoError(t, testRepos.Datastream.Create(t.Context(), &datastream), "failed to seed datastream")
 
 	return &datastream
 }
 
-func createObservationViaAPI(t *testing.T, datastreamID string, payload map[string]interface{}) string {
+func createObservationViaAPI(t *testing.T, datastreamID string, payload map[string]any) string {
 	t.Helper()
 
 	body, err := json.Marshal(payload)
@@ -65,9 +66,9 @@ func TestObservationConformance_ResourcesEndpoint(t *testing.T) {
 
 	datastream := seedDatastreamForObservationTests(t)
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"resultTime": "2026-03-13T10:00:00Z",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"temperature": 21.4,
 			"humidity":    57.9,
 		},
@@ -87,20 +88,20 @@ func TestObservationConformance_ResourcesEndpoint(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	var collection map[string]interface{}
+	var collection map[string]any
 	err = json.Unmarshal(body, &collection)
 	require.NoError(t, err)
 
-	items, ok := collection["items"].([]interface{})
+	items, ok := collection["items"].([]any)
 	require.True(t, ok, "response must contain 'items' array")
 	require.GreaterOrEqual(t, len(items), 1, "expected at least one observation")
-	links, ok := collection["links"].([]interface{})
+	links, ok := collection["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 
 	found := false
 	for _, item := range items {
-		obj, ok := item.(map[string]interface{})
+		obj, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -117,10 +118,10 @@ func TestObservation_CursorPagination(t *testing.T) {
 
 	datastream := seedDatastreamForObservationTests(t)
 	for range 3 {
-		createObservationViaAPI(t, datastream.ID, map[string]interface{}{
+		createObservationViaAPI(t, datastream.ID, map[string]any{
 			// Equal times exercise the id tie-breaker used by the cursor.
 			"resultTime": "2026-03-13T10:00:00Z",
-			"result": map[string]interface{}{
+			"result": map[string]any{
 				"temperature": 21.4,
 				"humidity":    57.9,
 			},
@@ -196,7 +197,7 @@ func TestObservation_TimescaleHypertable(t *testing.T) {
 		time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC),
 		time.Date(2026, time.March, 9, 0, 0, 0, 0, time.UTC),
 	} {
-		require.NoError(t, testRepos.Observation.Create(&domains.Observation{
+		require.NoError(t, testRepos.Observation.Create(t.Context(), &domains.Observation{
 			DatastreamID: datastream.ID,
 			ResultTime:   resultTime,
 		}))
@@ -223,9 +224,9 @@ func TestObservationConformance_CanonicalURL(t *testing.T) {
 
 	datastream := seedDatastreamForObservationTests(t)
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"resultTime": "2026-03-13T11:00:00Z",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"temperature": 19.1,
 			"humidity":    44.2,
 		},
@@ -243,7 +244,7 @@ func TestObservationConformance_CanonicalURL(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var obs map[string]interface{}
+	var obs map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&obs)
 	require.NoError(t, err)
 	assert.Equal(t, obsID, obs["id"])
@@ -254,18 +255,18 @@ func TestObservation_UpdateChangesResultTime(t *testing.T) {
 	cleanupDB(t)
 
 	datastream := seedDatastreamForObservationTests(t)
-	observationID := createObservationViaAPI(t, datastream.ID, map[string]interface{}{
+	observationID := createObservationViaAPI(t, datastream.ID, map[string]any{
 		"resultTime": "2026-03-13T11:00:00Z",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"temperature": 19.1,
 			"humidity":    44.2,
 		},
 	})
 
 	updatedResultTime := "2026-03-20T11:00:00Z"
-	body, err := json.Marshal(map[string]interface{}{
+	body, err := json.Marshal(map[string]any{
 		"resultTime": updatedResultTime,
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"temperature": 20.5,
 			"humidity":    44.2,
 		},
@@ -297,9 +298,9 @@ func TestObservationSchema_JSON(t *testing.T) {
 
 	datastream := seedDatastreamForObservationTests(t)
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"resultTime": "2026-03-13T12:00:00Z",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"temperature": 22.6,
 			"humidity":    41.3,
 		},
@@ -333,18 +334,18 @@ func TestObservation_Create_ValidatesParentDatastreamSchema(t *testing.T) {
 
 	datastream := seedDatastreamForObservationTests(t)
 
-	validPayload := map[string]interface{}{
+	validPayload := map[string]any{
 		"resultTime": "2026-03-13T13:00:00Z",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"temperature": 20.2,
 			"humidity":    58.8,
 		},
 	}
 	createObservationViaAPI(t, datastream.ID, validPayload)
 
-	invalidPayload := map[string]interface{}{
+	invalidPayload := map[string]any{
 		"resultTime": "2026-03-13T13:05:00Z",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"temperature": "not-a-number",
 		},
 	}
@@ -363,7 +364,7 @@ func TestObservation_Create_ValidatesParentDatastreamSchema(t *testing.T) {
 }
 
 // helper: POST to observations endpoint, return status + body
-func postObservation(t *testing.T, datastreamID string, payload map[string]interface{}) (int, map[string]interface{}) {
+func postObservation(t *testing.T, datastreamID string, payload map[string]any) (int, map[string]any) {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -374,7 +375,7 @@ func postObservation(t *testing.T, datastreamID string, payload map[string]inter
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	var result map[string]interface{}
+	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)
 	return resp.StatusCode, result
 }
@@ -386,10 +387,10 @@ func TestObservation_Create_NumericPhenomenonTime_Returns400(t *testing.T) {
 	cleanupDB(t)
 	ds := seedDatastreamForObservationTests(t)
 
-	status, body := postObservation(t, ds.ID, map[string]interface{}{
+	status, body := postObservation(t, ds.ID, map[string]any{
 		"phenomenonTime": 1773100000,
 		"resultTime":     "2026-01-01T00:00:00Z",
-		"result":         map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+		"result":         map[string]any{"temperature": 21.0, "humidity": 55.0},
 	})
 	assert.Equal(t, http.StatusBadRequest, status)
 	assert.Contains(t, body["error"], "phenomenonTime")
@@ -402,9 +403,9 @@ func TestObservation_Create_NumericResultTime_Returns400WithTypeError(t *testing
 	cleanupDB(t)
 	ds := seedDatastreamForObservationTests(t)
 
-	status, body := postObservation(t, ds.ID, map[string]interface{}{
+	status, body := postObservation(t, ds.ID, map[string]any{
 		"resultTime": 1773100000,
-		"result":     map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+		"result":     map[string]any{"temperature": 21.0, "humidity": 55.0},
 	})
 	assert.Equal(t, http.StatusBadRequest, status)
 	errMsg, _ := body["error"].(string)
@@ -419,8 +420,8 @@ func TestObservation_Create_MissingResultTime_Returns400Required(t *testing.T) {
 	cleanupDB(t)
 	ds := seedDatastreamForObservationTests(t)
 
-	status, body := postObservation(t, ds.ID, map[string]interface{}{
-		"result": map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+	status, body := postObservation(t, ds.ID, map[string]any{
+		"result": map[string]any{"temperature": 21.0, "humidity": 55.0},
 	})
 	assert.Equal(t, http.StatusBadRequest, status)
 	errMsg, _ := body["error"].(string)
@@ -434,10 +435,10 @@ func TestObservation_Create_ValidPhenomenonTime_Returns201(t *testing.T) {
 	cleanupDB(t)
 	ds := seedDatastreamForObservationTests(t)
 
-	status, _ := postObservation(t, ds.ID, map[string]interface{}{
+	status, _ := postObservation(t, ds.ID, map[string]any{
 		"phenomenonTime": "2026-01-01T00:00:00Z",
 		"resultTime":     "2026-01-01T00:00:00Z",
-		"result":         map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+		"result":         map[string]any{"temperature": 21.0, "humidity": 55.0},
 	})
 	assert.Equal(t, http.StatusCreated, status)
 }
@@ -467,14 +468,14 @@ func TestObservation_List_LatestResultTime_ReturnsMostRecent(t *testing.T) {
 	ds := seedDatastreamForObservationTests(t)
 
 	// Older observation
-	createObservationViaAPI(t, ds.ID, map[string]interface{}{
+	createObservationViaAPI(t, ds.ID, map[string]any{
 		"resultTime": "2025-01-01T00:00:00Z",
-		"result":     map[string]interface{}{"temperature": 10.0, "humidity": 40.0},
+		"result":     map[string]any{"temperature": 10.0, "humidity": 40.0},
 	})
 	// Newer observation
-	newerID := createObservationViaAPI(t, ds.ID, map[string]interface{}{
+	newerID := createObservationViaAPI(t, ds.ID, map[string]any{
 		"resultTime": "2026-01-01T00:00:00Z",
-		"result":     map[string]interface{}{"temperature": 20.0, "humidity": 60.0},
+		"result":     map[string]any{"temperature": 20.0, "humidity": 60.0},
 	})
 
 	req, err := http.NewRequest(http.MethodGet, testServer.URL+"/observations?resultTime=latest", nil)
@@ -486,16 +487,16 @@ func TestObservation_List_LatestResultTime_ReturnsMostRecent(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var result map[string]interface{}
+	var result map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
-	items, ok := result["items"].([]interface{})
+	items, ok := result["items"].([]any)
 	require.True(t, ok)
-	links, ok := result["links"].([]interface{})
+	links, ok := result["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 	require.Equal(t, 1, len(items), "expected exactly one observation for ?resultTime=latest")
 
-	obs, ok := items[0].(map[string]interface{})
+	obs, ok := items[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, newerID, obs["id"], "expected the most recent observation to be returned")
 }
@@ -508,13 +509,13 @@ func TestObservation_List_ValidResultTimeRange_Filters(t *testing.T) {
 	ds := seedDatastreamForObservationTests(t)
 
 	// Create one observation in 2025 and one in 2027
-	createObservationViaAPI(t, ds.ID, map[string]interface{}{
+	createObservationViaAPI(t, ds.ID, map[string]any{
 		"resultTime": "2025-06-01T00:00:00Z",
-		"result":     map[string]interface{}{"temperature": 10.0, "humidity": 40.0},
+		"result":     map[string]any{"temperature": 10.0, "humidity": 40.0},
 	})
-	createObservationViaAPI(t, ds.ID, map[string]interface{}{
+	createObservationViaAPI(t, ds.ID, map[string]any{
 		"resultTime": "2027-06-01T00:00:00Z",
-		"result":     map[string]interface{}{"temperature": 20.0, "humidity": 60.0},
+		"result":     map[string]any{"temperature": 20.0, "humidity": 60.0},
 	})
 
 	// Query only the 2025 window
@@ -528,11 +529,11 @@ func TestObservation_List_ValidResultTimeRange_Filters(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var result map[string]interface{}
+	var result map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
-	items, ok := result["items"].([]interface{})
+	items, ok := result["items"].([]any)
 	require.True(t, ok)
-	links, ok := result["links"].([]interface{})
+	links, ok := result["links"].([]any)
 	require.True(t, ok, "response must contain 'links' array")
 	require.GreaterOrEqual(t, len(links), 1)
 	assert.Equal(t, 1, len(items), "expected only the 2025 observation to be returned")
@@ -557,19 +558,21 @@ func TestObservation_Create_RejectsOutOfConstraintValue(t *testing.T) {
 			Constraint: &domains.DatastreamConstraint{Intervals: intervals},
 		},
 	})
-	systemID := "unknown"
-	ds.SystemID = &systemID
-	require.NoError(t, testRepos.Datastream.Create(&ds), "failed to seed constrained datastream")
+	// The generator invents a system ID; datastreams can only be created
+	// under an existing system, and this test needs none.
+	ds.SystemID = nil
+	ds.FeatureOfInterest = nil
+	require.NoError(t, testRepos.Datastream.Create(t.Context(), &ds), "failed to seed constrained datastream")
 
 	// Value within interval — should succeed
-	status, _ := postObservation(t, ds.ID, map[string]interface{}{
+	status, _ := postObservation(t, ds.ID, map[string]any{
 		"resultTime": "2026-01-01T00:00:00Z",
 		"result":     float64(50),
 	})
 	assert.Equal(t, http.StatusCreated, status, "value within interval should be accepted")
 
 	// Value outside interval — should be rejected
-	status, body := postObservation(t, ds.ID, map[string]interface{}{
+	status, body := postObservation(t, ds.ID, map[string]any{
 		"resultTime": "2026-01-01T00:00:00Z",
 		"result":     float64(150),
 	})
@@ -585,9 +588,9 @@ func TestObservation_Create_EmptyResultTime_Returns400WithNonEmptyError(t *testi
 	cleanupDB(t)
 	ds := seedDatastreamForObservationTests(t)
 
-	status, body := postObservation(t, ds.ID, map[string]interface{}{
+	status, body := postObservation(t, ds.ID, map[string]any{
 		"resultTime": "",
-		"result":     map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+		"result":     map[string]any{"temperature": 21.0, "humidity": 55.0},
 	})
 	assert.Equal(t, http.StatusBadRequest, status)
 	errMsg, _ := body["error"].(string)
@@ -603,10 +606,10 @@ func TestObservation_Create_EmptyPhenomenonTime_Returns400WithNonEmptyError(t *t
 	cleanupDB(t)
 	ds := seedDatastreamForObservationTests(t)
 
-	status, body := postObservation(t, ds.ID, map[string]interface{}{
+	status, body := postObservation(t, ds.ID, map[string]any{
 		"phenomenonTime": "",
 		"resultTime":     "2026-01-01T00:00:00Z",
-		"result":         map[string]interface{}{"temperature": 21.0, "humidity": 55.0},
+		"result":         map[string]any{"temperature": 21.0, "humidity": 55.0},
 	})
 	assert.Equal(t, http.StatusBadRequest, status)
 	errMsg, _ := body["error"].(string)

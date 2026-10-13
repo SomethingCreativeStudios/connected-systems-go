@@ -5,35 +5,31 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
-	"github.com/yourusername/connected-systems-go/internal/model/domains"
-	"github.com/yourusername/connected-systems-go/internal/model/formaters"
-	"github.com/yourusername/connected-systems-go/internal/repository"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 )
 
 // PropertySensorMLFormatter handles serialization and deserialization of Property objects in SensorML format
 type PropertySensorMLFormatter struct {
 	formaters.Formatter[domains.PropertySensorMLFeature, *domains.Property]
-	repos *repository.Repositories
+	links *formaters.LinkResolver
 }
 
 // NewPropertySensorMLFormatter constructs a formatter with required repository readers
-func NewPropertySensorMLFormatter(repos *repository.Repositories) *PropertySensorMLFormatter {
-	return &PropertySensorMLFormatter{repos: repos}
+func NewPropertySensorMLFormatter(links *formaters.LinkResolver) *PropertySensorMLFormatter {
+	return &PropertySensorMLFormatter{links: links}
 }
 
 func (f *PropertySensorMLFormatter) ContentType() string {
-	return SensorMLContentType
+	return mediatype.SensorML
 }
 
 // --- Serialization ---
 
 func (f *PropertySensorMLFormatter) Serialize(ctx context.Context, property *domains.Property) (domains.PropertySensorMLFeature, error) {
-	features, err := f.SerializeAll(ctx, []*domains.Property{property})
-	if err != nil {
-		return domains.PropertySensorMLFeature{}, err
-	}
-	return features[0], nil
+	return formaters.SerializeOne(ctx, property, f.SerializeAll)
 }
 
 func (f *PropertySensorMLFormatter) SerializeAll(ctx context.Context, properties []*domains.Property) ([]domains.PropertySensorMLFeature, error) {

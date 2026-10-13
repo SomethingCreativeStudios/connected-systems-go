@@ -3,7 +3,7 @@ package domains
 import (
 	"encoding/json"
 
-	"github.com/yourusername/connected-systems-go/internal/model/common_shared"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 )
 
 // Deployment represents a sosa:Deployment feature
