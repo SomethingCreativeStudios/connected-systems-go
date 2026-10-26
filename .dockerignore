@@ -15,3 +15,12 @@ ptz-test/
 e2e/
 *.md
 config.yaml
+mqtt-users.json
+cs-mqtt-users.json
+examples/mqtt/users.json
+data/mqtt/
+
+.codegraph
+docs/standards
+
+.git

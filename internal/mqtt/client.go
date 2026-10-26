@@ -1,265 +1,330 @@
 package mqtt
 
 import (
-	"crypto/sha256"
+	"context"
+	"errors"
 	"fmt"
-	"slices"
-	"strings"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
+	mochi "github.com/mochi-mqtt/server/v2"
+	"github.com/mochi-mqtt/server/v2/packets"
 	"go.uber.org/zap"
 )
 
-// Config holds MQTT connection configuration.
-type Config struct {
-	Broker   string
-	ClientID string
-	Username string
-	Password string
-	QoS      byte
-	Retained bool
+const (
+	maxPendingPublications = 4096
+	internalClientID       = "$csapi-internal"
+)
+
+// Delivery policy, also advertised through AsyncAPI.
+const (
+	// MaxPacketBytes caps any MQTT packet, above the configurable resource limit.
+	MaxPacketBytes = 11 << 20
+	// MaxQueuedMessages and MaxQueuedBytes bound each client's queue.
+	MaxQueuedMessages = 1000
+	MaxQueuedBytes    = 64 << 20
+	// MaxPendingWrites bounds deliveries waiting on a connected client's socket.
+	MaxPendingWrites = 128
+	// MQTT311SessionExpiry applies to inactive MQTT 3.1.1 persistent sessions.
+	MQTT311SessionExpiry = 24 * time.Hour
+)
+
+type pendingPublication struct {
+	topic, media string
+	payload      []byte
 }
 
-// Manager wraps an MQTT client connection and provides publish/subscribe helpers
-// for OGC Connected Systems Pub/Sub topics.
+// Manager owns the embedded endpoint. Its interface exposes no Mochi types.
 type Manager struct {
-	cfg             Config
-	logger          *zap.Logger
-	client          mqtt.Client
-	mu              sync.Mutex
-	publishedEchoes map[string]publishedEcho
-	subscriptions   []subscription
+	cfg         config.MQTTConfig
+	logger      *zap.Logger
+	server      *mochi.Server
+	internal    *mochi.Client
+	ingress     pubsub.Ingress
+	users       map[string][]byte
+	store       *durableHook
+	trusted     sync.Map
+	running     atomic.Bool
+	quiescing   atomic.Bool
+	fatal       chan error
+	done        chan struct{}
+	closeOnce   sync.Once
+	sendMu      sync.Mutex
+	sessionMu   sync.Mutex
+	maintenance sync.WaitGroup
+	workMu      sync.Mutex
+	work        sync.WaitGroup
+	pending     chan pendingPublication
+	lastQueued  sync.Map
 }
 
-type subscription struct {
-	topic   string
-	handler mqtt.MessageHandler
+func NewManager(cfg config.MQTTConfig, logger *zap.Logger) *Manager {
+	return &Manager{cfg: cfg, logger: logger, fatal: make(chan error, 1), done: make(chan struct{}), pending: make(chan pendingPublication, maxPendingPublications)}
 }
 
-type publishedEcho struct {
-	count     int
-	expiresAt time.Time
-}
+func (m *Manager) Fatal() <-chan error { return m.fatal }
+func (m *Manager) IsConnected() bool   { return m != nil && m.running.Load() }
 
-const publishedEchoTTL = 30 * time.Second
-
-// NewManager creates a new MQTT Manager. Call Connect() to establish the connection.
-func NewManager(cfg Config, logger *zap.Logger) *Manager {
-	return &Manager{
-		cfg:             cfg,
-		logger:          logger,
-		publishedEchoes: make(map[string]publishedEcho),
-	}
-}
-
-// Connect establishes the MQTT connection. Safe to call once.
-func (m *Manager) Connect() error {
-	opts := mqtt.NewClientOptions().
-		AddBroker(m.cfg.Broker).
-		SetClientID(m.cfg.ClientID).
-		SetCleanSession(true).
-		SetAutoReconnect(true).
-		SetMaxReconnectInterval(30 * time.Second).
-		SetConnectRetry(true).
-		SetConnectRetryInterval(5 * time.Second).
-		SetConnectionLostHandler(func(client mqtt.Client, err error) {
-			m.logger.Warn("MQTT connection lost", zap.Error(err))
-		}).
-		SetOnConnectHandler(m.onConnect)
-
-	if m.cfg.Username != "" {
-		opts.SetUsername(m.cfg.Username)
-	}
-	if m.cfg.Password != "" {
-		opts.SetPassword(m.cfg.Password)
-	}
-
-	m.client = mqtt.NewClient(opts)
-	token := m.client.Connect()
-	if !token.WaitTimeout(15 * time.Second) {
-		return fmt.Errorf("mqtt connect: timed out waiting for broker %s", m.cfg.Broker)
-	}
-	if token.Error() != nil {
-		return fmt.Errorf("mqtt connect: %w", token.Error())
-	}
-
-	return nil
-}
-
-// onConnect runs after the first connect and after every automatic
-// reconnect. The session is clean, so the broker has forgotten our
-// subscriptions and paho does not replay them; restore them here.
-func (m *Manager) onConnect(client mqtt.Client) {
-	m.logger.Info("MQTT connected", zap.String("broker", m.cfg.Broker))
-
-	m.mu.Lock()
-	subscriptions := slices.Clone(m.subscriptions)
-	m.mu.Unlock()
-
-	for _, sub := range subscriptions {
-		token := client.Subscribe(sub.topic, m.cfg.QoS, sub.handler)
-		if !token.WaitTimeout(10 * time.Second) {
-			m.logger.Error("MQTT resubscribe timed out", zap.String("topic", sub.topic))
-			continue
-		}
-		if err := token.Error(); err != nil {
-			m.logger.Error("MQTT resubscribe failed", zap.String("topic", sub.topic), zap.Error(err))
-			continue
-		}
-		m.logger.Info("MQTT resubscribed", zap.String("topic", sub.topic))
-	}
-}
-
-// Disconnect gracefully closes the MQTT connection.
-func (m *Manager) Disconnect() {
-	if m.client != nil && m.client.IsConnected() {
-		m.client.Disconnect(500)
-		m.logger.Info("MQTT disconnected")
-	}
-}
-
-// IsConnected returns whether the MQTT client is currently connected.
-func (m *Manager) IsConnected() bool {
-	return m.client != nil && m.client.IsConnected()
-}
-
-// Publish sends a message to the given topic. Non-blocking — errors are logged.
-func (m *Manager) Publish(topic string, payload []byte) {
-	if !m.IsConnected() {
-		m.logger.Warn("MQTT not connected, skipping publish", zap.String("topic", topic))
+func (m *Manager) fail(err error) {
+	if err == nil {
 		return
 	}
-
-	if m.hasMatchingSubscription(topic) {
-		m.rememberPublishedMessage(topic, payload)
+	m.logger.Error("Embedded MQTT failure", zap.Error(err))
+	select {
+	case m.fatal <- err:
+	default:
 	}
-	token := m.client.Publish(topic, m.cfg.QoS, m.cfg.Retained, payload)
-	// Fire-and-forget: don't block the caller. Log errors asynchronously.
-	go func() {
-		if token.WaitTimeout(5*time.Second) && token.Error() != nil {
-			m.logger.Error("MQTT publish failed",
-				zap.String("topic", topic),
-				zap.Error(token.Error()),
-			)
-		}
-	}()
 }
 
-// Subscribe registers a message handler for the given topic.
-func (m *Manager) Subscribe(topic string, handler mqtt.MessageHandler) error {
-	if !m.IsConnected() {
-		return fmt.Errorf("mqtt not connected")
+func (m *Manager) Start(ingress pubsub.Ingress) (err error) {
+	if ingress == nil {
+		return errors.New("MQTT ingress is required")
 	}
-
-	wrapper := func(client mqtt.Client, message mqtt.Message) {
-		if m.consumePublishedEcho(message.Topic(), message.Payload()) {
-			m.logger.Debug("Ignored locally published MQTT echo", zap.String("topic", message.Topic()))
-			return
+	m.ingress = ingress
+	m.users, err = loadAccounts(m.cfg.UsersFile, m.cfg.AllowAnonymous)
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(m.cfg.DataDir, 0700); err != nil {
+		return err
+	}
+	capabilities := mochi.NewDefaultServerCapabilities()
+	capabilities.MinimumProtocolVersion = 4
+	capabilities.MaximumPacketSize = MaxPacketBytes
+	capabilities.MaximumInflight = MaxQueuedMessages
+	capabilities.ReceiveMaximum = MaxQueuedMessages
+	capabilities.MaximumClientWritesPending = MaxPendingWrites
+	capabilities.RetainAvailable = 0
+	capabilities.SharedSubAvailable = 0
+	capabilities.MaximumMessageExpiryInterval = 0
+	capabilities.Compatibilities.NoInheritedPropertiesOnAck = true
+	m.server = mochi.New(&mochi.Options{Capabilities: capabilities, Logger: slog.New(&brokerLog{manager: m})})
+	defer func() {
+		if err != nil {
+			m.Disconnect()
 		}
-		handler(client, message)
+	}()
+	m.internal = m.server.NewClient(nil, mochi.LocalListener, internalClientID, true)
+	m.internal.Properties.ProtocolVersion = 5
+	m.trusted.Store(m.internal, true)
+	m.store, err = newDurableHook(m, filepath.Join(m.cfg.DataDir, "state"))
+	if err != nil {
+		return err
 	}
-	token := m.client.Subscribe(topic, m.cfg.QoS, wrapper)
-	if !token.WaitTimeout(10 * time.Second) {
-		return fmt.Errorf("mqtt subscribe %s: timed out waiting for broker", topic)
+	if err = m.server.AddHook(&policyHook{manager: m}, nil); err != nil {
+		return err
 	}
-	if token.Error() != nil {
-		return fmt.Errorf("mqtt subscribe %s: %w", topic, token.Error())
+	if err = m.server.AddHook(m.store, nil); err != nil {
+		return err
 	}
-	m.mu.Lock()
-	m.subscriptions = append(m.subscriptions, subscription{topic: topic, handler: wrapper})
-	m.mu.Unlock()
-
-	m.logger.Info("MQTT subscribed", zap.String("topic", topic))
+	if err = m.server.AddListener(&tcpListener{address: m.cfg.TCPAddress, wrap: m.flowConnection}); err != nil {
+		return err
+	}
+	if err = m.server.AddListener(newWebsocketListener(m.cfg.WebsocketAddress, m.fail, m.flowConnection)); err != nil {
+		return err
+	}
+	if err = m.server.Serve(); err != nil {
+		return err
+	}
+	select {
+	case err = <-m.fatal:
+		return err
+	default:
+	}
+	m.running.Store(true)
+	m.maintenance.Add(2)
+	go m.expireSessions()
+	go m.publishPending()
+	m.logger.Info("Embedded MQTT ready", zap.String("tcp", m.cfg.TCPAddress), zap.String("websocket", m.cfg.WebsocketAddress))
 	return nil
 }
 
-func (m *Manager) rememberPublishedMessage(topic string, payload []byte) {
-	key := publishedMessageKey(topic, payload)
-	now := time.Now()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.prunePublishedEchoes(now)
-	echo := m.publishedEchoes[key]
-	echo.count++
-	echo.expiresAt = now.Add(publishedEchoTTL)
-	m.publishedEchoes[key] = echo
-}
-
-func (m *Manager) consumePublishedEcho(topic string, payload []byte) bool {
-	key := publishedMessageKey(topic, payload)
-	now := time.Now()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.prunePublishedEchoes(now)
-	echo, exists := m.publishedEchoes[key]
-	if !exists {
+func (m *Manager) beginOperation() bool {
+	m.workMu.Lock()
+	defer m.workMu.Unlock()
+	if m.quiescing.Load() {
 		return false
 	}
-	echo.count--
-	if echo.count <= 0 {
-		delete(m.publishedEchoes, key)
-	} else {
-		m.publishedEchoes[key] = echo
-	}
+	m.work.Add(1)
 	return true
 }
 
-func (m *Manager) prunePublishedEchoes(now time.Time) {
-	for key, echo := range m.publishedEchoes {
-		if !echo.expiresAt.After(now) {
-			delete(m.publishedEchoes, key)
+func (m *Manager) Quiesce() {
+	if m == nil {
+		return
+	}
+	m.workMu.Lock()
+	m.quiescing.Store(true)
+	m.workMu.Unlock()
+	m.work.Wait()
+}
+
+// Publish queues a server publication without blocking the caller. One worker
+// distributes the queue in order, so publications on a topic keep their order.
+func (m *Manager) Publish(topic string, payload []byte, media string) {
+	m.workMu.Lock()
+	defer m.workMu.Unlock()
+	if !m.IsConnected() {
+		return
+	}
+	select {
+	case m.pending <- pendingPublication{topic: topic, media: media, payload: payload}:
+	default:
+		m.logger.Warn("MQTT publication queue full; publication dropped", zap.String("topic", topic))
+	}
+}
+
+func (m *Manager) publishPending() {
+	defer m.maintenance.Done()
+	for p := range m.pending {
+		pk := packets.Packet{FixedHeader: packets.FixedHeader{Type: packets.Publish, Qos: 1}, TopicName: p.topic, Payload: p.payload, Properties: packets.Properties{ContentType: p.media}}
+		if err := m.distribute(m.internal, pk); err != nil {
+			m.logger.Warn("MQTT publication failed", zap.String("topic", p.topic), zap.Error(err))
 		}
 	}
 }
 
-func publishedMessageKey(topic string, payload []byte) string {
-	digest := sha256.Sum256(payload)
-	return fmt.Sprintf("%s\x00%x", topic, digest)
+func (m *Manager) distribute(origin *mochi.Client, pk packets.Packet) error {
+	m.sendMu.Lock()
+	defer m.sendMu.Unlock()
+	defer m.lastQueued.Range(func(key, _ any) bool { m.lastQueued.Delete(key); return true })
+	pk.PacketID = uint16(pk.FixedHeader.Qos)
+	return m.server.InjectPacket(origin, pk)
 }
 
-// Unsubscribe removes a subscription for the given topic.
-func (m *Manager) Unsubscribe(topic string) error {
-	if !m.IsConnected() {
-		return nil
+func (m *Manager) Disconnect() {
+	if m == nil {
+		return
 	}
+	m.closeOnce.Do(func() {
+		m.Quiesce()
+		m.workMu.Lock()
+		// The publication worker only runs after a successful Start. Closing its
+		// queue lets it drain queued publications before the broker closes.
+		if m.running.Swap(false) {
+			close(m.pending)
+		}
+		m.workMu.Unlock()
+		close(m.done)
+		m.maintenance.Wait()
+		if m.server != nil {
+			if err := m.server.Close(); err != nil {
+				m.logger.Warn("Close MQTT", zap.Error(err))
+			}
+		}
+		if m.store != nil {
+			m.store.closeMetadata()
+		}
+	})
+}
 
-	token := m.client.Unsubscribe(topic)
-	if !token.WaitTimeout(5 * time.Second) {
-		return fmt.Errorf("mqtt unsubscribe %s: timed out waiting for broker", topic)
+func (m *Manager) purgeExpired(id string) {
+	if m.store.owner(id) != "" {
+		return
 	}
-	if token.Error() != nil {
-		return fmt.Errorf("mqtt unsubscribe %s: %w", topic, token.Error())
+	if cl, ok := m.server.Clients.Get(id); ok && cl.Closed() {
+		cl.ClearInflights()
+		m.server.UnsubscribeClient(cl)
+		m.server.Clients.Delete(id)
+		m.store.OnClientExpired(cl)
 	}
-	m.mu.Lock()
-	m.subscriptions = slices.DeleteFunc(m.subscriptions, func(sub subscription) bool { return sub.topic == topic })
-	m.mu.Unlock()
+}
 
+func (m *Manager) allowed(cl *mochi.Client, access, topic string) bool {
+	if !m.knownPrincipal(principal(cl)) {
+		return false
+	}
+	return m.ingress.Authorize(context.Background(), principal(cl), access, topic) == nil
+}
+
+func principal(cl *mochi.Client) string {
+	if len(cl.Properties.Username) == 0 {
+		return "anonymous"
+	}
+	return "user:" + string(cl.Properties.Username)
+}
+
+func (m *Manager) knownPrincipal(p string) bool {
+	if p == "anonymous" {
+		return m.cfg.AllowAnonymous
+	}
+	if len(p) <= 5 || p[:5] != "user:" {
+		return false
+	}
+	_, ok := m.users[p[5:]]
+	return ok
+}
+
+func (m *Manager) expireSessions() {
+	defer m.maintenance.Done()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-m.done:
+			return
+		case <-ticker.C:
+			if err := m.store.syncPending(); err != nil {
+				m.fail(fmt.Errorf("sync MQTT queue: %w", err))
+			}
+			m.expireQueuedMessages(time.Now().Unix())
+			for _, id := range m.store.expired(time.Now().Unix()) {
+				m.sessionMu.Lock()
+				m.purgeExpired(id)
+				m.sessionMu.Unlock()
+			}
+		}
+	}
+}
+
+func (m *Manager) expireQueuedMessages(now int64) {
+	m.sessionMu.Lock()
+	defer m.sessionMu.Unlock()
+	m.sendMu.Lock()
+	defer m.sendMu.Unlock()
+	for _, cl := range m.server.Clients.GetAll() {
+		if !cl.Closed() {
+			continue
+		}
+		for _, pk := range cl.State.Inflight.GetAll(false) {
+			if pk.FixedHeader.Type == packets.Publish && pk.Properties.MessageExpiryInterval > 0 && pk.Created+int64(pk.Properties.MessageExpiryInterval) <= now {
+				if cl.State.Inflight.Delete(pk.PacketID) {
+					m.store.OnQosDropped(cl, pk)
+				}
+			}
+		}
+	}
+}
+
+// brokerLog forwards Mochi's warnings and errors to zap. Listener and storage
+// failures call Manager.fail directly, so no Mochi log line can stop the API.
+type brokerLog struct {
+	manager *Manager
+	attrs   []slog.Attr
+}
+
+func (*brokerLog) Enabled(_ context.Context, level slog.Level) bool { return level >= slog.LevelWarn }
+func (h *brokerLog) Handle(_ context.Context, r slog.Record) error {
+	fields := []zap.Field{zap.String("component", "mochi")}
+	for _, a := range h.attrs {
+		fields = append(fields, zap.Any(a.Key, a.Value.Any()))
+	}
+	r.Attrs(func(a slog.Attr) bool { fields = append(fields, zap.Any(a.Key, a.Value.Any())); return true })
+	if r.Level >= slog.LevelError {
+		h.manager.logger.Error(r.Message, fields...)
+	} else {
+		h.manager.logger.Warn(r.Message, fields...)
+	}
 	return nil
 }
-
-func (m *Manager) hasMatchingSubscription(topic string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for _, sub := range m.subscriptions {
-		if topicMatchesFilter(topic, sub.topic) {
-			return true
-		}
-	}
-	return false
+func (h *brokerLog) WithAttrs(a []slog.Attr) slog.Handler {
+	return &brokerLog{manager: h.manager, attrs: append(append([]slog.Attr{}, h.attrs...), a...)}
 }
-
-func topicMatchesFilter(topic, filter string) bool {
-	topicParts := strings.Split(topic, "/")
-	filterParts := strings.Split(filter, "/")
-	for i, filterPart := range filterParts {
-		if filterPart == "#" {
-			return i == len(filterParts)-1
-		}
-		if i >= len(topicParts) || (filterPart != "+" && filterPart != topicParts[i]) {
-			return false
-		}
-	}
-	return len(topicParts) == len(filterParts)
-}
+func (h *brokerLog) WithGroup(string) slog.Handler { return h }

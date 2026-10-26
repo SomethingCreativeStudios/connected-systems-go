@@ -10,6 +10,8 @@ ptz-test/
 cs-api-client/
 cs-api-viewer/
 scripts/*
+
+!scripts/test-mqtt-binding.py
 !scripts/seed-connected-systems/
 !scripts/seed-connected-systems/**
 
@@ -38,6 +40,10 @@ Thumbs.db
 config.yaml
 *.env
 mosquitto_passwd
+/mqtt-users.json
+/cs-mqtt-users.json
+/examples/mqtt/users.json
+/data/mqtt/
 
 # Logs
 *.log

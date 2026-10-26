@@ -132,14 +132,8 @@ func FakeComponentWrapper() common_shared.ComponentWrapper {
 	cw.Constraint = constr
 	cw.NilValues = nilv
 
-	// Raw: marshal a representative payload
-	rep := map[string]any{
-		"type":       cw.Type,
-		"definition": cw.Definition,
-		"label":      cw.Label,
-		"value":      json.RawMessage(cw.Value),
-	}
-	if rawRep, err := json.Marshal(rep); err == nil {
+	// Capture all modeled fields before Raw becomes authoritative.
+	if rawRep, err := json.Marshal(cw); err == nil {
 		cw.Raw = rawRep
 	}
 

@@ -69,7 +69,9 @@ func TestMigrate_UpgradesLegacyDatabase(t *testing.T) {
 
 	var version int64
 	require.NoError(t, db.Raw(`SELECT MAX(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version).Error)
-	require.EqualValues(t, 3, version)
+	require.EqualValues(t, 4, version)
+	require.True(t, db.Migrator().HasTable("mqtt_create_operations"))
+	require.True(t, db.Migrator().HasColumn(&MQTTCreateOperation{}, "response"))
 
 	for _, table := range []string{"system_procedures", "system_datastreams", "system_controlstreams", "deployment_closures"} {
 		require.False(t, db.Migrator().HasTable(table), table)

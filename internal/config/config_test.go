@@ -78,3 +78,25 @@ func TestDatabaseDefaults(t *testing.T) {
 	require.Equal(t, "disable", cfg.Database.SSLMode)
 	require.True(t, cfg.Database.AutoMigrate)
 }
+
+func TestMQTTContractConfiguration(t *testing.T) {
+	valid := func() *Config {
+		return &Config{API: APIConfig{BaseURL: "https://api.example.test/api"}, MQTT: MQTTConfig{Enabled: true, NodeID: "node1", AllowAnonymous: true, TCPAddress: "127.0.0.1:1883", WebsocketAddress: "127.0.0.1:9001", DataDir: t.TempDir(), IngestTimeout: 2 * time.Second, MaxMessageBytes: 10 << 20, PublicBrokers: "mqtt://broker.example.test:1883,wss://broker.example.test/mqtt"}, PubSub: PubSubConfig{ResourceEvents: PubSubFeatureConfig{Enabled: true}, BatchResourceEvents: BatchResourceEventsConfig{Enabled: true, Window: time.Minute}}}
+	}
+	require.NoError(t, valid().ValidateMQTT())
+	cases := map[string]func(*Config){
+		"node missing":    func(c *Config) { c.MQTT.NodeID = "" },
+		"node wildcard":   func(c *Config) { c.MQTT.NodeID = "node/+" },
+		"credentials":     func(c *Config) { c.MQTT.AllowAnonymous = false },
+		"listener":        func(c *Config) { c.MQTT.TCPAddress = "bad" },
+		"storage":         func(c *Config) { c.MQTT.DataDir = "" },
+		"dependency":      func(c *Config) { c.PubSub.ResourceEvents.Enabled = false },
+		"public endpoint": func(c *Config) { c.MQTT.PublicBrokers = "tcp://user:secret@private:1883" },
+		"HTTP context":    func(c *Config) { c.API.BaseURL = "/api" },
+		"timeout":         func(c *Config) { c.MQTT.IngestTimeout = 0 },
+		"size":            func(c *Config) { c.MQTT.MaxMessageBytes = 0 },
+	}
+	for name, alter := range cases {
+		t.Run(name, func(t *testing.T) { cfg := valid(); alter(cfg); require.Error(t, cfg.ValidateMQTT()) })
+	}
+}

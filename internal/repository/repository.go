@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,7 @@ const observationHypertableChunkInterval = "7 days"
 
 // Repositories holds all repository instances
 type Repositories struct {
+	db              *gorm.DB
 	System          *SystemRepository
 	Deployment      *DeploymentRepository
 	Procedure       *ProcedureRepository
@@ -30,6 +32,7 @@ type Repositories struct {
 // NewRepositories creates new repository instances
 func NewRepositories(db *gorm.DB) *Repositories {
 	return &Repositories{
+		db:              db,
 		System:          NewSystemRepository(db),
 		Deployment:      NewDeploymentRepository(db),
 		Procedure:       NewProcedureRepository(db),
@@ -44,6 +47,11 @@ func NewRepositories(db *gorm.DB) *Repositories {
 		SystemEvent:     NewSystemEventRepository(db),
 		SystemHistory:   NewSystemHistoryRepository(db),
 	}
+}
+
+// Transaction gives every repository in an operation the same transaction.
+func (r *Repositories) Transaction(ctx context.Context, fn func(*Repositories) error) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error { return fn(NewRepositories(tx)) })
 }
 
 // baselineSchema is migration version 1: the schema as the GORM models and

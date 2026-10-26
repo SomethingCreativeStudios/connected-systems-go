@@ -26,8 +26,8 @@ func (r *fixedResolver) Resolve(_ context.Context, path string, operation Operat
 
 func TestHTTPResourceEventMiddlewarePublishesAfterCreate(t *testing.T) {
 	transport := &recordingTransport{connected: true}
-	publisher := NewPublisher("https://example.org/api", enabledConfig(), transport, zap.NewNop())
-	resolver := &fixedResolver{change: Change{
+	publisher := NewPublisher("https://example.org/api", "node1", enabledConfig(), transport, zap.NewNop())
+	resolver := &fixedResolver{change: Change{TopicPath: "systems/sys-1", CollectionTopicPath: "systems",
 		ResourceType: "system", ResourceID: "sys-1", SubjectPath: "/systems/sys-1", CollectionPath: "/systems",
 		Data: BuildResourceEventSummary("Created System", "Created description", "urn:example:created"),
 	}}
@@ -42,7 +42,7 @@ func TestHTTPResourceEventMiddlewarePublishesAfterCreate(t *testing.T) {
 	if len(resolver.paths) != 1 || resolver.paths[0] != "https://example.org/api/systems/sys-1" {
 		t.Fatalf("expected post-commit Location resolution, got %#v", resolver.paths)
 	}
-	if len(transport.messages) != 2 {
+	if len(transport.messages) != 1 {
 		t.Fatalf("expected Resource Event publications, got %d", len(transport.messages))
 	}
 	var event CloudEvent
@@ -56,8 +56,8 @@ func TestHTTPResourceEventMiddlewarePublishesAfterCreate(t *testing.T) {
 
 func TestHTTPResourceEventMiddlewareResolvesUpdatedSummaryAfterHandler(t *testing.T) {
 	transport := &recordingTransport{connected: true}
-	publisher := NewPublisher("https://example.org/api", enabledConfig(), transport, zap.NewNop())
-	resolver := &fixedResolver{change: Change{
+	publisher := NewPublisher("https://example.org/api", "node1", enabledConfig(), transport, zap.NewNop())
+	resolver := &fixedResolver{change: Change{TopicPath: "systems/sys-1", CollectionTopicPath: "systems",
 		ResourceType: "system", ResourceID: "sys-1", SubjectPath: "/systems/sys-1", CollectionPath: "/systems",
 	}}
 
@@ -70,7 +70,7 @@ func TestHTTPResourceEventMiddlewareResolvesUpdatedSummaryAfterHandler(t *testin
 	}))
 	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPut, "/systems/sys-1", nil))
 
-	if len(transport.messages) != 2 {
+	if len(transport.messages) != 1 {
 		t.Fatalf("expected Resource Event publications, got %d", len(transport.messages))
 	}
 	var event CloudEvent
@@ -84,8 +84,8 @@ func TestHTTPResourceEventMiddlewareResolvesUpdatedSummaryAfterHandler(t *testin
 
 func TestHTTPResourceEventMiddlewareResolvesDeleteBeforeHandler(t *testing.T) {
 	transport := &recordingTransport{connected: true}
-	publisher := NewPublisher("https://example.org/api", enabledConfig(), transport, zap.NewNop())
-	resolver := &fixedResolver{change: Change{
+	publisher := NewPublisher("https://example.org/api", "node1", enabledConfig(), transport, zap.NewNop())
+	resolver := &fixedResolver{change: Change{TopicPath: "systems/sys-1/datastreams/ds-1/observations/obs-1", CollectionTopicPath: "systems/sys-1/datastreams/ds-1/observations",
 		ResourceType: "observation", ResourceID: "obs-1", SubjectPath: "/observations/obs-1",
 		ParentPath: "/datastreams/ds-1", CollectionPath: "/datastreams/ds-1/observations",
 	}}
@@ -99,15 +99,15 @@ func TestHTTPResourceEventMiddlewareResolvesDeleteBeforeHandler(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodDelete, "/observations/obs-1", nil))
 	publisher.Close()
 
-	if len(transport.messages) != 1 || transport.messages[0].topic != "datastreams/ds-1/observations:batch-events" {
+	if len(transport.messages) != 1 || transport.messages[0].topic != "node1/systems/sys-1/datastreams/ds-1/observations" {
 		t.Fatalf("expected one batched delete Resource Event, got %#v", transport.messages)
 	}
 }
 
 func TestHTTPResourceEventMiddlewarePublishesPreDeleteSummary(t *testing.T) {
 	transport := &recordingTransport{connected: true}
-	publisher := NewPublisher("https://example.org/api", enabledConfig(), transport, zap.NewNop())
-	resolver := &fixedResolver{change: Change{
+	publisher := NewPublisher("https://example.org/api", "node1", enabledConfig(), transport, zap.NewNop())
+	resolver := &fixedResolver{change: Change{TopicPath: "systems/sys-1", CollectionTopicPath: "systems",
 		ResourceType: "system", ResourceID: "sys-1", SubjectPath: "/systems/sys-1", CollectionPath: "/systems",
 		Data: BuildResourceEventSummary("Deleted System", "Deleted description", "urn:example:deleted"),
 	}}
@@ -120,7 +120,7 @@ func TestHTTPResourceEventMiddlewarePublishesPreDeleteSummary(t *testing.T) {
 	}))
 	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodDelete, "/systems/sys-1", nil))
 
-	if len(transport.messages) != 2 {
+	if len(transport.messages) != 1 {
 		t.Fatalf("expected Resource Event publications, got %d", len(transport.messages))
 	}
 	var event CloudEvent
@@ -177,8 +177,8 @@ func TestSummaryForResolvedResourceCoversDescriptiveResources(t *testing.T) {
 
 func TestHTTPResourceEventMiddlewareSkipsFailedMutation(t *testing.T) {
 	transport := &recordingTransport{connected: true}
-	publisher := NewPublisher("https://example.org/api", enabledConfig(), transport, zap.NewNop())
-	resolver := &fixedResolver{change: Change{
+	publisher := NewPublisher("https://example.org/api", "node1", enabledConfig(), transport, zap.NewNop())
+	resolver := &fixedResolver{change: Change{TopicPath: "systems/sys-1", CollectionTopicPath: "systems",
 		ResourceType: "system", ResourceID: "sys-1", SubjectPath: "/systems/sys-1", CollectionPath: "/systems",
 	}}
 	handler := HTTPResourceEventMiddleware(publisher, resolver, zap.NewNop())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

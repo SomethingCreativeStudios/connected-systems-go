@@ -1,0 +1,130 @@
+# Merge/adapt into the existing dev-server project, preserving its project name
+# and volumes. The shared mqtt service remains HA/Zigbee2MQTT's broker.
+services:
+  db:
+    image: timescale/timescaledb-ha:pg18
+    environment:
+      POSTGRES_DB: connected_systems
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d connected_systems"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    networks:
+      default:
+      proxy:
+        aliases: [mosquitto]
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto_passwd:/mosquitto/config/mosquitto_passwd:ro
+      - ./mosquitto_acl:/mosquitto/config/mosquitto_acl:ro
+      - mosquitto_data:/mosquitto/data
+    environment:
+      HEALTHCHECK_USERNAME: "${HA_MQTT_HEALTHCHECK_USERNAME:-cs-api-server}"
+      HEALTHCHECK_PASSWORD: "${HA_MQTT_HEALTHCHECK_PASSWORD:?set the existing shared broker healthcheck password}"
+    healthcheck:
+      test: ["CMD-SHELL", 'mosquitto_pub -i healthcheck -u "$$HEALTHCHECK_USERNAME" -P "$$HEALTHCHECK_PASSWORD" -t health/check -m 1 -q 0 2>/dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    # Deploy a build containing the embedded MQTT implementation.
+    image: "${CS_API_IMAGE:-docker.monogatari.dev/connected-systems/cs-api-server}"
+    networks: [default, proxy]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.connected-systems-server.rule=Host(`connected-systems.monogatari.dev`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.connected-systems-server.entrypoints=http,https"
+      - "traefik.http.routers.connected-systems-server.priority=100"
+      - "traefik.http.routers.connected-systems-server.tls=true"
+      - "traefik.http.routers.connected-systems-server.tls.certresolver=cloudflare"
+      - "traefik.http.routers.connected-systems-server.service=connected-systems-server"
+      - "traefik.http.routers.connected-systems-server.middlewares=connected-systems-server-strip"
+      - "traefik.http.middlewares.connected-systems-server-strip.stripprefix.prefixes=/api"
+      - "traefik.http.services.connected-systems-server.loadbalancer.server.port=8080"
+      - "traefik.http.routers.connected-systems-mqtt.rule=Host(`connected-systems.monogatari.dev`) && PathPrefix(`/mqtt`)"
+      - "traefik.http.routers.connected-systems-mqtt.entrypoints=https"
+      - "traefik.http.routers.connected-systems-mqtt.tls=true"
+      - "traefik.http.routers.connected-systems-mqtt.tls.certresolver=cloudflare"
+      - "traefik.http.routers.connected-systems-mqtt.service=connected-systems-mqtt"
+      - "traefik.http.services.connected-systems-mqtt.loadbalancer.server.port=9001"
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      API_BASE_URL: "https://connected-systems.monogatari.dev/api"
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: connected_systems
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+      MQTT_ENABLED: "true"
+      MQTT_NODE_ID: "node1"
+      MQTT_TCP_ADDRESS: "0.0.0.0:1883"
+      MQTT_WEBSOCKET_ADDRESS: "0.0.0.0:9001"
+      MQTT_DATA_DIR: "/var/lib/csapi/mqtt"
+      MQTT_ALLOW_ANONYMOUS: "false"
+      MQTT_USERS_FILE: "/run/csapi-mqtt/users.json"
+      MQTT_INGEST_TIMEOUT: "2s"
+      MQTT_MAX_MESSAGE_BYTES: "10485760"
+      MQTT_PUBLIC_BROKERS: "wss://connected-systems.monogatari.dev/mqtt"
+    # Optional native MQTT, separate from HA's host port 1883. Expose through a
+    # TLS TCP proxy for remote use; the browser uses the WSS route above.
+    ports:
+      - "127.0.0.1:1884:1883"
+    volumes:
+      - cs_mqtt_data:/var/lib/csapi/mqtt
+      - ./cs-mqtt-users.json:/run/csapi-mqtt/users.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/conformance"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  ui:
+    image: docker.monogatari.dev/connected-systems/alephex
+    networks: [default, proxy]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.alephex.rule=Host(`alephex.monogatari.dev`)"
+      - "traefik.http.routers.alephex.entrypoints=http,https"
+      - "traefik.http.routers.alephex.tls=true"
+      - "traefik.http.routers.alephex.tls.certresolver=cloudflare"
+      - "traefik.http.services.alephex.loadbalancer.server.port=80"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # The matching username/hash must exist in cs-mqtt-users.json. The viewer
+      # must support the migrated Part 3 topics and discover the API's WSS URL.
+      VITE_CS_MQTT_USERNAME: "${CS_MQTT_VIEWER_USERNAME:-cs-viewer}"
+      VITE_CS_MQTT_PASSWORD: "${CS_MQTT_VIEWER_PASSWORD:?set the viewer MQTT password}"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mosquitto_data:
+  cs_mqtt_data:
+
+networks:
+  proxy:
+    external: true

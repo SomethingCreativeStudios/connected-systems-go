@@ -8,7 +8,6 @@ import (
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
 	serializers "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/geojson_formatters"
-	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/json_formatters"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/sensorml_formatters"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/queryables"
@@ -24,6 +23,8 @@ import (
 // NewRouter creates and configures the API router
 func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Repositories, pubSubPublisher *pubsub.Publisher) http.Handler {
 	r := chi.NewRouter()
+	links := newLinkResolver(cfg, repos)
+	creates := NewCreateOperations(cfg, repos, pubSubPublisher, logger)
 
 	// Middleware
 	r.Use(middleware.RequestID)
@@ -42,7 +43,7 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(pubsub.HTTPResourceEventMiddleware(
 		pubSubPublisher,
-		pubsub.NewRepositoryChangeResolver(cfg.API.BaseURL, repos),
+		pubsub.NewRepositoryChangeResolver(cfg.API.BaseURL, repos, representer(links)),
 		logger,
 	))
 
@@ -62,11 +63,7 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	asyncAPIHandler := NewAsyncAPIHandler(cfg)
 
 	// Formatter collections: the first formatter is the default representation.
-	links := newLinkResolver(cfg, repos)
-	systemFormatterCollection := serializers.NewFormatterCollection(
-		serializers.Adapt(geojson_formatters.NewSystemGeoJSONFormatter(links)),
-		serializers.Adapt(sensorml_formatters.NewSystemSensorMLFormatter(links)),
-	)
+	systemFormatterCollection := systemFormatters(links)
 	deploymentFormatterCollection := serializers.NewFormatterCollection(
 		serializers.Adapt(geojson_formatters.NewDeploymentGeoJSONFormatter(links)),
 		serializers.Adapt(sensorml_formatters.NewDeploymentSensorMLFormatter(links)),
@@ -86,11 +83,10 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 	)
 	featureFormatterCollection := serializers.NewFormatterCollection(serializers.Adapt(geojson_formatters.NewFeatureGeoJSONFormatter(links)))
 	collectionFormatterCollection := serializers.NewFormatterCollection(serializers.Adapt(geojson_formatters.NewFeatureCollectionGeoJSONFormatter(links)))
-	datastreamFormatterCollection := serializers.NewFormatterCollection(serializers.Adapt(json_formatters.NewDatastreamJSONFormatter(links)))
-	controlStreamFormatterCollection := serializers.NewFormatterCollection(serializers.Adapt(json_formatters.NewControlStreamJSONFormatter(links)))
-	commandFormatterCollection := serializers.NewFormatterCollection(serializers.Adapt(json_formatters.NewCommandJSONFormatter(links)))
-	observationFormatterCollection := serializers.NewFormatterCollection(serializers.Adapt(json_formatters.NewObservationJSONFormatter(links)))
-	requestValidator := contractvalidation.New()
+	datastreamFormatterCollection := datastreamFormatters(links)
+	controlStreamFormatterCollection := controlStreamFormatters(links)
+	commandFormatterCollection := commandFormatters(links)
+	observationFormatterCollection := observationFormatters(links)
 	systemFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.System))
 	deploymentFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.Deployment))
 	procedureFormatterCollection.SetRequestValidator(requestValidator.For(contractvalidation.Procedure))
@@ -103,16 +99,16 @@ func NewRouter(cfg *config.Config, logger *zap.Logger, repos *repository.Reposit
 
 	collectionHandler := NewCollectionHandler(cfg, logger, repos.Collection, collectionFormatterCollection)
 	deploymentHandler := NewDeploymentHandler(cfg, logger, repos.Deployment, deploymentFormatterCollection)
-	systemHandler := NewSystemHandler(cfg, logger, repos.System, repos.SystemHistory, systemFormatterCollection, repos.Deployment, deploymentFormatterCollection, repos.Procedure, procedureFormatterCollection)
+	systemHandler := NewSystemHandler(cfg, logger, repos.System, repos.SystemHistory, systemFormatterCollection, repos.Deployment, deploymentFormatterCollection, repos.Procedure, procedureFormatterCollection, creates)
 	procedureHandler := NewProcedureHandler(cfg, logger, repos.Procedure, procedureFormatterCollection)
 	samplingFeatureHandler := NewSamplingFeatureHandler(cfg, logger, repos.SamplingFeature, repos.System, samplingFeatureFormatterCollection)
 	propertyHandler := NewPropertyHandler(cfg, logger, repos.Property, propertyFormatterCollection)
 	featureHandler := NewFeatureHandler(cfg, logger, repos.Feature, repos.Collection, featureFormatterCollection)
-	datastreamHandler := NewDatastreamHandler(cfg, logger, repos.Datastream, datastreamFormatterCollection, requestValidator)
-	observationHandler := NewObservationHandler(cfg, logger, repos.Observation, repos.Datastream, pubSubPublisher, observationFormatterCollection)
-	controlStreamHandler := NewControlStreamHandler(cfg, logger, repos.ControlStream, controlStreamFormatterCollection, requestValidator)
-	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream, pubSubPublisher, commandFormatterCollection, requestValidator)
-	systemEventHandler := NewSystemEventHandler(cfg, logger, repos.SystemEvent, repos.System, pubSubPublisher, requestValidator)
+	datastreamHandler := NewDatastreamHandler(cfg, logger, repos.Datastream, datastreamFormatterCollection, requestValidator, creates)
+	observationHandler := NewObservationHandler(cfg, logger, repos.Observation, repos.Datastream, observationFormatterCollection, creates)
+	controlStreamHandler := NewControlStreamHandler(cfg, logger, repos.ControlStream, controlStreamFormatterCollection, requestValidator, creates)
+	commandHandler := NewCommandHandler(cfg, logger, repos.Command, repos.ControlStream, commandFormatterCollection, requestValidator, creates)
+	systemEventHandler := NewSystemEventHandler(cfg, logger, repos.SystemEvent, repos.System, requestValidator, creates)
 	// list marks a list route with the queryables resource its CQL2 filter
 	// is compiled against.
 	list := queryablesMiddleware(cfg.API.BaseURL, repos.Collection)

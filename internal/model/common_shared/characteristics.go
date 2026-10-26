@@ -86,14 +86,16 @@ func (c *ComponentWrappers) Scan(value any) error {
 // the raw payload and unmarshals into a concrete typed component when possible.
 type ComponentWrapper struct {
 	// Common fields
+	ID             string `json:"id,omitempty"`
 	Type           string `json:"type,omitempty"`
 	Definition     string `json:"definition,omitempty"`
 	Label          string `json:"label,omitempty"`
+	Description    string `json:"description,omitempty"`
 	ReferenceFrame string `json:"referenceFrame,omitempty"`
 	AxisID         string `json:"axisID,omitempty"`
 	LocalFrame     string `json:"localFrame,omitempty"`
 
-	Updatable *bool `json:"updateable,omitempty"`
+	Updatable *bool `json:"updatable,omitempty"`
 	Optional  *bool `json:"optional,omitempty"`
 
 	// Variant fields left as raw so callers can decode according to type
@@ -104,53 +106,33 @@ type ComponentWrapper struct {
 
 	// Concrete typed component (populated by UnmarshalJSON)
 	Component Component `json:"-"`
-	// Raw holds the original JSON value
+	// Raw is authoritative when present, as in IOItem and ContactWrapper.
 	Raw json.RawMessage `json:"-"`
+}
+
+// MarshalJSON preserves the complete decoded component, including fields that
+// have no typed representation. Constructed components use their modeled fields.
+func (c ComponentWrapper) MarshalJSON() ([]byte, error) {
+	if len(c.Raw) > 0 {
+		return c.Raw, nil
+	}
+	type componentFields ComponentWrapper
+	return json.Marshal(componentFields(c))
 }
 
 // UnmarshalJSON implements custom unmarshalling to detect the component "type"
 // discriminator and populate the appropriate concrete struct.
 func (c *ComponentWrapper) UnmarshalJSON(b []byte) error {
+	type componentFields ComponentWrapper
+	var fields componentFields
+	if err := json.Unmarshal(b, &fields); err != nil {
+		return err
+	}
+	*c = ComponentWrapper(fields)
 	c.Raw = append([]byte(nil), b...)
 
-	// first unmarshal common fields to inspect "type"
-	typeOnly := struct {
-		Type string `json:"type"`
-	}{}
-	if err := json.Unmarshal(b, &typeOnly); err != nil {
-		return err
-	}
-
-	// populate the generic fields
-	aux := struct {
-		Type           string          `json:"type,omitempty"`
-		Definition     string          `json:"definition,omitempty"`
-		Label          string          `json:"label,omitempty"`
-		ReferenceFrame string          `json:"referenceFrame,omitempty"`
-		AxisID         string          `json:"axisID,omitempty"`
-		LocalFrame     string          `json:"localFrame,omitempty"`
-		UOM            json.RawMessage `json:"uom,omitempty"`
-		Constraint     json.RawMessage `json:"constraint,omitempty"`
-		NilValues      json.RawMessage `json:"nilValues,omitempty"`
-		Value          json.RawMessage `json:"value,omitempty"`
-	}{}
-	if err := json.Unmarshal(b, &aux); err != nil {
-		return err
-	}
-
-	c.Type = aux.Type
-	c.Definition = aux.Definition
-	c.Label = aux.Label
-	c.ReferenceFrame = aux.ReferenceFrame
-	c.AxisID = aux.AxisID
-	c.LocalFrame = aux.LocalFrame
-	c.UOM = aux.UOM
-	c.Constraint = aux.Constraint
-	c.NilValues = aux.NilValues
-	c.Value = aux.Value
-
 	// switch on type discriminator and unmarshal into concrete variant
-	switch typeOnly.Type {
+	switch c.Type {
 	case "Boolean":
 		var v BooleanComponent
 		if err := json.Unmarshal(b, &v); err == nil {

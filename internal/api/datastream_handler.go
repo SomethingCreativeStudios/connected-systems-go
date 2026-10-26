@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
@@ -11,6 +13,7 @@ import (
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/json_formatters"
 	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
@@ -31,10 +34,11 @@ type DatastreamHandler struct {
 	repo      *repository.DatastreamRepository
 	fc        *formaters.MultiFormatFormatterCollection[*domains.Datastream]
 	validator *contractvalidation.Validator
+	creates   *CreateOperations
 }
 
-func NewDatastreamHandler(cfg *config.Config, logger *zap.Logger, repo *repository.DatastreamRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Datastream], validator *contractvalidation.Validator) *DatastreamHandler {
-	return &DatastreamHandler{cfg: cfg, logger: logger, repo: repo, fc: fc, validator: validator}
+func NewDatastreamHandler(cfg *config.Config, logger *zap.Logger, repo *repository.DatastreamRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Datastream], validator *contractvalidation.Validator, creates *CreateOperations) *DatastreamHandler {
+	return &DatastreamHandler{cfg: cfg, logger: logger, repo: repo, fc: fc, validator: validator, creates: creates}
 }
 
 // ListDatastreams returns a paginated list of datastreams
@@ -145,38 +149,40 @@ func (h *DatastreamHandler) GetDatastream(w http.ResponseWriter, r *http.Request
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/datastreams [post]
 func (h *DatastreamHandler) CreateDatastream(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "id")
+	h.creates.HTTP(w, r, datastreamCreator, chi.URLParam(r, "id"))
+}
 
-	contentType := r.Header.Get("Content-Type")
-	datastream, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
-	if err != nil {
-		h.logger.Error("Failed to deserialize datastream", zap.Error(err))
-		writeDeserializeError(w, r, err)
-		return
-	}
+// datastreamFormatters builds the datastream representation HTTP serves,
+// creates decode and MQTT publishes.
+func datastreamFormatters(links *formaters.LinkResolver) *formaters.MultiFormatFormatterCollection[*domains.Datastream] {
+	return formaters.NewFormatterCollection(formaters.Adapt(json_formatters.NewDatastreamJSONFormatter(links)))
+}
 
-	// schema is required on create per the OGC CS Part 2 dataStream create schema
-	if datastream.Schema == nil {
-		writeValidationError(w, r, errors.New("schema is required"))
-		return
-	}
-	if err := validateDatastreamSchema(datastream.Schema); err != nil {
-		writeValidationError(w, r, err)
-		return
-	}
-
-	if systemID != "" {
-		datastream.SystemID = &systemID
-	}
-
-	if err := h.repo.Create(r.Context(), datastream); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to create datastream")
-		return
-	}
-
-	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/datastreams/" + datastream.ID
-	w.Header().Set("Location", location)
-	w.WriteHeader(http.StatusCreated)
+// datastreamCreator creates a datastream under its system. schema is required
+// on create per the OGC CS Part 2 dataStream create schema.
+var datastreamCreator = resourceCreator{
+	Kind: "datastream", Name: "Datastream", Contract: contractvalidation.Datastream, Codec: formatterCodec[*domains.Datastream](datastreamFormatters),
+	Create: func(ctx context.Context, tx *repository.Repositories, in createInput) (string, error) {
+		if _, err := tx.System.GetByID(ctx, in.Parent); err != nil {
+			return "", parentError("system", in.Parent, err)
+		}
+		datastream, err := datastreamFormatters(in.Links).DeserializeContext(ctx, in.Media, bytes.NewReader(in.Body))
+		if err != nil {
+			return "", decodeError(err)
+		}
+		if datastream.Schema == nil {
+			return "", invalid(errors.New("schema is required"))
+		}
+		if err := validateDatastreamSchema(datastream.Schema); err != nil {
+			return "", invalid(err)
+		}
+		datastream.ID = ""
+		datastream.SystemID = &in.Parent
+		if err := tx.Datastream.Create(ctx, datastream); err != nil {
+			return "", err
+		}
+		return "/datastreams/" + url.PathEscape(datastream.ID), nil
+	},
 }
 
 // UpdateDatastream replaces a datastream by ID

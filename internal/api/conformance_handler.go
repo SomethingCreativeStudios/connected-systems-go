@@ -87,5 +87,6 @@ func (h *ConformanceHandler) GetConformance(w http.ResponseWriter, r *http.Reque
 		},
 	}
 
+	conformance.ConformsTo = append(conformance.ConformsTo, pubSubConformance(h.cfg)...)
 	render.JSON(w, r, conformance)
 }

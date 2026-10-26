@@ -1,12 +1,17 @@
 package api
 
 import (
+	"bytes"
+	"context"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/geojson_formatters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/sensorml_formatters"
 	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
@@ -26,10 +31,11 @@ type SystemHandler struct {
 	// procedure dependencies for server-side association endpoint
 	procedureRepo *repository.ProcedureRepository
 	procedureFC   *formaters.MultiFormatFormatterCollection[*domains.Procedure]
+	creates       *CreateOperations
 }
 
 // NewSystemHandler creates a new SystemHandler
-func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, historyRepo *repository.SystemHistoryRepository, fc *formaters.MultiFormatFormatterCollection[*domains.System], deploymentRepo *repository.DeploymentRepository, deploymentFC *formaters.MultiFormatFormatterCollection[*domains.Deployment], procedureRepo *repository.ProcedureRepository, procedureFC *formaters.MultiFormatFormatterCollection[*domains.Procedure]) *SystemHandler {
+func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemRepository, historyRepo *repository.SystemHistoryRepository, fc *formaters.MultiFormatFormatterCollection[*domains.System], deploymentRepo *repository.DeploymentRepository, deploymentFC *formaters.MultiFormatFormatterCollection[*domains.Deployment], procedureRepo *repository.ProcedureRepository, procedureFC *formaters.MultiFormatFormatterCollection[*domains.Procedure], creates *CreateOperations) *SystemHandler {
 	return &SystemHandler{
 		cfg:            cfg,
 		logger:         logger,
@@ -40,6 +46,7 @@ func NewSystemHandler(cfg *config.Config, logger *zap.Logger, repo *repository.S
 		deploymentFC:   deploymentFC,
 		procedureRepo:  procedureRepo,
 		procedureFC:    procedureFC,
+		creates:        creates,
 	}
 }
 
@@ -121,26 +128,59 @@ func (h *SystemHandler) GetSystem(w http.ResponseWriter, r *http.Request) {
 // @Failure     500  {object}  map[string]string
 // @Router      /systems [post]
 func (h *SystemHandler) CreateSystem(w http.ResponseWriter, r *http.Request) {
-	contentType := r.Header.Get("Content-Type")
-	system, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
-	if err != nil {
-		h.logger.Error("Failed to deserialize system", zap.Error(err))
-		writeDeserializeError(w, r, err)
-		return
-	}
+	h.creates.HTTP(w, r, systemCreator, "")
+}
 
-	if err := h.repo.Create(r.Context(), system); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "System", "Failed to create system")
-		return
-	}
+// AddSubsystem adds a subsystem to a system
+//
+// @Summary     Add subsystem
+// @Description Creates a new system as a child of the given system
+// @Tags        Systems
+// @Accept      json
+// @Param       id      path  string          true  "Parent system ID"
+// @Param       system  body  map[string]any  true  "System resource"
+// @Success     201
+// @Failure     400  {object}  ValidationErrorResponse
+// @Failure     500  {object}  map[string]string
+// @Router      /systems/{id}/subsystems [post]
+func (h *SystemHandler) AddSubsystem(w http.ResponseWriter, r *http.Request) {
+	h.creates.HTTP(w, r, systemCreator, chi.URLParam(r, "id"))
+}
 
-	if _, err := h.historyRepo.CreateFromSystem(r.Context(), system); err != nil {
-		h.logger.Warn("Failed to create initial system history snapshot", zap.String("systemId", system.ID), zap.Error(err))
-	}
+// systemFormatters builds the system representations. HTTP serves and decodes
+// them, creates decode with them and MQTT publishes them; GeoJSON is the default.
+func systemFormatters(links *formaters.LinkResolver) *formaters.MultiFormatFormatterCollection[*domains.System] {
+	return formaters.NewFormatterCollection(
+		formaters.Adapt(geojson_formatters.NewSystemGeoJSONFormatter(links)),
+		formaters.Adapt(sensorml_formatters.NewSystemSensorMLFormatter(links)),
+	)
+}
 
-	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/systems/" + system.ID
-	w.Header().Set("Location", location)
-	w.WriteHeader(http.StatusCreated)
+// systemCreator creates systems and, under a parent, subsystems. The initial
+// history snapshot commits with the system.
+var systemCreator = resourceCreator{
+	Kind: "system", Name: "System", Contract: contractvalidation.System, Codec: formatterCodec[*domains.System](systemFormatters),
+	Create: func(ctx context.Context, tx *repository.Repositories, in createInput) (string, error) {
+		system, err := systemFormatters(in.Links).DeserializeContext(ctx, in.Media, bytes.NewReader(in.Body))
+		if err != nil {
+			return "", decodeError(err)
+		}
+		system.ID = ""
+		system.ParentSystemID = nil
+		if in.Parent != "" {
+			if _, err := tx.System.GetByID(ctx, in.Parent); err != nil {
+				return "", parentError("system", in.Parent, err)
+			}
+			system.ParentSystemID = &in.Parent
+		}
+		if err := tx.System.Create(ctx, system); err != nil {
+			return "", err
+		}
+		if _, err := tx.SystemHistory.CreateFromSystem(ctx, system); err != nil {
+			return "", err
+		}
+		return "/systems/" + url.PathEscape(system.ID), nil
+	},
 }
 
 // UpdateSystem updates a system (PUT)
@@ -167,13 +207,17 @@ func (h *SystemHandler) UpdateSystem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	system.ID = id
-	if err := h.repo.Update(r.Context(), system.ID, system); err != nil {
+	// The history snapshot commits with the update, as it does on create.
+	err = h.creates.repos.Transaction(r.Context(), func(tx *repository.Repositories) error {
+		if err := tx.System.Update(r.Context(), system.ID, system); err != nil {
+			return err
+		}
+		_, err := tx.SystemHistory.CreateFromSystem(r.Context(), system)
+		return err
+	})
+	if err != nil {
 		writeRepositoryError(w, r, h.logger, err, "System", "Failed to update system")
 		return
-	}
-
-	if _, err := h.historyRepo.CreateFromSystem(r.Context(), system); err != nil {
-		h.logger.Warn("Failed to create system history snapshot after update", zap.String("systemId", system.ID), zap.Error(err))
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -321,43 +365,4 @@ func (h *SystemHandler) GetProcedures(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeCollection(w, r, h.logger, h.procedureFC, h.cfg.API.BaseURL, procedures, total, params.QueryParams)
-}
-
-// AddSubsystem adds a subsystem to a system
-//
-// @Summary     Add subsystem
-// @Description Creates a new system as a child of the given system
-// @Tags        Systems
-// @Accept      json
-// @Param       id      path  string          true  "Parent system ID"
-// @Param       system  body  map[string]any  true  "System resource"
-// @Success     201
-// @Failure     400  {object}  ValidationErrorResponse
-// @Failure     500  {object}  map[string]string
-// @Router      /systems/{id}/subsystems [post]
-func (h *SystemHandler) AddSubsystem(w http.ResponseWriter, r *http.Request) {
-	parentID := chi.URLParam(r, "id")
-
-	contentType := r.Header.Get("Content-Type")
-	system, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
-	if err != nil {
-		h.logger.Error("Failed to deserialize system", zap.Error(err))
-		writeDeserializeError(w, r, err)
-		return
-	}
-
-	system.ParentSystemID = &parentID
-
-	if err := h.repo.Create(r.Context(), system); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Subsystem", "Failed to create subsystem")
-		return
-	}
-
-	if _, err := h.historyRepo.CreateFromSystem(r.Context(), system); err != nil {
-		h.logger.Warn("Failed to create subsystem history snapshot", zap.String("systemId", system.ID), zap.Error(err))
-	}
-
-	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/systems/" + system.ID
-	w.Header().Set("Location", location)
-	w.WriteHeader(http.StatusCreated)
 }

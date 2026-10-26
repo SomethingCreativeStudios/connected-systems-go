@@ -8,6 +8,8 @@ Go implementation of OGC API - Connected Systems, including:
 
 ## Overview
 
+For a guided explanation of the server, start with [Architecture and resource flow](docs/architecture/README.md): diagrams, a source-reading tour, all registered endpoints, serialization, MQTT, and a verified local walkthrough.
+
 This API provides metadata and dynamic data endpoints for connected systems such as sensors, actuators, platforms, and procedures.
 
 Current implementation includes canonical Connected Systems resources plus dynamic data resources (datastreams, observations, control streams, commands, system events, and system history).
@@ -159,75 +161,58 @@ Part 2 dynamic data endpoints:
 
 ## MQTT Publish/Subscribe
 
-MQTT is the transport-level master switch. Each publish/subscribe message class has
-an independent switch; all three class switches default to `true`:
+Part 3 uses the [pinned current draft](docs/standards/23-003r0.html). Run the API
+with its embedded Mochi endpoint: it validates client creates before distribution.
+HTTP, MQTT and WebSockets run in one image; no external broker plugin is needed. `GET /asyncapi` describes the enabled capabilities in AsyncAPI
+2.6 and is linked from the landing page. `/conformance` includes draft-derived,
+provisional Part 3 class identifiers; the draft's advertisement conventions remain
+unfinished. See the [implementation and evidence ledger](docs/part3-mqtt.md).
 
-```yaml
-mqtt:
-  enabled: true
+Topics start with the stable node ID and follow complete ownership hierarchies:
 
-pubsub:
-  resource_data:
-    enabled: true
-  resource_events:
-    enabled: true
-  batch_resource_events:
-    enabled: true
-    window: 1m
-```
+- Resource Event: `node1/systems/{systemId}/datastreams/{datastreamId}`
+- Observation batch: `node1/systems/{systemId}/datastreams/{datastreamId}/observations`
+- Observation data: `node1/systems/{systemId}/datastreams/{datastreamId}/observations:data`
+- System data: `node1/systems:data`; SensorML: `node1/systems:data/sml-json`
+- Subsystem data: `node1/systems/{systemId}/subsystems:data`
 
-MQTT topics begin with the canonical REST-relative resource or collection path
-and end with a message-class suffix. Resource Data Messages use `:data`, Resource
-Events use `:events`, and Batch Resource Events use `:batch-events`. For example:
+Identifiers use canonical percent encoding of every byte outside URI unreserved
+characters, including literal `%`. Events use `org.ogc.api.csapi.<resource>.<operation>`
+and absolute HTTP `source`, `subject`, and `resourceparent` identities. There are
+no additional-topic copies. Observation and command lifecycle notifications use
+UTC aligned one-minute batches by default; batching requires Resource Events.
 
-- `datastreams/{datastreamId}/observations:data`
-- `controlstreams/{controlStreamId}/commands:data`
-- `commands/{commandId}/status:data`
-- `systems/{systemId}/events:data`
+Clients can create systems/subsystems, datastreams, controlstreams, observations,
+commands, command statuses/results and System Events. Each payload is one native
+resource object. MQTT 5 requires matching Content Type. MQTT 3.1.1 derives the
+representation from the topic. Systems default to GeoJSON and also offer SensorML;
+Part 2 uses JSON. Unsupported format topics are rejected.
 
-Observation and command-status `:data` channels accept complete resources from
-MQTT as well as publishing HTTP-created or updated resources. Resource Events
-use CloudEvents 1.0 JSON and are published to the containing REST collection and
-the canonical individual resource path. For example, an Observation event is
-published to:
+MQTT 5 clients can supply one `idempotency-key` User Property (1–128 UTF-8 bytes).
+A matching retry returns the original committed result without another resource,
+history revision, lifecycle event or batch contribution. The durable key is scoped
+to the API root and authenticated username, survives resource deletion, and does
+not expire. Client ID is excluded. Anonymous local clients share a principal and
+should use globally unique keys. Different input with the same key is rejected.
+Keyless messages are separate creates and can create duplicates.
 
-- `datastreams/{datastreamId}/observations:events`
-- `observations/{observationId}:events`
+Client creates accept QoS 0 or 1; MQTT 5 with a key also accepts QoS 2. Subscriptions
+accept QoS 0–2. Server publications use QoS 1. MQTT acknowledgement, committed
+operation acceptance and command execution status are separate: consumers must
+handle repeat delivery of the same command ID. Retention is disabled, resources
+are limited to 10 MiB, and API publication is best effort without an outbox.
 
-Regular Resource Events include a short JSON summary when the resource has
-descriptive metadata. Empty values are omitted, and `uniqueId` is included when
-available. For example, the summary portion of an event looks like:
-
-```json
-{
-  "datacontenttype": "application/json",
-  "data": {
-    "name": "Temperature Sensor 01",
-    "description": "Air temperature sensor on the north wall",
-    "uniqueId": "urn:example:sensor:01"
-  }
-}
-```
-
-When Batch Resource Events are enabled, observation and command create, update,
-and delete notifications are aggregated instead of being sent as individual
-Resource Events. Batches use UTC clock-aligned windows, defaulting to one minute,
-and are published on collection-specific topics:
-
-- `datastreams/{datastreamId}/observations:batch-events`
-- `controlstreams/{controlStreamId}/commands:batch-events`
-
-Each CloudEvent identifies the nested collection in `subject` and includes the
-window and operation count in `data.timerange` and `data.count`. Non-empty partial
-windows are flushed during graceful shutdown. Command statuses, command results,
-system events, and other resources continue to use individual Resource Events.
-
-The current Connected Systems publish/subscribe specification has not finalized
-its MQTT binding, so `/asyncapi` is the source of truth for the topic layout
-implemented here. Formal conformance is not declared yet because broker-side
-publisher restrictions cannot be verified by the API process. Batch Resource
-Event topics are likewise documented by `/asyncapi` because the draft does not
-yet finalize an MQTT binding.
+Compose supplies `node1`, public connection addresses and anonymous loopback
+access. MQTT sessions and offline queues live in the API's separate data volume;
+resource creation and durable idempotency remain in PostgreSQL. For authenticated
+deployments set `MQTT_ALLOW_ANONYMOUS=false` and `MQTT_USERS_FILE` to a read-only
+JSON array of `{"username":"cs-viewer","password_hash":"<bcrypt hash>"}` entries.
+Generate a hash with `server mqtt hash-password` using standard input. There is
+no privileged network publisher account. Provide TLS at the deployment boundary.
+See [the dev-server Compose example](examples/dev-server.compose.yaml) for a
+Traefik deployment alongside an existing HA/Zigbee2MQTT Mosquitto broker.
+The standalone settings are in [config.example.yaml](config.example.yaml).
+Downstream consumers require the changes in the [client migration checklist](docs/part3-client-migration.md).
 
 ## Query Parameters
 
@@ -293,7 +278,7 @@ make vuln   # govulncheck
 
 ## Local TimescaleDB database
 
-Start the API from the current checkout, database, and MQTT broker:
+Start the API with its embedded MQTT endpoint and TimescaleDB:
 
 ```bash
 docker compose up --build -d
@@ -302,13 +287,16 @@ docker compose up --build -d
 The API is at `http://localhost:8070` (Swagger UI: `/api/ui/index.html`).
 PostgreSQL is at `localhost:5433` with database `connected_systems` and
 username/password `postgres`. MQTT is at `localhost:1883`, with WebSockets
-at `ws://localhost:9001`. Published ports bind to `127.0.0.1`. The local
-broker allows anonymous connections and does not need a password file;
-`mosquitto.conf` remains the password-protected broker configuration.
+at `ws://localhost:9001/mqtt`. Published ports bind to `127.0.0.1`. The embedded
+endpoint allows anonymous local connections. Authenticated Compose runs can mount
+a users file through `MQTT_USERS_DIR` and select it with
+`MQTT_USERS_FILE=/run/csapi-mqtt/users.json`.
 
 Set `API_PORT`, `DATABASE_PORT`, `MQTT_PORT`, `MQTT_WEBSOCKET_PORT`, or
 `VIEWER_PORT` in your shell or `.env` to change host ports. API links follow
 `API_PORT`; `API_BASE_URL` can override the advertised URL separately.
+If another broker already uses ports 1883/9001, select different host ports with
+`MQTT_PORT` and `MQTT_WEBSOCKET_PORT`. Keep shared HA/Zigbee2MQTT brokers running.
 
 The optional viewer uses the published image, which requires access to
 `docker.monogatari.dev` unless it is already cached. Enable it with:
@@ -321,8 +309,10 @@ Open `http://localhost:8081`; the viewer calls the localhost API directly.
 `VIEWER_IMAGE` can select a different or locally built viewer image.
 
 For a Go process running on the host, start only the dependencies with
-`docker compose up -d db mqtt`, then set `DATABASE_PORT=5433` and
+`docker compose up -d db`, then set `DATABASE_PORT=5433` and
 `API_BASE_URL` to match that process's listening port when running the server.
+Set `MQTT_ENABLED=true` and configure authentication to start that process's
+embedded MQTT listeners as well.
 Stop the stack with `docker compose --profile viewer down`; named volumes
 retain database and MQTT data.
 

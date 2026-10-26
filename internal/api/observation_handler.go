@@ -1,18 +1,19 @@
 package api
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
-	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mediatype"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/json_formatters"
 	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
-	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mqtt"
-	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/resourcevalidation"
 	"github.com/go-chi/chi/v5"
@@ -27,22 +28,22 @@ type ObservationCollectionResponse struct {
 
 // ObservationHandler handles Observation resource requests.
 type ObservationHandler struct {
-	cfg             *config.Config
-	logger          *zap.Logger
-	repo            *repository.ObservationRepository
-	datastreamRepo  *repository.DatastreamRepository
-	pubSubPublisher *pubsub.Publisher
-	fc              *formaters.MultiFormatFormatterCollection[*domains.Observation]
+	cfg            *config.Config
+	logger         *zap.Logger
+	repo           *repository.ObservationRepository
+	datastreamRepo *repository.DatastreamRepository
+	fc             *formaters.MultiFormatFormatterCollection[*domains.Observation]
+	creates        *CreateOperations
 }
 
-func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ObservationRepository, datastreamRepo *repository.DatastreamRepository, pubSubPublisher *pubsub.Publisher, fc *formaters.MultiFormatFormatterCollection[*domains.Observation]) *ObservationHandler {
+func NewObservationHandler(cfg *config.Config, logger *zap.Logger, repo *repository.ObservationRepository, datastreamRepo *repository.DatastreamRepository, fc *formaters.MultiFormatFormatterCollection[*domains.Observation], creates *CreateOperations) *ObservationHandler {
 	return &ObservationHandler{
-		cfg:             cfg,
-		logger:          logger,
-		repo:            repo,
-		datastreamRepo:  datastreamRepo,
-		pubSubPublisher: pubSubPublisher,
-		fc:              fc,
+		cfg:            cfg,
+		logger:         logger,
+		repo:           repo,
+		datastreamRepo: datastreamRepo,
+		fc:             fc,
+		creates:        creates,
 	}
 }
 
@@ -195,7 +196,7 @@ func (h *ObservationHandler) UpdateObservation(w http.ResponseWriter, r *http.Re
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-	h.publishObservationToMQTT(existing.DatastreamID, obs)
+
 }
 
 // DeleteObservation deletes an observation by ID
@@ -233,45 +234,32 @@ func (h *ObservationHandler) DeleteObservation(w http.ResponseWriter, r *http.Re
 // @Failure     500  {object}  map[string]string
 // @Router      /datastreams/{dataStreamId}/observations [post]
 func (h *ObservationHandler) CreateDatastreamObservation(w http.ResponseWriter, r *http.Request) {
-	datastreamID := chi.URLParam(r, "dataStreamId")
-	datastream, err := h.datastreamRepo.GetByID(r.Context(), datastreamID)
-	if err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Datastream", "Failed to load datastream")
-		return
-	}
-
-	obs, err := h.fc.DeserializeContext(r.Context(), r.Header.Get("Content-Type"), r.Body)
-	if err != nil {
-		h.logger.Error("Failed to deserialize observation", zap.Error(err))
-		writeDeserializeError(w, r, err)
-		return
-	}
-
-	if err := resourcevalidation.ValidateObservationAgainstDatastreamSchema(obs, datastream, r.Header.Get("Content-Type")); err != nil {
-		writeValidationError(w, r, fmt.Errorf("observation does not match parent datastream schema: %w", err))
-		return
-	}
-
-	obs.DatastreamID = datastreamID
-	if err := h.repo.Create(r.Context(), obs); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Observation", "Failed to create observation")
-		return
-	}
-
-	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/observations/" + obs.ID
-	w.Header().Set("Location", location)
-	w.WriteHeader(http.StatusCreated)
-	h.publishObservationToMQTT(datastreamID, obs)
+	h.creates.HTTP(w, r, observationCreator, chi.URLParam(r, "dataStreamId"))
 }
 
-func (h *ObservationHandler) publishObservationToMQTT(datastreamID string, observation *domains.Observation) {
-	if h.pubSubPublisher == nil || !h.pubSubPublisher.ResourceDataEnabled() {
-		return
-	}
-	serialized, err := h.fc.Serialize(mediatype.JSON, observation)
-	if err != nil {
-		h.logger.Error("Failed to serialize observation Resource Data Message", zap.Error(err))
-		return
-	}
-	h.pubSubPublisher.PublishResourceData(mqtt.ObservationTopic(datastreamID), serialized)
+// observationFormatters builds the observation representation HTTP serves,
+// creates decode and MQTT publishes.
+func observationFormatters(links *formaters.LinkResolver) *formaters.MultiFormatFormatterCollection[*domains.Observation] {
+	return formaters.NewFormatterCollection(formaters.Adapt(json_formatters.NewObservationJSONFormatter(links)))
+}
+
+// observationCreator creates an observation in its datastream. The repository
+// validates the result against the datastream schema.
+var observationCreator = resourceCreator{
+	Kind: "observation", Name: "Observation", Contract: contractvalidation.Observation, Codec: formatterCodec[*domains.Observation](observationFormatters), ParentField: "datastream@id",
+	Create: func(ctx context.Context, tx *repository.Repositories, in createInput) (string, error) {
+		if _, err := tx.Datastream.GetByID(ctx, in.Parent); err != nil {
+			return "", parentError("datastream", in.Parent, err)
+		}
+		observation, err := observationFormatters(in.Links).DeserializeContext(ctx, in.Media, bytes.NewReader(in.Body))
+		if err != nil {
+			return "", decodeError(err)
+		}
+		observation.ID = ""
+		observation.DatastreamID = in.Parent
+		if err := tx.Observation.Create(ctx, observation); err != nil {
+			return "", err
+		}
+		return "/observations/" + url.PathEscape(observation.ID), nil
+	},
 }

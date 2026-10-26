@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -52,17 +53,22 @@ func prepareResource[T any](w http.ResponseWriter, r *http.Request, logger *zap.
 	if !ok {
 		return preparedResponse{}, false
 	}
-	body, err := fc.SerializeContext(r.Context(), contentType, item)
-	if err != nil {
-		writeSerializeError(w, r, logger, err)
-		return preparedResponse{}, false
-	}
-	encoded, err := json.Marshal(body)
+	encoded, err := encodeResource(r.Context(), fc, contentType, item)
 	if err != nil {
 		writeSerializeError(w, r, logger, err)
 		return preparedResponse{}, false
 	}
 	return preparedResponse{contentType: contentType, body: encoded}, true
+}
+
+// encodeResource encodes one resource in contentType. HTTP GET responses and
+// MQTT Resource Data both use it.
+func encodeResource[T any](ctx context.Context, fc *formaters.MultiFormatFormatterCollection[T], contentType string, item T) ([]byte, error) {
+	body, err := fc.SerializeContext(ctx, contentType, item)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(body)
 }
 
 // writeCollection answers with one page of resources in the representation

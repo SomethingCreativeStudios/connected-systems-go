@@ -130,6 +130,6 @@ type DeploymentSensorMLFeature struct {
 	Characteristics []common_shared.CharacteristicGroup `json:"characteristics,omitempty"`
 	Capabilities    []common_shared.CapabilityGroup     `json:"capabilities,omitempty"`
 	Contacts        []common_shared.ContactWrapper      `json:"contacts,omitempty"`
-	Documentation   common_shared.Documents             `json:"documentation,omitempty"`
+	Documentation   common_shared.Documents             `json:"documents,omitempty"`
 	History         common_shared.History               `json:"history,omitempty"`
 }

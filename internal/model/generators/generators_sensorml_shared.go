@@ -290,12 +290,7 @@ func FakeComponentWrapperBoolean() common_shared.ComponentWrapper {
 		Value:      valJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]any{
-		"type":       cw.Type,
-		"definition": cw.Definition,
-		"label":      cw.Label,
-		"value":      boolVal,
-	})
+	raw, _ := json.Marshal(cw)
 	cw.Raw = raw
 
 	return cw
@@ -313,12 +308,7 @@ func FakeComponentWrapperCount() common_shared.ComponentWrapper {
 		Value:      valJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]any{
-		"type":       cw.Type,
-		"definition": cw.Definition,
-		"label":      cw.Label,
-		"value":      countVal,
-	})
+	raw, _ := json.Marshal(cw)
 	cw.Raw = raw
 
 	return cw
@@ -341,13 +331,7 @@ func FakeComponentWrapperQuantity() common_shared.ComponentWrapper {
 		UOM:        uomJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]any{
-		"type":       cw.Type,
-		"definition": cw.Definition,
-		"label":      cw.Label,
-		"value":      quantityVal,
-		"uom":        map[string]string{"code": uom},
-	})
+	raw, _ := json.Marshal(cw)
 	cw.Raw = raw
 
 	return cw
@@ -365,12 +349,7 @@ func FakeComponentWrapperText() common_shared.ComponentWrapper {
 		Value:      valJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]any{
-		"type":       cw.Type,
-		"definition": cw.Definition,
-		"label":      cw.Label,
-		"value":      textVal,
-	})
+	raw, _ := json.Marshal(cw)
 	cw.Raw = raw
 
 	return cw
@@ -389,12 +368,7 @@ func FakeComponentWrapperCategory() common_shared.ComponentWrapper {
 		Value:      valJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]any{
-		"type":       cw.Type,
-		"definition": cw.Definition,
-		"label":      cw.Label,
-		"value":      catVal,
-	})
+	raw, _ := json.Marshal(cw)
 	cw.Raw = raw
 
 	return cw
@@ -416,13 +390,7 @@ func FakeComponentWrapperQuantityRange() common_shared.ComponentWrapper {
 		UOM:        uomJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]any{
-		"type":       cw.Type,
-		"definition": cw.Definition,
-		"label":      cw.Label,
-		"value":      []float64{min, max},
-		"uom":        map[string]string{"code": "m"},
-	})
+	raw, _ := json.Marshal(cw)
 	cw.Raw = raw
 
 	return cw
@@ -443,13 +411,7 @@ func FakeComponentWrapperTime() common_shared.ComponentWrapper {
 		UOM:        uomJSON,
 	}
 
-	raw, _ := json.Marshal(map[string]any{
-		"type":       cw.Type,
-		"definition": cw.Definition,
-		"label":      cw.Label,
-		"value":      timeVal,
-		"uom":        map[string]string{"href": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian"},
-	})
+	raw, _ := json.Marshal(cw)
 	cw.Raw = raw
 
 	return cw

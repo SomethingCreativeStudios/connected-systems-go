@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
@@ -11,6 +13,7 @@ import (
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
+	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/json_formatters"
 	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
@@ -31,6 +34,7 @@ type ControlStreamHandler struct {
 	repo      *repository.ControlStreamRepository
 	fc        *formaters.MultiFormatFormatterCollection[*domains.ControlStream]
 	validator *contractvalidation.Validator
+	creates   *CreateOperations
 }
 
 func NewControlStreamHandler(
@@ -39,8 +43,9 @@ func NewControlStreamHandler(
 	repo *repository.ControlStreamRepository,
 	fc *formaters.MultiFormatFormatterCollection[*domains.ControlStream],
 	validator *contractvalidation.Validator,
+	creates *CreateOperations,
 ) *ControlStreamHandler {
-	return &ControlStreamHandler{cfg: cfg, logger: logger, repo: repo, fc: fc, validator: validator}
+	return &ControlStreamHandler{cfg: cfg, logger: logger, repo: repo, fc: fc, validator: validator, creates: creates}
 }
 
 // ListControlStreams handles GET /controlstreams
@@ -151,38 +156,40 @@ func (h *ControlStreamHandler) GetControlStream(w http.ResponseWriter, r *http.R
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/controlstreams [post]
 func (h *ControlStreamHandler) CreateControlStream(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "id")
+	h.creates.HTTP(w, r, controlStreamCreator, chi.URLParam(r, "id"))
+}
 
-	contentType := r.Header.Get("Content-Type")
-	cs, err := h.fc.DeserializeContext(r.Context(), contentType, r.Body)
-	if err != nil {
-		h.logger.Error("Failed to deserialize control stream", zap.Error(err))
-		writeDeserializeError(w, r, err)
-		return
-	}
+// controlStreamFormatters builds the control stream representation HTTP
+// serves, creates decode and MQTT publishes.
+func controlStreamFormatters(links *formaters.LinkResolver) *formaters.MultiFormatFormatterCollection[*domains.ControlStream] {
+	return formaters.NewFormatterCollection(formaters.Adapt(json_formatters.NewControlStreamJSONFormatter(links)))
+}
 
-	// schema is required on create per the OGC CS Part 2 controlStream create schema
-	if cs.Schema == nil {
-		writeValidationError(w, r, errors.New("schema is required"))
-		return
-	}
-	if err := validateControlStreamSchema(cs.Schema); err != nil {
-		writeValidationError(w, r, err)
-		return
-	}
-
-	if systemID != "" {
-		cs.SystemID = &systemID
-	}
-
-	if err := h.repo.Create(r.Context(), cs); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to create control stream")
-		return
-	}
-
-	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/controlstreams/" + cs.ID
-	w.Header().Set("Location", location)
-	w.WriteHeader(http.StatusCreated)
+// controlStreamCreator creates a control stream under its system. schema is
+// required on create per the OGC CS Part 2 controlStream create schema.
+var controlStreamCreator = resourceCreator{
+	Kind: "controlstream", Name: "Control stream", Contract: contractvalidation.ControlStream, Codec: formatterCodec[*domains.ControlStream](controlStreamFormatters),
+	Create: func(ctx context.Context, tx *repository.Repositories, in createInput) (string, error) {
+		if _, err := tx.System.GetByID(ctx, in.Parent); err != nil {
+			return "", parentError("system", in.Parent, err)
+		}
+		stream, err := controlStreamFormatters(in.Links).DeserializeContext(ctx, in.Media, bytes.NewReader(in.Body))
+		if err != nil {
+			return "", decodeError(err)
+		}
+		if stream.Schema == nil {
+			return "", invalid(errors.New("schema is required"))
+		}
+		if err := validateControlStreamSchema(stream.Schema); err != nil {
+			return "", invalid(err)
+		}
+		stream.ID = ""
+		stream.SystemID = &in.Parent
+		if err := tx.ControlStream.Create(ctx, stream); err != nil {
+			return "", err
+		}
+		return "/controlstreams/" + url.PathEscape(stream.ID), nil
+	},
 }
 
 // UpdateControlStream handles PUT /controlstreams/{id}

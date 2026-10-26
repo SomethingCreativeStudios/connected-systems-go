@@ -1,414 +1,1800 @@
 asyncapi: 2.6.0
-info:
-  title: OGC API - Connected Systems MQTT Pub/Sub
-  version: 1.0.0
-  description: Implemented Resource Data Message, Resource Event, and Batch Resource Event channels.
-
-x-ogc-resource-data-types:
-  - observation
-  - command
-  - commandstatus
-  - systemevent
-
-x-ogc-batch-resource-event-types:
-  - observation.create
-  - observation.update
-  - observation.delete
-  - command.create
-  - command.update
-  - command.delete
-
-x-ogc-resource-event-types:
-  - system.create
-  - system.update
-  - system.delete
-  - subsystem.create
-  - subsystem.update
-  - subsystem.delete
-  - deployment.create
-  - deployment.update
-  - deployment.delete
-  - procedure.create
-  - procedure.update
-  - procedure.delete
-  - property.create
-  - property.update
-  - property.delete
-  - samplingfeature.create
-  - samplingfeature.update
-  - samplingfeature.delete
-  - datastream.create
-  - datastream.update
-  - datastream.delete
-  - controlstream.create
-  - controlstream.update
-  - controlstream.delete
-  - commandstatus.create
-  - commandstatus.update
-  - commandstatus.delete
-  - commandresult.create
-  - commandresult.update
-  - commandresult.delete
-  - systemevent.create
-  - systemevent.update
-  - systemevent.delete
-
 channels:
-  systems/{systemId}/events:data:
-    parameters:
-      systemId:
-        $ref: '#/components/parameters/systemId'
-    subscribe:
-      summary: System Event Resource Data Messages for one system
-      message:
-        $ref: '#/components/messages/resourceData'
-
-  systemEvents:data:
-    subscribe:
-      summary: System Event Resource Data Messages for all systems
-      message:
-        $ref: '#/components/messages/resourceData'
-
-  datastreams/{dataStreamId}/observations:data:
-    parameters:
-      dataStreamId:
-        $ref: '#/components/parameters/dataStreamId'
-    subscribe:
-      summary: Observation Resource Data Messages
-      message:
-        $ref: '#/components/messages/resourceData'
-    publish:
-      summary: Publish Observation Resource Data Messages
-      message:
-        $ref: '#/components/messages/resourceData'
-
-  controlstreams/{controlStreamId}/commands:data:
-    parameters:
-      controlStreamId:
-        $ref: '#/components/parameters/controlStreamId'
-    subscribe:
-      summary: Command Resource Data Messages
-      message:
-        $ref: '#/components/messages/resourceData'
-
-  commands/{cmdId}/status:data:
-    parameters:
-      cmdId:
-        $ref: '#/components/parameters/cmdId'
-    subscribe:
-      summary: Command Status Resource Data Messages
-      message:
-        $ref: '#/components/messages/resourceData'
-    publish:
-      summary: Publish Command Status Resource Data Messages
-      message:
-        $ref: '#/components/messages/resourceData'
-
-  systems:events:
-    subscribe: &resourceEventSubscription
-      summary: Resource Events for a canonical REST resource or collection
-      message:
-        $ref: '#/components/messages/resourceEvent'
-
-  systems/{systemId}:events:
-    parameters:
-      systemId:
-        $ref: '#/components/parameters/systemId'
-    subscribe: *resourceEventSubscription
-
-  systems/{systemId}/subsystems:events:
-    parameters:
-      systemId:
-        $ref: '#/components/parameters/systemId'
-    subscribe: *resourceEventSubscription
-
-  deployments:events:
-    subscribe: *resourceEventSubscription
-
-  deployments/{deploymentId}:events:
-    parameters:
-      deploymentId:
-        $ref: '#/components/parameters/deploymentId'
-    subscribe: *resourceEventSubscription
-
-  procedures:events:
-    subscribe: *resourceEventSubscription
-
-  procedures/{procedureId}:events:
-    parameters:
-      procedureId:
-        $ref: '#/components/parameters/procedureId'
-    subscribe: *resourceEventSubscription
-
-  properties:events:
-    subscribe: *resourceEventSubscription
-
-  properties/{propertyId}:events:
-    parameters:
-      propertyId:
-        $ref: '#/components/parameters/propertyId'
-    subscribe: *resourceEventSubscription
-
-  samplingFeatures:events:
-    subscribe: *resourceEventSubscription
-
-  systems/{systemId}/samplingFeatures:events:
-    parameters:
-      systemId:
-        $ref: '#/components/parameters/systemId'
-    subscribe: *resourceEventSubscription
-
-  samplingFeatures/{samplingFeatureId}:events:
-    parameters:
-      samplingFeatureId:
-        $ref: '#/components/parameters/samplingFeatureId'
-    subscribe: *resourceEventSubscription
-
-  datastreams:events:
-    subscribe: *resourceEventSubscription
-
-  systems/{systemId}/datastreams:events:
-    parameters:
-      systemId:
-        $ref: '#/components/parameters/systemId'
-    subscribe: *resourceEventSubscription
-
-  datastreams/{dataStreamId}:events:
-    parameters:
-      dataStreamId:
-        $ref: '#/components/parameters/dataStreamId'
-    subscribe: *resourceEventSubscription
-
-  controlstreams:events:
-    subscribe: *resourceEventSubscription
-
-  systems/{systemId}/controlstreams:events:
-    parameters:
-      systemId:
-        $ref: '#/components/parameters/systemId'
-    subscribe: *resourceEventSubscription
-
-  controlstreams/{controlStreamId}:events:
-    parameters:
-      controlStreamId:
-        $ref: '#/components/parameters/controlStreamId'
-    subscribe: *resourceEventSubscription
-
-  commands/{cmdId}/status:events:
-    parameters:
-      cmdId:
-        $ref: '#/components/parameters/cmdId'
-    subscribe: *resourceEventSubscription
-
-  commands/{cmdId}/status/{statusId}:events:
-    parameters:
-      cmdId:
-        $ref: '#/components/parameters/cmdId'
-      statusId:
-        $ref: '#/components/parameters/statusId'
-    subscribe: *resourceEventSubscription
-
-  commands/{cmdId}/result:events:
-    parameters:
-      cmdId:
-        $ref: '#/components/parameters/cmdId'
-    subscribe: *resourceEventSubscription
-
-  commands/{cmdId}/result/{resultId}:events:
-    parameters:
-      cmdId:
-        $ref: '#/components/parameters/cmdId'
-      resultId:
-        $ref: '#/components/parameters/resultId'
-    subscribe: *resourceEventSubscription
-
-  systems/{systemId}/events:events:
-    parameters:
-      systemId:
-        $ref: '#/components/parameters/systemId'
-    subscribe: *resourceEventSubscription
-
-  systems/{systemId}/events/{eventId}:events:
-    parameters:
-      systemId:
-        $ref: '#/components/parameters/systemId'
-      eventId:
-        $ref: '#/components/parameters/eventId'
-    subscribe: *resourceEventSubscription
-
-  datastreams/{dataStreamId}/observations:batch-events:
-    parameters:
-      dataStreamId:
-        $ref: '#/components/parameters/dataStreamId'
-    subscribe:
-      summary: Batch Resource Events for observations in one datastream
-      message:
-        $ref: '#/components/messages/batchResourceEvent'
-
-  controlstreams/{controlStreamId}/commands:batch-events:
-    parameters:
-      controlStreamId:
-        $ref: '#/components/parameters/controlStreamId'
-    subscribe:
-      summary: Batch Resource Events for commands in one control stream
-      message:
-        $ref: '#/components/messages/batchResourceEvent'
-
+    node1/{deploymentPath}/subdeployments/{id}:
+        parameters:
+            deploymentPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^deployments/[^/]+(?:/subdeployments/[^/]+)*$
+                    type: string
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_308d81b941b2a00c_message
+                name: deploymentEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.deployment.create
+                                - org.ogc.api.csapi.deployment.update
+                                - org.ogc.api.csapi.deployment.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                    type: object
+            operationId: subscribe_308d81b941b2a00c
+    node1/{systemPath}/controlstreams/{controlstreamId}/commands:
+        parameters:
+            controlstreamId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_fb642b2960449c90_message
+                name: commandEvent
+                payload:
+                    properties:
+                        data:
+                            properties:
+                                count:
+                                    minimum: 0
+                                    type: integer
+                                timerange:
+                                    items:
+                                        format: date-time
+                                        type: string
+                                    maxItems: 2
+                                    minItems: 2
+                                    type: array
+                            required:
+                                - timerange
+                                - count
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.command.create
+                                - org.ogc.api.csapi.command.update
+                                - org.ogc.api.csapi.command.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                        - data
+                        - datacontenttype
+                    type: object
+            operationId: subscribe_fb642b2960449c90
+    node1/{systemPath}/controlstreams/{controlstreamId}/commands/{commandId}/result/{id}:
+        parameters:
+            commandId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            controlstreamId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_5809c7b0833c329a_message
+                name: commandresultEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.commandresult.create
+                                - org.ogc.api.csapi.commandresult.update
+                                - org.ogc.api.csapi.commandresult.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                    type: object
+            operationId: subscribe_5809c7b0833c329a
+    node1/{systemPath}/controlstreams/{controlstreamId}/commands/{commandId}/result:data:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        parameters:
+            commandId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            controlstreamId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        publish:
+            message:
+                contentType: application/json
+                messageId: publish_cf9248c998a65993_message
+                name: commandresult
+                payload:
+                    description: Native CS API commandresult representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        data: {}
+                        id:
+                            readOnly: true
+                            type: string
+                    type: object
+            operationId: publish_cf9248c998a65993
+            summary: Create one commandresult
+        subscribe:
+            message:
+                contentType: application/json
+                messageId: subscribe_adfb853afda0a599_message
+                name: commandresult
+                payload:
+                    description: Native CS API commandresult representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        data: {}
+                        id:
+                            readOnly: true
+                            type: string
+                    required:
+                        - id
+                        - command@id
+                    type: object
+            operationId: subscribe_adfb853afda0a599
+            summary: Receive complete commandresult representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /commands/{parentId}/result
+        x-ogc-default-representation: application/json
+    node1/{systemPath}/controlstreams/{controlstreamId}/commands/{commandId}/status/{id}:
+        parameters:
+            commandId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            controlstreamId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_8a5d316023dbc441_message
+                name: commandstatusEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.commandstatus.create
+                                - org.ogc.api.csapi.commandstatus.update
+                                - org.ogc.api.csapi.commandstatus.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                    type: object
+            operationId: subscribe_8a5d316023dbc441
+    node1/{systemPath}/controlstreams/{controlstreamId}/commands/{commandId}/status:data:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        parameters:
+            commandId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            controlstreamId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        publish:
+            message:
+                contentType: application/json
+                messageId: publish_4e53d2c43cb52721_message
+                name: commandstatus
+                payload:
+                    description: Native CS API commandstatus representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        statusCode:
+                            enum:
+                                - PENDING
+                                - ACCEPTED
+                                - REJECTED
+                                - SCHEDULED
+                                - UPDATED
+                                - CANCELED
+                                - EXECUTING
+                                - FAILED
+                                - COMPLETED
+                            type: string
+                    required:
+                        - statusCode
+                        - reportTime
+                    type: object
+            operationId: publish_4e53d2c43cb52721
+            summary: Create one commandstatus
+        subscribe:
+            message:
+                contentType: application/json
+                messageId: subscribe_ed52b091082ade19_message
+                name: commandstatus
+                payload:
+                    description: Native CS API commandstatus representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        statusCode:
+                            enum:
+                                - PENDING
+                                - ACCEPTED
+                                - REJECTED
+                                - SCHEDULED
+                                - UPDATED
+                                - CANCELED
+                                - EXECUTING
+                                - FAILED
+                                - COMPLETED
+                            type: string
+                    required:
+                        - statusCode
+                        - reportTime
+                        - id
+                        - command@id
+                    type: object
+            operationId: subscribe_ed52b091082ade19
+            summary: Receive complete commandstatus representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /commands/{parentId}/status
+        x-ogc-default-representation: application/json
+    node1/{systemPath}/controlstreams/{controlstreamId}/commands:data:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        parameters:
+            controlstreamId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        publish:
+            message:
+                contentType: application/json
+                messageId: publish_1ebef5fc355ed0cb_message
+                name: command
+                payload:
+                    description: Native CS API command representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        issueTime:
+                            format: date-time
+                            readOnly: true
+                            type: string
+                        parameters: {}
+                    required:
+                        - parameters
+                    type: object
+            operationId: publish_1ebef5fc355ed0cb
+            summary: Create one command
+        subscribe:
+            message:
+                contentType: application/json
+                messageId: subscribe_20e342dbc7e95587_message
+                name: command
+                payload:
+                    description: Native CS API command representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        issueTime:
+                            format: date-time
+                            readOnly: true
+                            type: string
+                        parameters: {}
+                    required:
+                        - parameters
+                        - id
+                        - issueTime
+                        - controlstream@id
+                    type: object
+            operationId: subscribe_20e342dbc7e95587
+            summary: Receive complete command representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /controlstreams/{parentId}/commands
+        x-ogc-default-representation: application/json
+        x-ogc-parameters-schema: Follow the owning controlstream's HTTP schema link
+    node1/{systemPath}/controlstreams/{id}:
+        parameters:
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_1cf51d7b84c1386f_message
+                name: controlstreamEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.controlstream.create
+                                - org.ogc.api.csapi.controlstream.update
+                                - org.ogc.api.csapi.controlstream.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                    type: object
+            operationId: subscribe_1cf51d7b84c1386f
+    node1/{systemPath}/controlstreams:data:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        parameters:
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        publish:
+            message:
+                contentType: application/json
+                messageId: publish_75cf74faf35b0a53_message
+                name: controlstream
+                payload:
+                    description: Native CS API controlstream representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        name:
+                            minLength: 1
+                            type: string
+                        schema:
+                            type: object
+                            writeOnly: true
+                    required:
+                        - name
+                        - schema
+                    type: object
+            operationId: publish_75cf74faf35b0a53
+            summary: Create one controlstream
+        subscribe:
+            message:
+                contentType: application/json
+                messageId: subscribe_8be489593721ff13_message
+                name: controlstream
+                payload:
+                    description: Native CS API controlstream representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        name:
+                            minLength: 1
+                            type: string
+                        schema:
+                            type: object
+                            writeOnly: true
+                    required:
+                        - id
+                        - name
+                    type: object
+            operationId: subscribe_8be489593721ff13
+            summary: Receive complete controlstream representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /systems/{parentId}/controlstreams
+        x-ogc-default-representation: application/json
+    node1/{systemPath}/datastreams/{datastreamId}/observations:
+        parameters:
+            datastreamId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_cb2ffd81ff49d0aa_message
+                name: observationEvent
+                payload:
+                    properties:
+                        data:
+                            properties:
+                                count:
+                                    minimum: 0
+                                    type: integer
+                                timerange:
+                                    items:
+                                        format: date-time
+                                        type: string
+                                    maxItems: 2
+                                    minItems: 2
+                                    type: array
+                            required:
+                                - timerange
+                                - count
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.observation.create
+                                - org.ogc.api.csapi.observation.update
+                                - org.ogc.api.csapi.observation.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                        - data
+                        - datacontenttype
+                    type: object
+            operationId: subscribe_cb2ffd81ff49d0aa
+    node1/{systemPath}/datastreams/{datastreamId}/observations:data:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        parameters:
+            datastreamId:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        publish:
+            message:
+                contentType: application/json
+                messageId: publish_5e18cd5d9379259c_message
+                name: observation
+                payload:
+                    description: Native CS API observation representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        datastream@id:
+                            readOnly: true
+                            type: string
+                        id:
+                            readOnly: true
+                            type: string
+                        result: {}
+                        result@link:
+                            type: object
+                        resultTime:
+                            format: date-time
+                            type: string
+                    required:
+                        - resultTime
+                    type: object
+            operationId: publish_5e18cd5d9379259c
+            summary: Create one observation
+        subscribe:
+            message:
+                contentType: application/json
+                messageId: subscribe_35ffdd333e999beb_message
+                name: observation
+                payload:
+                    description: Native CS API observation representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        datastream@id:
+                            readOnly: true
+                            type: string
+                        id:
+                            readOnly: true
+                            type: string
+                        result: {}
+                        result@link:
+                            type: object
+                        resultTime:
+                            format: date-time
+                            type: string
+                    required:
+                        - resultTime
+                        - id
+                        - datastream@id
+                    type: object
+            operationId: subscribe_35ffdd333e999beb
+            summary: Receive complete observation representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /datastreams/{parentId}/observations
+        x-ogc-default-representation: application/json
+        x-ogc-result-schema: Follow the owning datastream's HTTP schema link
+    node1/{systemPath}/datastreams/{id}:
+        parameters:
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_ea3f16747ee1ef86_message
+                name: datastreamEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.datastream.create
+                                - org.ogc.api.csapi.datastream.update
+                                - org.ogc.api.csapi.datastream.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                    type: object
+            operationId: subscribe_ea3f16747ee1ef86
+    node1/{systemPath}/datastreams:data:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        parameters:
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        publish:
+            message:
+                contentType: application/json
+                messageId: publish_fba589a499fad92e_message
+                name: datastream
+                payload:
+                    description: Native CS API datastream representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        name:
+                            minLength: 1
+                            type: string
+                        schema:
+                            type: object
+                            writeOnly: true
+                    required:
+                        - name
+                        - schema
+                    type: object
+            operationId: publish_fba589a499fad92e
+            summary: Create one datastream
+        subscribe:
+            message:
+                contentType: application/json
+                messageId: subscribe_e6e181211b7bc1e8_message
+                name: datastream
+                payload:
+                    description: Native CS API datastream representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        name:
+                            minLength: 1
+                            type: string
+                        schema:
+                            type: object
+                            writeOnly: true
+                    required:
+                        - id
+                        - name
+                    type: object
+            operationId: subscribe_e6e181211b7bc1e8
+            summary: Receive complete datastream representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /systems/{parentId}/datastreams
+        x-ogc-default-representation: application/json
+    node1/{systemPath}/events/{id}:
+        parameters:
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_d41399b2621358e7_message
+                name: systemeventEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.systemevent.create
+                                - org.ogc.api.csapi.systemevent.update
+                                - org.ogc.api.csapi.systemevent.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                    type: object
+            operationId: subscribe_d41399b2621358e7
+    node1/{systemPath}/events:data:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        parameters:
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        publish:
+            message:
+                contentType: application/json
+                messageId: publish_7702f6ba76de26d1_message
+                name: systemevent
+                payload:
+                    description: Native CS API systemevent representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        definition:
+                            type: string
+                        id:
+                            readOnly: true
+                            type: string
+                        time: {}
+                    required:
+                        - definition
+                        - label
+                        - time
+                    type: object
+            operationId: publish_7702f6ba76de26d1
+            summary: Create one systemevent
+        subscribe:
+            message:
+                contentType: application/json
+                messageId: subscribe_beb8de0a2b536376_message
+                name: systemevent
+                payload:
+                    description: Native CS API systemevent representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        definition:
+                            type: string
+                        id:
+                            readOnly: true
+                            type: string
+                        time: {}
+                    required:
+                        - definition
+                        - label
+                        - time
+                        - id
+                    type: object
+            operationId: subscribe_beb8de0a2b536376
+            summary: Receive complete systemevent representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /systems/{parentId}/events
+        x-ogc-default-representation: application/json
+    node1/{systemPath}/samplingFeatures/{id}:
+        parameters:
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_5fabea8fadf69b28_message
+                name: samplingfeatureEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.samplingfeature.create
+                                - org.ogc.api.csapi.samplingfeature.update
+                                - org.ogc.api.csapi.samplingfeature.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                    type: object
+            operationId: subscribe_5fabea8fadf69b28
+    node1/{systemPath}/subsystems/{id}:
+        parameters:
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_46ce4b8f1c76cf9d_message
+                name: systemEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.system.create
+                                - org.ogc.api.csapi.system.update
+                                - org.ogc.api.csapi.system.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                        - resourceparent
+                    type: object
+            operationId: subscribe_46ce4b8f1c76cf9d
+    node1/{systemPath}/subsystems:data:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        parameters:
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        publish:
+            message:
+                contentType: application/geo+json
+                messageId: publish_d99f0c0de1c9bdeb_message
+                name: system
+                payload:
+                    description: Native CS API system representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        geometry: {}
+                        id:
+                            readOnly: true
+                            type: string
+                        properties:
+                            required:
+                                - uid
+                                - name
+                                - featureType
+                                - assetType
+                            type: object
+                        type:
+                            const: Feature
+                            type: string
+                    required:
+                        - type
+                        - properties
+                    type: object
+            operationId: publish_d99f0c0de1c9bdeb
+            summary: Create one system
+        subscribe:
+            message:
+                contentType: application/geo+json
+                messageId: subscribe_3f1bf2d5d0ce2dae_message
+                name: system
+                payload:
+                    description: Native CS API system representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        geometry: {}
+                        id:
+                            readOnly: true
+                            type: string
+                        properties:
+                            required:
+                                - uid
+                                - name
+                                - featureType
+                                - assetType
+                            type: object
+                        type:
+                            const: Feature
+                            type: string
+                    required:
+                        - type
+                        - properties
+                        - id
+                    type: object
+            operationId: subscribe_3f1bf2d5d0ce2dae
+            summary: Receive complete system representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /systems/{parentId}/subsystems
+        x-ogc-default-representation: application/geo+json
+    node1/{systemPath}/subsystems:data/sml-json:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        parameters:
+            systemPath:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^systems/[^/]+(?:/subsystems/[^/]+)*$
+                    type: string
+        publish:
+            message:
+                contentType: application/sml+json
+                messageId: publish_216a9718ba91e2dd_message
+                name: system
+                payload:
+                    description: Native CS API system representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        type:
+                            enum:
+                                - PhysicalSystem
+                                - PhysicalComponent
+                                - AggregateProcess
+                                - SimpleProcess
+                            type: string
+                        uniqueId:
+                            type: string
+                    required:
+                        - type
+                        - uniqueId
+                        - label
+                        - definition
+                    type: object
+            operationId: publish_216a9718ba91e2dd
+            summary: Create one system
+        subscribe:
+            message:
+                contentType: application/sml+json
+                messageId: subscribe_ab1276f808b4b996_message
+                name: system
+                payload:
+                    description: Native CS API system representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        type:
+                            enum:
+                                - PhysicalSystem
+                                - PhysicalComponent
+                                - AggregateProcess
+                                - SimpleProcess
+                            type: string
+                        uniqueId:
+                            type: string
+                    required:
+                        - type
+                        - uniqueId
+                        - label
+                        - definition
+                        - id
+                    type: object
+            operationId: subscribe_ab1276f808b4b996
+            summary: Receive complete system representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /systems/{parentId}/subsystems
+        x-ogc-default-representation: application/geo+json
+    node1/deployments/{id}:
+        parameters:
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_8a9dd9f92c6dac19_message
+                name: deploymentEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.deployment.create
+                                - org.ogc.api.csapi.deployment.update
+                                - org.ogc.api.csapi.deployment.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                    type: object
+            operationId: subscribe_8a9dd9f92c6dac19
+    node1/procedures/{id}:
+        parameters:
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_5519c3bfd5930b64_message
+                name: procedureEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.procedure.create
+                                - org.ogc.api.csapi.procedure.update
+                                - org.ogc.api.csapi.procedure.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                    type: object
+            operationId: subscribe_5519c3bfd5930b64
+    node1/properties/{id}:
+        parameters:
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_2d6a1f8401278f42_message
+                name: propertyEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.property.create
+                                - org.ogc.api.csapi.property.update
+                                - org.ogc.api.csapi.property.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                    type: object
+            operationId: subscribe_2d6a1f8401278f42
+    node1/systems/{id}:
+        parameters:
+            id:
+                description: Canonical MQTT path component; IDs use reversible percent encoding
+                schema:
+                    pattern: ^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$
+                    type: string
+        subscribe:
+            message:
+                contentType: application/cloudevents+json
+                messageId: subscribe_e87a510e9482063e_message
+                name: systemEvent
+                payload:
+                    properties:
+                        data:
+                            type: object
+                        datacontenttype:
+                            type: string
+                        id:
+                            minLength: 1
+                            type: string
+                        resourceparent:
+                            format: uri
+                            type: string
+                        source:
+                            format: uri
+                            type: string
+                        specversion:
+                            const: "1.0"
+                            type: string
+                        subject:
+                            format: uri
+                            type: string
+                        time:
+                            format: date-time
+                            type: string
+                        type:
+                            enum:
+                                - org.ogc.api.csapi.system.create
+                                - org.ogc.api.csapi.system.update
+                                - org.ogc.api.csapi.system.delete
+                            type: string
+                    required:
+                        - specversion
+                        - type
+                        - source
+                        - subject
+                        - id
+                        - time
+                    type: object
+            operationId: subscribe_e87a510e9482063e
+    node1/systems:data:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        publish:
+            message:
+                contentType: application/geo+json
+                messageId: publish_665b234456948a0b_message
+                name: system
+                payload:
+                    description: Native CS API system representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        geometry: {}
+                        id:
+                            readOnly: true
+                            type: string
+                        properties:
+                            required:
+                                - uid
+                                - name
+                                - featureType
+                                - assetType
+                            type: object
+                        type:
+                            const: Feature
+                            type: string
+                    required:
+                        - type
+                        - properties
+                    type: object
+            operationId: publish_665b234456948a0b
+            summary: Create one system
+        subscribe:
+            message:
+                contentType: application/geo+json
+                messageId: subscribe_cc0b9e0ccd9df653_message
+                name: system
+                payload:
+                    description: Native CS API system representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        geometry: {}
+                        id:
+                            readOnly: true
+                            type: string
+                        properties:
+                            required:
+                                - uid
+                                - name
+                                - featureType
+                                - assetType
+                            type: object
+                        type:
+                            const: Feature
+                            type: string
+                    required:
+                        - type
+                        - properties
+                        - id
+                    type: object
+            operationId: subscribe_cc0b9e0ccd9df653
+            summary: Receive complete system representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /systems
+        x-ogc-default-representation: application/geo+json
+    node1/systems:data/sml-json:
+        bindings:
+            mqtt:
+                bindingVersion: 0.2.0
+        publish:
+            message:
+                contentType: application/sml+json
+                messageId: publish_bfa031e2e1b108b5_message
+                name: system
+                payload:
+                    description: Native CS API system representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        type:
+                            enum:
+                                - PhysicalSystem
+                                - PhysicalComponent
+                                - AggregateProcess
+                                - SimpleProcess
+                            type: string
+                        uniqueId:
+                            type: string
+                    required:
+                        - type
+                        - uniqueId
+                        - label
+                        - definition
+                    type: object
+            operationId: publish_bfa031e2e1b108b5
+            summary: Create one system
+        subscribe:
+            message:
+                contentType: application/sml+json
+                messageId: subscribe_36945162f970ef13_message
+                name: system
+                payload:
+                    description: Native CS API system representation. Create operations apply the associated HTTP create contract, including strict fields and parent/schema validation.
+                    properties:
+                        id:
+                            readOnly: true
+                            type: string
+                        type:
+                            enum:
+                                - PhysicalSystem
+                                - PhysicalComponent
+                                - AggregateProcess
+                                - SimpleProcess
+                            type: string
+                        uniqueId:
+                            type: string
+                    required:
+                        - type
+                        - uniqueId
+                        - label
+                        - definition
+                        - id
+                    type: object
+            operationId: subscribe_36945162f970ef13
+            summary: Receive complete system representations
+        x-ogc-client-publication-qos:
+            mqtt5WithKey:
+                - 0
+                - 1
+                - 2
+            mqtt5WithoutKey:
+                - 0
+                - 1
+            mqtt311:
+                - 0
+                - 1
+        x-ogc-create-operation: POST /systems
+        x-ogc-default-representation: application/geo+json
 components:
-  messages:
-    resourceData:
-      name: resourceData
-      title: Resource Data Message
-      contentType: application/json
-      payload:
-        type: object
-        description: A complete native representation of one supported Connected Systems resource.
-        additionalProperties: true
-
-    resourceEvent:
-      name: resourceEvent
-      title: Resource Event
-      contentType: application/cloudevents+json
-      payload:
-        type: object
-        required:
-          - specversion
-          - type
-          - source
-          - subject
-          - id
-          - time
-        properties:
-          specversion:
-            type: string
-            const: '1.0'
-          type:
-            type: string
-            pattern: '^org\.ogc\.api\.consys\.[a-z]+\.(create|update|delete)$'
-          source:
-            type: string
-            format: uri
-          subject:
-            type: string
-            format: uri
-          id:
-            type: string
-            minLength: 1
-          parentId:
-            type: string
-            format: uri
-          time:
-            type: string
-            format: date-time
-          datacontenttype:
-            type: string
-            const: application/json
-          data:
-            type: object
-            properties:
-              name:
-                type: string
-                minLength: 1
-              description:
-                type: string
-                minLength: 1
-              uniqueId:
-                type: string
-                minLength: 1
-                format: uri
-            additionalProperties: true
-
-    batchResourceEvent:
-      name: batchResourceEvent
-      title: Batch Resource Event
-      contentType: application/cloudevents+json
-      payload:
-        type: object
-        required:
-          - specversion
-          - type
-          - source
-          - subject
-          - id
-          - parentId
-          - time
-          - datacontenttype
-          - data
-        properties:
-          specversion:
-            type: string
-            const: '1.0'
-          type:
-            type: string
-            pattern: '^org\.ogc\.api\.consys\.(observation|command)\.(create|update|delete)$'
-          source:
-            type: string
-            format: uri
-          subject:
-            type: string
-            format: uri
-          id:
-            type: string
-            minLength: 1
-          parentId:
-            type: string
-            format: uri
-          time:
-            type: string
-            format: date-time
-          datacontenttype:
-            type: string
-            const: application/json
-          data:
-            type: object
-            required:
-              - timerange
-              - count
-            properties:
-              timerange:
-                type: array
-                minItems: 2
-                maxItems: 2
-                items:
-                  type: string
-                  format: date-time
-              count:
-                type: integer
-                minimum: 0
-
-  parameters:
-    systemId: &stringIdParameter
-      description: System resource ID
-      schema:
-        type: string
-        minLength: 1
-    deploymentId:
-      <<: *stringIdParameter
-      description: Deployment resource ID
-    procedureId:
-      <<: *stringIdParameter
-      description: Procedure resource ID
-    propertyId:
-      <<: *stringIdParameter
-      description: Property resource ID
-    samplingFeatureId:
-      <<: *stringIdParameter
-      description: Sampling Feature resource ID
-    dataStreamId:
-      <<: *stringIdParameter
-      description: Datastream resource ID
-    controlStreamId:
-      <<: *stringIdParameter
-      description: Control Stream resource ID
-    cmdId:
-      <<: *stringIdParameter
-      description: Command resource ID
-    statusId:
-      <<: *stringIdParameter
-      description: Command Status resource ID
-    resultId:
-      <<: *stringIdParameter
-      description: Command Result resource ID
-    eventId:
-      <<: *stringIdParameter
-      description: System Event resource ID
+    securitySchemes:
+        brokerCredentials:
+            description: Broker-authenticated username scopes idempotency. Anonymous local clients share one principal. Production requires credentials and deployment-provided TLS.
+            type: userPassword
+defaultContentType: application/json
+id: https://example.test/api/asyncapi
+info:
+    contact:
+        url: https://example.test/api
+    description: Current OGC Connected Systems Part 3 draft; class identifiers and system/subsystem tokens remain provisional.
+    title: Connected Systems - MQTT Pub/Sub
+    version: 1.0.0
+servers:
+    broker0-3-1-1:
+        description: Public broker address; authentication is configured by the deployment.
+        protocol: mqtt
+        protocolVersion: 3.1.1
+        security:
+            - brokerCredentials: []
+        url: broker.example:1883
+    broker0-5-0:
+        description: Public broker address; authentication is configured by the deployment.
+        protocol: mqtt
+        protocolVersion: "5.0"
+        security:
+            - brokerCredentials: []
+        url: broker.example:1883
+    broker1-3-1-1:
+        bindings:
+            ws:
+                bindingVersion: 0.1.0
+                method: GET
+        description: Public broker address; authentication is configured by the deployment.
+        protocol: ws
+        protocolVersion: "13"
+        security:
+            - brokerCredentials: []
+        url: broker.example:9001/mqtt
+        x-mqtt-version: 3.1.1
+    broker1-5-0:
+        bindings:
+            ws:
+                bindingVersion: 0.1.0
+                method: GET
+        description: Public broker address; authentication is configured by the deployment.
+        protocol: ws
+        protocolVersion: "13"
+        security:
+            - brokerCredentials: []
+        url: broker.example:9001/mqtt
+        x-mqtt-version: "5.0"
+tags:
+    - name: ConnectedSystems
+x-ogc-batch-resource-event-types:
+    - observation.create
+    - observation.update
+    - observation.delete
+    - command.create
+    - command.update
+    - command.delete
+x-ogc-delivery:
+    allowAnonymous: false
+    applicationReplay: false
+    clientLastWill: CONNECT rejected when a Will is configured
+    errors: Failed subscriptions use MQTT SUBACK. Rejected MQTT 5 writes use a PUBACK/PUBREC reason code with a Reason String unless the client disabled problem information; retained or oversized writes and protocol errors disconnect. MQTT 3.1.1 rejections disconnect. MQTT acknowledgement is not command execution status.
+    maxMessageBytes: 1.048576e+07
+    maxPacketBytes: 1.1534336e+07
+    maxPendingWrites: 128
+    maxQueuedBytes: 6.7108864e+07
+    maxQueuedMessages: 1000
+    mqtt5SessionExpiry: Client negotiated
+    mqtt311PersistentClientExpiration: 1d
+    ordering: MQTT ordering only; no order across topics or representations
+    persistence: Sessions and queues survive API restarts when the deployment retains broker state
+    publicationGuarantee: Best effort from committed API operations; no application outbox or exactly-once execution guarantee
+    publicationQoS: 1
+    queueLimits: maxQueuedMessages and maxQueuedBytes bound each client's queued QoS 1/2 deliveries. A connected client also drops deliveries beyond maxPendingWrites pending socket writes, for example when its socket stops accepting data or a burst outpaces its writer.
+    retained: false
+    security: The embedded endpoint authenticates MQTT username/password against its configured accounts. Anonymous access is permitted only when allowAnonymous is true. mqtts/wss addresses provide TLS; mqtt/ws addresses are plaintext. Only the in-process server publisher may publish lifecycle events. All client data is validated before distribution.
+    subscriptionQoS:
+        - 0
+        - 1
+        - 2
+    wildcards: 'MQTT + and # filters cover authorized present and future topics. No payload filtering, shared subscriptions, or client Last Will publication is offered in the CS API namespace.'
+x-ogc-http-api-root: https://example.test/api
+x-ogc-idempotency:
+    conflict: Different input with the same key is rejected; a deleted original resource is never recreated
+    fingerprint: Canonical target collection, media type, and JSON with sorted object keys, insignificant whitespace removed, and number lexemes preserved
+    matchingRetry: Original representation may be delivered again; no new resource, lifecycle event, history revision, alternate-representation publication or batch contribution
+    maxUTF8Bytes: 128
+    protocol: MQTT 5.0
+    qos: Creates accept QoS 0/1; QoS 2 requires MQTT 5 and a key
+    retention: No automatic expiry; records survive resource deletion
+    retry: After an uncertain outcome, retry the same input with the same key. Keyless publications are separate creates and may duplicate resources. Command execution is a separate consumer responsibility.
+    scope: Canonical HTTP API context and authenticated username; anonymous clients share one principal; client ID is excluded
+    status: Implementation extension; not part of baseline Part 3 conformance
+    userProperty: idempotency-key
+x-ogc-identifier-encoding: Encode each identifier byte outside URI unreserved A-Z a-z 0-9 - . _ ~ using uppercase percent escapes, including percent itself. Decode once; noncanonical aliases are rejected.
+x-ogc-node-id: node1
+x-ogc-provisional-conformance:
+    - http://www.opengis.net/spec/ogcapi-connectedsystems-3/1.0/conf/resource-events
+    - http://www.opengis.net/spec/ogcapi-connectedsystems-3/1.0/conf/resource-events/batch-events
+    - http://www.opengis.net/spec/ogcapi-connectedsystems-3/1.0/conf/resource-data-messages
+    - http://www.opengis.net/spec/ogcapi-connectedsystems-3/1.0/conf/resource-data-messages/content-negotiation
+    - http://www.opengis.net/spec/ogcapi-connectedsystems-3/1.0/conf/mqtt
+x-ogc-resource-data-types:
+    - system
+    - datastream
+    - controlstream
+    - systemevent
+    - observation
+    - command
+    - commandstatus
+    - commandresult
+x-ogc-resource-event-types:
+    - system.create
+    - system.update
+    - system.delete
+    - datastream.create
+    - datastream.update
+    - datastream.delete
+    - controlstream.create
+    - controlstream.update
+    - controlstream.delete
+    - samplingfeature.create
+    - samplingfeature.update
+    - samplingfeature.delete
+    - systemevent.create
+    - systemevent.update
+    - systemevent.delete
+    - commandstatus.create
+    - commandstatus.update
+    - commandstatus.delete
+    - commandresult.create
+    - commandresult.update
+    - commandresult.delete
+    - deployment.create
+    - deployment.update
+    - deployment.delete
+    - procedure.create
+    - procedure.update
+    - procedure.delete
+    - property.create
+    - property.update
+    - property.delete

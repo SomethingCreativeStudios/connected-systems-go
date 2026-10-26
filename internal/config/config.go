@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/spf13/viper"
 )
@@ -70,15 +71,18 @@ type APIConfig struct {
 	MaxBodyBytes int64 `mapstructure:"max_body_bytes"`
 }
 
-// MQTTConfig holds MQTT broker connection configuration.
+// MQTTConfig configures the optional embedded CS API MQTT endpoint.
 type MQTTConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	Broker   string `mapstructure:"broker"`
-	ClientID string `mapstructure:"client_id"`
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	QoS      byte   `mapstructure:"qos"`
-	Retained bool   `mapstructure:"retained"`
+	Enabled          bool          `mapstructure:"enabled"`
+	AllowAnonymous   bool          `mapstructure:"allow_anonymous"`
+	NodeID           string        `mapstructure:"node_id"`
+	PublicBrokers    string        `mapstructure:"public_brokers"`
+	TCPAddress       string        `mapstructure:"tcp_address"`
+	WebsocketAddress string        `mapstructure:"websocket_address"`
+	DataDir          string        `mapstructure:"data_dir"`
+	UsersFile        string        `mapstructure:"users_file"`
+	IngestTimeout    time.Duration `mapstructure:"ingest_timeout"`
+	MaxMessageBytes  int64         `mapstructure:"max_message_bytes"`
 }
 
 // PubSubConfig controls the independently optional publish/subscribe message classes.
@@ -127,12 +131,15 @@ func Load() (*Config, error) {
 	viper.SetDefault("api.default_limit", 10)
 	viper.SetDefault("api.max_body_bytes", 10<<20)
 	viper.SetDefault("mqtt.enabled", false)
-	viper.SetDefault("mqtt.broker", "tcp://localhost:1883")
-	viper.SetDefault("mqtt.client_id", "cs-api-server")
-	viper.SetDefault("mqtt.username", "")
-	viper.SetDefault("mqtt.password", "")
-	viper.SetDefault("mqtt.qos", 1)
-	viper.SetDefault("mqtt.retained", false)
+	viper.SetDefault("mqtt.allow_anonymous", false)
+	viper.SetDefault("mqtt.node_id", "")
+	viper.SetDefault("mqtt.public_brokers", "")
+	viper.SetDefault("mqtt.tcp_address", "127.0.0.1:1883")
+	viper.SetDefault("mqtt.websocket_address", "127.0.0.1:9001")
+	viper.SetDefault("mqtt.data_dir", "./data/mqtt")
+	viper.SetDefault("mqtt.users_file", "")
+	viper.SetDefault("mqtt.ingest_timeout", 2*time.Second)
+	viper.SetDefault("mqtt.max_message_bytes", 10<<20)
 	viper.SetDefault("pubsub.resource_data.enabled", true)
 	viper.SetDefault("pubsub.resource_events.enabled", true)
 	viper.SetDefault("pubsub.batch_resource_events.enabled", true)
@@ -156,6 +163,47 @@ func Load() (*Config, error) {
 	if config.PubSub.BatchResourceEvents.Window <= 0 {
 		return nil, fmt.Errorf("pubsub.batch_resource_events.window must be a positive duration")
 	}
+	if err := config.ValidateMQTT(); err != nil {
+		return nil, err
+	}
 
 	return &config, nil
+}
+
+func (c *Config) ValidateMQTT() error {
+	if !c.MQTT.Enabled {
+		return nil
+	}
+	m := c.MQTT
+	apiRoot, err := url.Parse(c.API.BaseURL)
+	if err != nil || apiRoot.Host == "" || apiRoot.User != nil || apiRoot.RawQuery != "" || apiRoot.Fragment != "" || (apiRoot.Scheme != "http" && apiRoot.Scheme != "https") {
+		return fmt.Errorf("MQTT requires an absolute canonical HTTP api.base_url")
+	}
+	if m.NodeID == "" || !utf8.ValidString(m.NodeID) || strings.ContainsAny(m.NodeID, "/+#\x00") {
+		return fmt.Errorf("mqtt.node_id must be a nonempty single MQTT level")
+	}
+	if !m.AllowAnonymous && m.UsersFile == "" {
+		return fmt.Errorf("mqtt.users_file is required when anonymous access is disabled")
+	}
+	for _, address := range []string{m.TCPAddress, m.WebsocketAddress} {
+		if _, _, err := net.SplitHostPort(address); err != nil {
+			return fmt.Errorf("invalid MQTT listener %q: %w", address, err)
+		}
+	}
+	if m.DataDir == "" || m.MaxMessageBytes <= 0 || m.MaxMessageBytes > 10<<20 || m.IngestTimeout <= 0 {
+		return fmt.Errorf("MQTT requires a data directory, positive ingest timeout and resource limit between 1 byte and 10 MiB")
+	}
+	if c.PubSub.BatchResourceEvents.Enabled && !c.PubSub.ResourceEvents.Enabled {
+		return fmt.Errorf("batch Resource Events require Resource Events")
+	}
+	if m.PublicBrokers == "" {
+		return fmt.Errorf("mqtt.public_brokers must advertise client connection addresses")
+	}
+	for _, address := range strings.Split(m.PublicBrokers, ",") {
+		u, err := url.Parse(strings.TrimSpace(address))
+		if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "mqtt" && u.Scheme != "mqtts" && u.Scheme != "ws" && u.Scheme != "wss") {
+			return fmt.Errorf("invalid public MQTT address %q", address)
+		}
+	}
+	return nil
 }

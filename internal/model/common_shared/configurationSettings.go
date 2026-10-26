@@ -35,10 +35,6 @@ type SetMode struct {
 	Value string `json:"value"`
 }
 
-// Constraint is a flexible representation for setConstraints items. The schema
-// allows several variants (AllowedTokens, AllowedValues, AllowedTimes) and
-// permits additional properties; this struct exposes commonly used fields and
-// will ignore unknown properties during JSON unmarshalling.
 // AllowedTokens represents either an enum list or a regex pattern for tokens.
 type AllowedTokens struct {
 	Type    string   `json:"type,omitempty"`
@@ -99,6 +95,8 @@ type AllowedTimes struct {
 // Constraint is a discriminated wrapper that holds one of several concrete
 // constraint variants. Raw preserves the original JSON when available.
 type Constraint struct {
+	Raw json.RawMessage `json:"-"`
+
 	Type string `json:"type,omitempty"`
 
 	Ref string `json:"ref,omitempty"`
@@ -119,8 +117,11 @@ func (c *Constraint) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &probe); err != nil {
 		return err
 	}
-	c.Type = probe.Type
-	c.Ref = probe.Ref
+	*c = Constraint{
+		Raw:  append([]byte(nil), b...),
+		Type: probe.Type,
+		Ref:  probe.Ref,
+	}
 
 	switch probe.Type {
 	case "AllowedTokens":
@@ -168,6 +169,9 @@ func (c *Constraint) UnmarshalJSON(b []byte) error {
 // MarshalJSON emits the preserved Raw bytes when available, otherwise the
 // concrete variant is marshalled.
 func (c Constraint) MarshalJSON() ([]byte, error) {
+	if len(c.Raw) > 0 {
+		return c.Raw, nil
+	}
 	out := make(map[string]any)
 	if c.Type != "" {
 		out["type"] = c.Type

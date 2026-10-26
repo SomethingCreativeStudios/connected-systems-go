@@ -14,13 +14,15 @@ FROM alpine:3.24
 
 RUN apk --no-cache add ca-certificates tzdata \
     && addgroup -S app \
-    && adduser -S -G app app
+    && adduser -S -G app app \
+    && mkdir -p /var/lib/csapi/mqtt \
+    && chown -R app:app /var/lib/csapi
 
 WORKDIR /app
 COPY --from=builder /out/server /app/server
 
 USER app
-EXPOSE 8080
+EXPOSE 8080 1883 9001
 
 # Configure with environment variables (DATABASE_HOST, API_BASE_URL, ...) or a
 # config.yaml mounted at /app/config.yaml. `docker run <image> migrate` applies

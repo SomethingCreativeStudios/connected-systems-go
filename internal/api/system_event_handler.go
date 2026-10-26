@@ -1,11 +1,11 @@
 package api
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
@@ -13,8 +13,6 @@ import (
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/common_shared"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/domains"
 	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
-	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mqtt"
-	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -29,16 +27,16 @@ type SystemEventCollectionResponse struct {
 
 // SystemEventHandler handles /systemEvents and /systems/{id}/events resources.
 type SystemEventHandler struct {
-	cfg             *config.Config
-	logger          *zap.Logger
-	repo            *repository.SystemEventRepository
-	systemRepo      *repository.SystemRepository
-	pubSubPublisher *pubsub.Publisher
-	validator       *contractvalidation.Validator
+	cfg        *config.Config
+	logger     *zap.Logger
+	repo       *repository.SystemEventRepository
+	systemRepo *repository.SystemRepository
+	validator  *contractvalidation.Validator
+	creates    *CreateOperations
 }
 
-func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository, pubSubPublisher *pubsub.Publisher, validator *contractvalidation.Validator) *SystemEventHandler {
-	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, pubSubPublisher: pubSubPublisher, validator: validator}
+func NewSystemEventHandler(cfg *config.Config, logger *zap.Logger, repo *repository.SystemEventRepository, systemRepo *repository.SystemRepository, validator *contractvalidation.Validator, creates *CreateOperations) *SystemEventHandler {
+	return &SystemEventHandler{cfg: cfg, logger: logger, repo: repo, systemRepo: systemRepo, validator: validator, creates: creates}
 }
 
 // validateSystemEvent enforces the required root fields of the OGC CS Part 2
@@ -174,87 +172,31 @@ func (h *SystemEventHandler) ListEventsBySystem(w http.ResponseWriter, r *http.R
 // @Failure     500  {object}  map[string]string
 // @Router      /systems/{id}/events [post]
 func (h *SystemEventHandler) CreateEventBySystem(w http.ResponseWriter, r *http.Request) {
-	systemID := chi.URLParam(r, "id")
+	h.creates.HTTP(w, r, systemEventCreator, chi.URLParam(r, "id"))
+}
 
-	if _, err := h.systemRepo.GetByID(r.Context(), systemID); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "System", "Failed to load system")
-		return
-	}
-
-	// OpenAPI allows either a single event or an array.
-	body, err := validateRawRequestBody(r, h.validator, contractvalidation.SystemEvent)
-	if err != nil {
-		writeDeserializeError(w, r, err)
-		return
-	}
-	var raw any
-	if err := render.DecodeJSON(bytes.NewReader(body), &raw); err != nil {
-		writeDeserializeError(w, r, err)
-		return
-	}
-
-	// Decode and validate every item before any repository write. This keeps a
-	// rejected event array from partially persisting valid items that preceded
-	// an invalid one.
-	events := make([]*domains.SystemEvent, 0, 1)
-	decodeOne := func(value map[string]any) (*domains.SystemEvent, error) {
-		event, err := decodeSystemEvent(value)
+// systemEventCreator creates system events; one HTTP request may carry an
+// array of them, created in one transaction.
+var systemEventCreator = resourceCreator{
+	Kind: "systemevent", Name: "System event", Contract: contractvalidation.SystemEvent, Codec: jsonCodec[*domains.SystemEvent]{}, Batch: true,
+	Create: func(ctx context.Context, tx *repository.Repositories, in createInput) (string, error) {
+		if _, err := tx.System.GetByID(ctx, in.Parent); err != nil {
+			return "", parentError("system", in.Parent, err)
+		}
+		event, err := decodeSystemEvent(in.Value)
 		if err != nil {
-			return nil, err
+			return "", decodeError(err)
 		}
 		if err := validateSystemEvent(event); err != nil {
-			return nil, err
+			return "", invalid(err)
 		}
-		return event, nil
-	}
-	switch v := raw.(type) {
-	case map[string]any:
-		event, err := decodeOne(v)
-		if err != nil {
-			writeValidationError(w, r, err)
-			return
+		event.ID = ""
+		event.SystemID = in.Parent
+		if err := tx.SystemEvent.Create(ctx, event); err != nil {
+			return "", err
 		}
-		events = append(events, event)
-	case []any:
-		if len(v) == 0 {
-			writeValidationError(w, r, fmt.Errorf("at least one event is required"))
-			return
-		}
-		for _, item := range v {
-			itemObj, ok := item.(map[string]any)
-			if !ok {
-				writeValidationError(w, r, fmt.Errorf("system event must be a JSON object"))
-				return
-			}
-			event, err := decodeOne(itemObj)
-			if err != nil {
-				writeValidationError(w, r, err)
-				return
-			}
-			events = append(events, event)
-		}
-	default:
-		writeValidationError(w, r, fmt.Errorf("system event must be a JSON object or array of objects"))
-		return
-	}
-
-	createdIDs := make([]string, 0, len(events))
-	for _, event := range events {
-		event.SystemID = systemID
-		if err := h.repo.Create(r.Context(), event); err != nil {
-			writeRepositoryError(w, r, h.logger, err, "System event", "Failed to create system event")
-			return
-		}
-		createdIDs = append(createdIDs, event.ID)
-	}
-	for _, event := range events {
-		h.publishSystemEventToMQTT(systemID, event)
-		h.publishSystemEventLifecycle(systemID, event, pubsub.OperationCreate)
-	}
-
-	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/systems/" + systemID + "/events/" + createdIDs[0]
-	w.Header().Set("Location", location)
-	w.WriteHeader(http.StatusCreated)
+		return "/systems/" + url.PathEscape(in.Parent) + "/events/" + url.PathEscape(event.ID), nil
+	},
 }
 
 // GetEventByID returns a single system event by ID
@@ -331,8 +273,6 @@ func (h *SystemEventHandler) UpdateEventByID(w http.ResponseWriter, r *http.Requ
 
 	w.WriteHeader(http.StatusNoContent)
 
-	// Publish to MQTT (fire-and-forget)
-	h.publishSystemEventToMQTT(systemID, &event)
 }
 
 // DeleteEventByID deletes a system event by ID
@@ -362,31 +302,4 @@ func (h *SystemEventHandler) DeleteEventByID(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// publishSystemEventToMQTT publishes a system event to MQTT topics.
-// Non-blocking — errors are logged.
-func (h *SystemEventHandler) publishSystemEventToMQTT(systemID string, event *domains.SystemEvent) {
-	if h.pubSubPublisher == nil || !h.pubSubPublisher.ResourceDataEnabled() {
-		return
-	}
-
-	// Publish to both the nested and top-level canonical collection topics.
-	h.pubSubPublisher.PublishResourceData(mqtt.SystemEventTopic(systemID), event)
-	h.pubSubPublisher.PublishResourceData(mqtt.SystemEventsTopic(), event)
-}
-
-func (h *SystemEventHandler) publishSystemEventLifecycle(systemID string, event *domains.SystemEvent, operation pubsub.Operation) {
-	if h.pubSubPublisher == nil || event == nil {
-		return
-	}
-	h.pubSubPublisher.PublishChange(pubsub.Change{
-		ResourceType:   "systemevent",
-		ResourceID:     event.ID,
-		Operation:      operation,
-		SubjectPath:    "/systems/" + systemID + "/events/" + event.ID,
-		ParentPath:     "/systems/" + systemID,
-		CollectionPath: "/systems/" + systemID + "/events",
-		Data:           pubsub.BuildResourceEventSummary(event.Label, event.Description, ""),
-	})
 }

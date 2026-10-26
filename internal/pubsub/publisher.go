@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -16,17 +17,15 @@ import (
 )
 
 const (
-	resourceEventsSuffix      = ":events"
-	batchResourceEventsSuffix = ":batch-events"
-	cloudEventsVersion        = "1.0"
-	cloudEventsJSONType       = "application/cloudevents+json"
+	cloudEventsVersion  = "1.0"
+	cloudEventsJSONType = "application/cloudevents+json"
 )
 
 // Transport is the protocol-specific surface needed by the Pub/Sub publisher.
 // mqtt.Manager implements it, while tests can provide an in-memory transport.
 type Transport interface {
 	IsConnected() bool
-	Publish(topic string, payload []byte)
+	Publish(topic string, payload []byte, mediaType string)
 }
 
 type Operation string
@@ -37,16 +36,27 @@ const (
 	OperationDelete Operation = "delete"
 )
 
+// Representation is one complete encoding of a resource, published as
+// Resource Data.
+type Representation struct {
+	MediaType string
+	Payload   []byte
+}
+
 // Change describes one committed CS API resource lifecycle operation.
 type Change struct {
-	ResourceType   string
-	ResourceID     string
-	Operation      Operation
-	SubjectPath    string
-	ParentPath     string
-	CollectionPath string
-	Time           time.Time
-	Data           map[string]any
+	ResourceType        string
+	ResourceID          string
+	Operation           Operation
+	SubjectPath         string
+	ParentPath          string
+	CollectionPath      string
+	Time                time.Time
+	Data                map[string]any
+	TopicPath           string
+	CollectionTopicPath string
+	Representations     []Representation
+	SkipDataMediaType   string
 }
 
 // CloudEvent is the Pub/Sub Resource Event and Batch Resource Event JSON envelope.
@@ -56,7 +66,7 @@ type CloudEvent struct {
 	Source          string         `json:"source"`
 	Subject         string         `json:"subject"`
 	ID              string         `json:"id"`
-	ParentID        string         `json:"parentId,omitempty"`
+	ParentID        string         `json:"resourceparent,omitempty"`
 	Time            string         `json:"time"`
 	DataContentType string         `json:"datacontenttype,omitempty"`
 	Data            map[string]any `json:"data,omitempty"`
@@ -64,12 +74,14 @@ type CloudEvent struct {
 
 // Publisher emits Pub/Sub messages over the configured transport.
 type Publisher struct {
-	apiRoot   string
-	cfg       config.PubSubConfig
-	transport Transport
-	logger    *zap.Logger
-	now       func() time.Time
-	newID     func() string
+	apiRoot         string
+	nodeID          string
+	maxMessageBytes int64
+	cfg             config.PubSubConfig
+	transport       Transport
+	logger          *zap.Logger
+	now             func() time.Time
+	newID           func() string
 
 	batchMu      sync.Mutex
 	batches      map[batchKey]*batch
@@ -95,18 +107,20 @@ type batch struct {
 	count          int
 }
 
-func NewPublisher(apiRoot string, cfg config.PubSubConfig, transport Transport, logger *zap.Logger) *Publisher {
+func NewPublisher(apiRoot string, nodeID string, cfg config.PubSubConfig, transport Transport, logger *zap.Logger) *Publisher {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	return &Publisher{
-		apiRoot:   strings.TrimRight(apiRoot, "/"),
-		cfg:       cfg,
-		transport: transport,
-		logger:    logger,
-		now:       func() time.Time { return time.Now().UTC() },
-		newID:     func() string { return uuid.NewString() },
-		batches:   make(map[batchKey]*batch),
+		apiRoot:         strings.TrimRight(apiRoot, "/"),
+		nodeID:          nodeID,
+		maxMessageBytes: 10 << 20,
+		cfg:             cfg,
+		transport:       transport,
+		logger:          logger,
+		now:             func() time.Time { return time.Now().UTC() },
+		newID:           func() string { return uuid.NewString() },
+		batches:         make(map[batchKey]*batch),
 	}
 }
 
@@ -119,32 +133,11 @@ func (p *Publisher) ResourceEventsEnabled() bool {
 }
 
 func (p *Publisher) BatchResourceEventsEnabled() bool {
-	return p != nil && p.cfg.BatchResourceEvents.Enabled && p.connected()
-}
-
-// LifecycleEventsEnabled reports whether at least one lifecycle-event class
-// can currently accept changes.
-func (p *Publisher) LifecycleEventsEnabled() bool {
-	return p != nil && p.connected() && (p.cfg.ResourceEvents.Enabled || p.cfg.BatchResourceEvents.Enabled)
+	return p != nil && p.cfg.ResourceEvents.Enabled && p.cfg.BatchResourceEvents.Enabled && p.connected()
 }
 
 func (p *Publisher) connected() bool {
 	return p.transport != nil && p.transport.IsConnected()
-}
-
-// PublishResourceData publishes one complete native resource representation.
-// Callers are responsible for using the same formatter/validation contract as
-// the HTTP API before passing the resource here.
-func (p *Publisher) PublishResourceData(topic string, resource any) {
-	if !p.ResourceDataEnabled() {
-		return
-	}
-	payload, err := json.Marshal(resource)
-	if err != nil {
-		p.logger.Error("Failed to marshal Pub/Sub Resource Data Message", zap.String("topic", topic), zap.Error(err))
-		return
-	}
-	p.transport.Publish(topic, payload)
 }
 
 // PublishChange routes one committed lifecycle change to either a Batch
@@ -155,8 +148,16 @@ func (p *Publisher) PublishChange(change Change) {
 	if p == nil {
 		return
 	}
+	if change.Operation != OperationDelete && p.ResourceDataEnabled() {
+		for _, representation := range change.Representations {
+			if representation.MediaType != change.SkipDataMediaType {
+				p.publish(DataTopic(p.nodeID, change.CollectionTopicPath, representation.MediaType, change.Representations[0].MediaType), representation.Payload, representation.MediaType)
+			}
+		}
+	}
 	resourceType := strings.ToLower(strings.TrimSpace(change.ResourceType))
-	if p.cfg.BatchResourceEvents.Enabled && (resourceType == "observation" || resourceType == "command") {
+	capability, offered := CapabilityForResource(resourceType)
+	if p.cfg.BatchResourceEvents.Enabled && p.cfg.ResourceEvents.Enabled && offered && capability.Batch {
 		if !p.connected() {
 			return
 		}
@@ -186,7 +187,7 @@ func (p *Publisher) PublishResourceEvent(change Change) {
 	}
 
 	for _, topic := range ResourceEventTopics(change) {
-		p.transport.Publish(topic, payload)
+		p.publish(p.nodeID+"/"+topic, payload, cloudEventsJSONType)
 	}
 }
 
@@ -201,10 +202,9 @@ func (p *Publisher) NewResourceEvent(change Change) (CloudEvent, error) {
 	if change.ResourceID == "" {
 		return CloudEvent{}, fmt.Errorf("resource ID is required")
 	}
-	switch change.Operation {
-	case OperationCreate, OperationUpdate, OperationDelete:
-	default:
-		return CloudEvent{}, fmt.Errorf("unsupported resource operation %q", change.Operation)
+	capability, offered := CapabilityForResource(resourceType)
+	if !offered || !slices.Contains(capability.Operations, change.Operation) {
+		return CloudEvent{}, fmt.Errorf("unsupported resource type or operation %s.%s", resourceType, change.Operation)
 	}
 	if strings.TrimSpace(change.SubjectPath) == "" {
 		return CloudEvent{}, fmt.Errorf("resource subject path is required")
@@ -216,7 +216,7 @@ func (p *Publisher) NewResourceEvent(change Change) (CloudEvent, error) {
 	}
 	event := CloudEvent{
 		SpecVersion: cloudEventsVersion,
-		Type:        fmt.Sprintf("org.ogc.api.consys.%s.%s", resourceType, change.Operation),
+		Type:        fmt.Sprintf("org.ogc.api.csapi.%s.%s", resourceType, change.Operation),
 		Source:      p.apiRoot,
 		Subject:     p.absoluteURL(change.SubjectPath),
 		ID:          p.newID(),
@@ -242,21 +242,10 @@ func (p *Publisher) absoluteURL(path string) string {
 }
 
 func ResourceEventTopics(change Change) []string {
-	paths := []string{change.CollectionPath, change.SubjectPath}
-	topics := make([]string, 0, len(paths))
-	seen := make(map[string]struct{}, len(paths))
-	for _, path := range paths {
-		topic := topicForRESTPath(path, resourceEventsSuffix)
-		if topic == "" {
-			continue
-		}
-		if _, exists := seen[topic]; exists {
-			continue
-		}
-		seen[topic] = struct{}{}
-		topics = append(topics, topic)
+	if change.TopicPath == "" {
+		return nil
 	}
-	return topics
+	return []string{strings.Trim(change.TopicPath, "/")}
 }
 
 func CloudEventsContentType() string {
@@ -325,7 +314,7 @@ func (p *Publisher) recordBatchChange(change Change, resourceType string) error 
 		entry = &batch{
 			key:            key,
 			collectionPath: collectionPath,
-			topic:          topicForRESTPath(collectionPath, batchResourceEventsSuffix),
+			topic:          p.nodeID + "/" + change.CollectionTopicPath,
 			windowEnd:      windowEnd,
 		}
 		p.batches[key] = entry
@@ -448,7 +437,7 @@ func (p *Publisher) publishBatch(entry *batch, windowEnd, publishedAt time.Time)
 	}
 	event := CloudEvent{
 		SpecVersion:     cloudEventsVersion,
-		Type:            fmt.Sprintf("org.ogc.api.consys.%s.%s", entry.key.resourceType, entry.key.operation),
+		Type:            fmt.Sprintf("org.ogc.api.csapi.%s.%s", entry.key.resourceType, entry.key.operation),
 		Source:          p.apiRoot,
 		Subject:         p.absoluteURL(entry.collectionPath),
 		ID:              p.newID(),
@@ -468,20 +457,20 @@ func (p *Publisher) publishBatch(entry *batch, windowEnd, publishedAt time.Time)
 		p.logger.Error("Failed to marshal Pub/Sub Batch Resource Event", zap.Error(err))
 		return
 	}
-	p.transport.Publish(entry.topic, payload)
+	p.publish(entry.topic, payload, cloudEventsJSONType)
 }
 
-func topicForRESTPath(path, suffix string) string {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return ""
+// SetMessageLimit applies the same complete-representation limit as ingress.
+func (p *Publisher) SetMessageLimit(limit int64) { p.maxMessageBytes = limit }
+
+func (p *Publisher) Enabled() bool {
+	return p != nil && p.connected() && (p.cfg.ResourceData.Enabled || p.cfg.ResourceEvents.Enabled)
+}
+
+func (p *Publisher) publish(topic string, payload []byte, mediaType string) {
+	if int64(len(payload)) > p.maxMessageBytes {
+		p.logger.Error("MQTT representation exceeds message limit", zap.String("topic", topic), zap.Int("bytes", len(payload)))
+		return
 	}
-	if parsed, err := url.Parse(path); err == nil {
-		path = parsed.Path
-	}
-	path = strings.Trim(path, "/")
-	if path == "" {
-		return ""
-	}
-	return path + suffix
+	p.transport.Publish(topic, payload, mediaType)
 }

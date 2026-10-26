@@ -2,11 +2,12 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
-	"strings"
+	"net/url"
 
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/config"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/contractvalidation"
@@ -16,8 +17,6 @@ import (
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/model/formaters/json_formatters"
 	queryparams "github.com/SomethingCreativeStudios/connected-systems-go/internal/model/query_params"
-	"github.com/SomethingCreativeStudios/connected-systems-go/internal/mqtt"
-	"github.com/SomethingCreativeStudios/connected-systems-go/internal/pubsub"
 	"github.com/SomethingCreativeStudios/connected-systems-go/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -48,9 +47,9 @@ type CommandHandler struct {
 	logger            *zap.Logger
 	repo              *repository.CommandRepository
 	controlStreamRepo *repository.ControlStreamRepository
-	pubSubPublisher   *pubsub.Publisher
 	fc                *formaters.MultiFormatFormatterCollection[*domains.Command]
 	validator         *contractvalidation.Validator
+	creates           *CreateOperations
 }
 
 func NewCommandHandler(
@@ -58,18 +57,18 @@ func NewCommandHandler(
 	logger *zap.Logger,
 	repo *repository.CommandRepository,
 	controlStreamRepo *repository.ControlStreamRepository,
-	pubSubPublisher *pubsub.Publisher,
 	fc *formaters.MultiFormatFormatterCollection[*domains.Command],
 	validator *contractvalidation.Validator,
+	creates *CreateOperations,
 ) *CommandHandler {
 	return &CommandHandler{
 		cfg:               cfg,
 		logger:            logger,
 		repo:              repo,
 		controlStreamRepo: controlStreamRepo,
-		pubSubPublisher:   pubSubPublisher,
 		fc:                fc,
 		validator:         validator,
+		creates:           creates,
 	}
 }
 
@@ -190,31 +189,34 @@ func (h *CommandHandler) GetCommand(w http.ResponseWriter, r *http.Request) {
 // @Failure     500  {object}  map[string]string
 // @Router      /controlstreams/{controlStreamId}/commands [post]
 func (h *CommandHandler) CreateControlStreamCommand(w http.ResponseWriter, r *http.Request) {
-	controlStreamID := chi.URLParam(r, "controlStreamId")
-	if _, err := h.controlStreamRepo.GetByID(r.Context(), controlStreamID); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Control stream", "Failed to load control stream")
-		return
-	}
+	h.creates.HTTP(w, r, commandCreator, chi.URLParam(r, "controlStreamId"))
+}
 
-	cmd, err := h.fc.DeserializeContext(r.Context(), r.Header.Get("Content-Type"), r.Body)
-	if err != nil {
-		h.logger.Error("Failed to deserialize command", zap.Error(err))
-		writeDeserializeError(w, r, err)
-		return
-	}
+// commandFormatters builds the command representation HTTP serves, creates
+// decode and MQTT publishes.
+func commandFormatters(links *formaters.LinkResolver) *formaters.MultiFormatFormatterCollection[*domains.Command] {
+	return formaters.NewFormatterCollection(formaters.Adapt(json_formatters.NewCommandJSONFormatter(links)))
+}
 
-	cmd.ControlStreamID = controlStreamID
-	if err := h.repo.Create(r.Context(), cmd); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to create command")
-		return
-	}
-
-	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/commands/" + cmd.ID
-	w.Header().Set("Location", location)
-	w.WriteHeader(http.StatusCreated)
-
-	// Publish to MQTT (fire-and-forget)
-	h.publishCommandToMQTT(controlStreamID, cmd)
+// commandCreator creates a command in its control stream. The repository
+// validates the parameters against the control stream schema.
+var commandCreator = resourceCreator{
+	Kind: "command", Name: "Command", Contract: contractvalidation.Command, Codec: formatterCodec[*domains.Command](commandFormatters), ParentField: "controlstream@id",
+	Create: func(ctx context.Context, tx *repository.Repositories, in createInput) (string, error) {
+		if _, err := tx.ControlStream.GetByID(ctx, in.Parent); err != nil {
+			return "", parentError("controlstream", in.Parent, err)
+		}
+		command, err := commandFormatters(in.Links).DeserializeContext(ctx, in.Media, bytes.NewReader(in.Body))
+		if err != nil {
+			return "", decodeError(err)
+		}
+		command.ID = ""
+		command.ControlStreamID = in.Parent
+		if err := tx.Command.Create(ctx, command); err != nil {
+			return "", err
+		}
+		return "/commands/" + url.PathEscape(command.ID), nil
+	},
 }
 
 // UpdateCommand handles PUT /commands/{id}
@@ -261,7 +263,7 @@ func (h *CommandHandler) UpdateCommand(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 
 	// A Resource Data Message carries the complete updated command.
-	h.publishCommandToMQTT(existing.ControlStreamID, cmd)
+
 }
 
 // DeleteCommand handles DELETE /commands/{id}
@@ -336,7 +338,7 @@ func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http
 // @Description Creates a status report for a command.
 // @Tags        Commands
 // @Accept      json
-// @Param       cmdId   path  string                       true  "Command ID"
+// @Param       cmdId   path  string          true  "Command ID"
 // @Param       status  body  map[string]any  true  "Command status report"
 // @Success     201
 // @Failure     400  {object}  ValidationErrorResponse
@@ -344,35 +346,28 @@ func (h *CommandHandler) ListCommandStatusReports(w http.ResponseWriter, r *http
 // @Failure     500  {object}  map[string]string
 // @Router      /commands/{cmdId}/status [post]
 func (h *CommandHandler) CreateCommandStatusReport(w http.ResponseWriter, r *http.Request) {
-	commandID := chi.URLParam(r, "cmdId")
-	_, err := h.repo.GetByID(r.Context(), commandID)
-	if err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to load command")
-		return
-	}
+	h.creates.HTTP(w, r, commandStatusCreator, chi.URLParam(r, "cmdId"))
+}
 
-	body, err := validateRawRequestBody(r, h.validator, contractvalidation.CommandStatus)
-	if err != nil {
-		writeValidationError(w, r, err)
-		return
-	}
-	status, err := decodeCommandStatusPayload(bytes.NewReader(body))
-	if err != nil {
-		writeValidationError(w, r, err)
-		return
-	}
-
-	status.CommandID = commandID
-	status.ID = ""
-	if err := h.repo.CreateStatus(r.Context(), status); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Command status report", "Failed to create command status report")
-		return
-	}
-
-	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/commands/" + commandID + "/status/" + status.ID
-	w.Header().Set("Location", location)
-	w.WriteHeader(http.StatusCreated)
-	h.publishCommandStatusToMQTT(commandID, status)
+var commandStatusCreator = resourceCreator{
+	Kind: "commandstatus", Name: "Command status report", Contract: contractvalidation.CommandStatus, ParentField: "command@id",
+	// Encoded as GetCommandStatusReport serves it.
+	Codec: jsonCodec[*domains.CommandStatusReport]{shape: commandStatusResponse},
+	Create: func(ctx context.Context, tx *repository.Repositories, in createInput) (string, error) {
+		if _, err := tx.Command.GetByID(ctx, in.Parent); err != nil {
+			return "", parentError("command", in.Parent, err)
+		}
+		status, err := decodeCommandStatusPayload(bytes.NewReader(in.Body))
+		if err != nil {
+			return "", decodeError(err)
+		}
+		status.ID = ""
+		status.CommandID = in.Parent
+		if err := tx.Command.CreateStatus(ctx, status); err != nil {
+			return "", err
+		}
+		return "/commands/" + url.PathEscape(in.Parent) + "/status/" + url.PathEscape(status.ID), nil
+	},
 }
 
 // GetCommandStatusReport handles GET /commands/{id}/status/{statusId}
@@ -434,7 +429,7 @@ func (h *CommandHandler) UpdateCommandStatusReport(w http.ResponseWriter, r *htt
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-	h.publishCommandStatusToMQTT(commandID, status)
+
 }
 
 // DeleteCommandStatusReport handles DELETE /commands/{id}/status/{statusId}
@@ -500,7 +495,7 @@ func (h *CommandHandler) ListCommandResults(w http.ResponseWriter, r *http.Reque
 // @Description Creates one result resource for a command.
 // @Tags        Commands
 // @Accept      json
-// @Param       cmdId   path  string                 true  "Command ID"
+// @Param       cmdId   path  string          true  "Command ID"
 // @Param       result  body  map[string]any  true  "Command result"
 // @Success     201
 // @Failure     400  {object}  ValidationErrorResponse
@@ -508,33 +503,26 @@ func (h *CommandHandler) ListCommandResults(w http.ResponseWriter, r *http.Reque
 // @Failure     500  {object}  map[string]string
 // @Router      /commands/{cmdId}/result [post]
 func (h *CommandHandler) CreateCommandResult(w http.ResponseWriter, r *http.Request) {
-	commandID := chi.URLParam(r, "cmdId")
-	if _, err := h.repo.GetByID(r.Context(), commandID); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Command", "Failed to load command")
-		return
-	}
+	h.creates.HTTP(w, r, commandResultCreator, chi.URLParam(r, "cmdId"))
+}
 
-	body, err := validateRawRequestBody(r, h.validator, contractvalidation.CommandResult)
-	if err != nil {
-		writeValidationError(w, r, err)
-		return
-	}
-	result, err := decodeCommandResultPayload(bytes.NewReader(body))
-	if err != nil {
-		writeValidationError(w, r, err)
-		return
-	}
-
-	result.CommandID = commandID
-	result.ID = ""
-	if err := h.repo.CreateResult(r.Context(), result); err != nil {
-		writeRepositoryError(w, r, h.logger, err, "Command result", "Failed to create command result")
-		return
-	}
-
-	location := strings.TrimRight(h.cfg.API.BaseURL, "/") + "/commands/" + commandID + "/result/" + result.ID
-	w.Header().Set("Location", location)
-	w.WriteHeader(http.StatusCreated)
+var commandResultCreator = resourceCreator{
+	Kind: "commandresult", Name: "Command result", Contract: contractvalidation.CommandResult, Codec: jsonCodec[*domains.CommandResult]{}, ParentField: "command@id",
+	Create: func(ctx context.Context, tx *repository.Repositories, in createInput) (string, error) {
+		if _, err := tx.Command.GetByID(ctx, in.Parent); err != nil {
+			return "", parentError("command", in.Parent, err)
+		}
+		result, err := decodeCommandResultPayload(bytes.NewReader(in.Body))
+		if err != nil {
+			return "", decodeError(err)
+		}
+		result.ID = ""
+		result.CommandID = in.Parent
+		if err := tx.Command.CreateResult(ctx, result); err != nil {
+			return "", err
+		}
+		return "/commands/" + url.PathEscape(in.Parent) + "/result/" + url.PathEscape(result.ID), nil
+	},
 }
 
 // GetCommandResult handles GET /commands/{id}/result/{resultId}
@@ -697,27 +685,4 @@ func commandStatusResponse(status *domains.CommandStatusReport) *domains.Command
 	out := *status
 	out.ExecutionTime = common_shared.NonEmptyTimeRange(out.ExecutionTime)
 	return &out
-}
-
-// publishCommandToMQTT publishes a command to the MQTT topic for its control stream.
-// Non-blocking — errors are logged.
-func (h *CommandHandler) publishCommandToMQTT(controlStreamID string, cmd *domains.Command) {
-	if h.pubSubPublisher == nil || !h.pubSubPublisher.ResourceDataEnabled() {
-		return
-	}
-
-	payload, err := h.fc.Serialize(mediatype.JSON, cmd)
-	if err != nil {
-		h.logger.Error("Failed to serialize command for MQTT", zap.Error(err))
-		return
-	}
-
-	h.pubSubPublisher.PublishResourceData(mqtt.CommandTopic(controlStreamID), payload)
-}
-
-func (h *CommandHandler) publishCommandStatusToMQTT(commandID string, status *domains.CommandStatusReport) {
-	if h.pubSubPublisher == nil || !h.pubSubPublisher.ResourceDataEnabled() {
-		return
-	}
-	h.pubSubPublisher.PublishResourceData(mqtt.CommandStatusTopic(commandID), commandStatusResponse(status))
 }
